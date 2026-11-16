@@ -1,0 +1,22 @@
+[package]
+name = "trix-matrix"
+description = "Matrix protocol adapter for ms_trix (built on matrix-rust-sdk)"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+trix-core.workspace = true
+async-trait.workspace = true
+futures.workspace = true
+serde.workspace = true
+serde_json = "1"
+tokio = { version = "1", features = ["rt", "sync", "macros", "time"] }
+tracing = "0.1"
+matrix-sdk = { version = "0.19", features = ["sso-login", "markdown"] }
+rand = "0.9"
+mime = "0.3"
+mime_guess = "2"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

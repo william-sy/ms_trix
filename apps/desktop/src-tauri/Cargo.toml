@@ -1,0 +1,31 @@
+[package]
+name = "ms-trix-desktop"
+version = "0.1.0"
+description = "ms_trix desktop app"
+license = "AGPL-3.0-or-later"
+edition = "2024"
+rust-version = "1.90"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "ms_trix_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7.4", features = [] }
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+log = "0.4"
+tauri = { version = "2.12.5", features = [] }
+tauri-plugin-log = "2"
+trix-core = { path = "../../../crates/trix-core" }
+trix-matrix = { path = "../../../crates/trix-matrix" }
+tauri-plugin-opener = "2"
+keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
+futures = "0.3"
+percent-encoding = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-notification = "2"

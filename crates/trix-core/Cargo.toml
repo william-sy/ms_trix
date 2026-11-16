@@ -1,0 +1,12 @@
+[package]
+name = "trix-core"
+description = "Protocol-agnostic domain model and adapter interface for ms_trix"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+futures.workspace = true
+serde.workspace = true
+thiserror.workspace = true

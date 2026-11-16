@@ -1,0 +1,9 @@
+target/
+node_modules/
+dist/
+.DS_Store
+apps/desktop/src-tauri/gen/
+.smoke/
+*.tsbuildinfo
+# Screenshots contain real chats and colleagues names; kept local on purpose.
+Reference+pictures/

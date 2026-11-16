@@ -1,0 +1,27 @@
+{
+  "name": "ms-trix-desktop",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "node scripts/check-locales.mjs && tsc -b && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "check:locales": "node scripts/check-locales.mjs"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.12.5",
+    "dompurify": "^3.2.6",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.12.4",
+    "@types/react": "^18.3.23",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^4.5.0",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5"
+  }
+}
