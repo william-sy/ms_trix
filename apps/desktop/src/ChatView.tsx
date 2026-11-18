@@ -5,19 +5,21 @@ import { Highlight } from "./TitleBar";
 import { Lightbox, MediaBody, MediaMenu, useMediaUi, type MediaActions } from "./Media";
 import { EmojiPicker } from "./EmojiPicker";
 import { RichText } from "./RichText";
-import { CallIcon, CameraIcon, LockIcon, MoreIcon, SearchIcon } from "./Icons";
+import { CallIcon, CameraIcon, LockIcon, MoreIcon, SearchIcon, ThreadsIcon } from "./Icons";
+import { ThreadsPanel } from "./ThreadsPanel";
+import { IdentityBanner } from "./IdentityBanner";
 import { OrgAvatar } from "./OrgSwitcher";
 import { useOrg, useOrgs, type Action } from "./store";
 import { CloudFilePicker } from "./CloudFilePicker";
 import { Composer } from "./Composer";
 import { ForwardDialog } from "./ForwardDialog";
-import type { Attachment, CloudFile, Conversation, Message, Outgoing } from "./types";
+import type { Attachment, CloudFile, Conversation, Member, Message, Outgoing } from "./types";
 import { locale, t } from "./i18n";
 import { currentSettings } from "./settings";
 import { matches } from "./shortcuts";
 import { ChatEffect } from "./ChatEffect";
 import { useCalls } from "./calls";
-import { useTalkCalls } from "./talkCalls";
+import { lastCameraOn, useTalkCalls } from "./talkCalls";
 import { KeyHelpContext } from "./Security";
 import { SharedPane } from "./SharedPane";
 import { PollCard, PollDialog } from "./Poll";
@@ -58,6 +60,7 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
   const posts = conv.kind === "channel";
   const openProfile = useOpenProfile();
   const [panel, setPanel] = useState(false);
+  const [threadsOpen, setThreadsOpen] = useState(false);
   const [expandedRuns, setExpandedRuns] = useState<Set<string>>(new Set());
   const toggleRun = (id: string) => setExpandedRuns((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const [headMenu, setHeadMenu] = useState(false);
@@ -86,8 +89,16 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
   const [forwarding, setForwarding] = useState<Message | null>(null);
   const [threadId, setThreadId] = useState<string | null>(null);
   const mediaUi = useMediaUi();
-  const seen = seenLabel(conv, main(messages));
-  const readBy = useMemo(() => readPositions(conv, main(messages)), [conv, messages]);
+  // Who read which of your messages: Message status (⋯ or right-click on the message).
+  const [statusOf, setStatusOf] = useState<Message | null>(null);
+  // Own messages show WhatsApp-like ticks: ⏱ sending, ✓ sent, ✓✓ read by someone.
+  const seenUpTo = Math.max(-1, ...(conv.readers ?? []).map((r) => r.pos));
+  const tickOf = (m: Message): Tick | undefined =>
+    !m.fromMe || m.system ? undefined : m.status ?? (m.local ? "sent" : m.pos !== undefined && m.pos <= seenUpTo ? "seen" : "sent");
+  const localActions = (m: Message) => (m.local ? {
+    onRetry: () => dispatch({ type: "retrySend", id: conv.id, txn: m.local!.txn }),
+    onDiscard: () => dispatch({ type: "discardLocal", id: conv.id, txn: m.local!.txn }),
+  } : { ...messageActions(m), onStatus: m.fromMe && !m.system ? () => setStatusOf(m) : undefined });
   const byId = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);
   // Thread replies live in the thread panel; the main timeline shows a summary on the root.
   const mainList = main(messages);
@@ -157,6 +168,7 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
     setHasMore(true);
     setSearch(null);
     setPanel(false);
+    setThreadsOpen(false);
   }, [conv.id]);
 
   // Stick to the bottom for new messages; keep the reading position when older ones are prepended.
@@ -238,12 +250,15 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
     (async () => {
       setSeeking(true);
       try {
-        for (let page = 0; page < 100 && !cancelled; page++) {
+        // Bounded (about 10,000 messages back): a deleted message would otherwise page
+        // through the whole history.
+        for (let page = 0; page < 40 && !cancelled; page++) {
           const more = await onLoadOlder(250);
           setHasMore(more);
           await new Promise((r) => requestAnimationFrame(r)); // let the new messages render
           if (!more || messagesRef.current.some((x) => x.id === target)) break;
         }
+        if (!cancelled && !messagesRef.current.some((x) => x.id === target)) onNotice(t("chatView.jumpNotFound"));
       } catch (e) {
         onNotice(String(e));
       } finally {
@@ -293,6 +308,7 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
 
   const openThread = (id: string) => {
     setPanel(false);
+    setThreadsOpen(false);
     setThreadId(id);
     onLoadThread(id).catch((e) => onNotice(String(e)));
   };
@@ -343,20 +359,23 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
           {canCall && (inThisTalkCall ? (
             <button className="btn primary small call-join" onClick={() => talkCalls?.show()}><CallIcon /> {t("mxcall.show")}</button>
           ) : conv.callActive ? (
-            <button className="btn primary small call-join" title={t("call.joinTitle")} disabled={talkBusy} onClick={() => talkCalls?.start(conv.id, false)}><CallIcon /> {t("call.join")}</button>
+            <button className="btn primary small call-join" title={t("call.joinTitle")} disabled={talkBusy} onClick={() => talkCalls?.start(conv.id, lastCameraOn())}><CallIcon /> {t("call.join")}</button>
           ) : (
             <>
               <button className="icon-btn" title={t("mxcall.voice")} disabled={talkBusy} onClick={() => talkCalls?.start(conv.id, false)}><CallIcon /></button>
               <button className="icon-btn" title={t("mxcall.video")} disabled={talkBusy} onClick={() => talkCalls?.start(conv.id, true)}><CameraIcon /></button>
             </>
           ))}
+          {isLive && org.protocol === "matrix" && !isInvite && (
+            <button className={`icon-btn ${threadsOpen ? "on" : ""}`} title={t("threads.title")} onClick={() => { setPanel(false); setThreadId(null); setThreadsOpen(!threadsOpen); }}><ThreadsIcon /></button>
+          )}
           <button className={`icon-btn ${search !== null ? "on" : ""}`} title={t("chatView.search")} onClick={() => { setSearch(search === null ? "" : null); setHit(0); }}><SearchIcon /></button>
           <span className="emoji-anchor">
             <button className={`icon-btn ${headMenu ? "on" : ""}`} title={t("common.moreOptions")} onClick={(e) => { e.stopPropagation(); setHeadMenu(!headMenu); }}><MoreIcon /></button>
             {headMenu && (
               <div className="menu head-menu right" onClick={(e) => e.stopPropagation()}>
                 {conv.dmUser && <button className="menu-item" onClick={(e) => { setHeadMenu(false); openProfile(conv.orgId, conv.dmUser!, { x: e.clientX - 300, y: e.clientY }); }}>{t("chatView.menu.viewProfile")}</button>}
-                <button className="menu-item" onClick={() => { setHeadMenu(false); setThreadId(null); setPanel(true); }}>{conv.kind === "direct" ? t("chatView.menu.people") : t("chatView.menu.info")}</button>
+                <button className="menu-item" onClick={() => { setHeadMenu(false); setThreadId(null); setThreadsOpen(false); setPanel(true); }}>{conv.kind === "direct" ? t("chatView.menu.people") : t("chatView.menu.info")}</button>
                 {canCall && <button className="menu-item" onClick={() => { setHeadMenu(false); openCall(); }}>{t("talkcall.openInTalk")}</button>}
                 <div className="menu-sep" />
                 <div className="menu-title">{t("chatView.menu.notifications")}</div>
@@ -413,6 +432,7 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
           <SharedPane account={conv.orgId} conversation={conv.id} media={mediaUi.actions} onJump={(id) => { setTab("chat"); setJump(id); }} />
         )}
         {!isInvite && tab === "chat" && <>
+        {org.protocol === "matrix" && conv.encrypted && <IdentityBanner account={conv.orgId} conversation={conv.id} onNotice={onNotice} />}
         <div className="messages" ref={scroller} onScroll={onScroll}>
           <div className="history-edge">{loadingOlder ? t("chatView.loadingOlder") : hasMore ? "" : t("chatView.beginning")}</div>
           {mainList.map((m, i) => {
@@ -446,8 +466,8 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
               <Fragment key={m.id}>
               {newDay(prev, m) && <div className="day-divider"><span>{dayLabel(m.ts!)}</span></div>}
               <MessageItem m={m} account={conv.orgId} conversation={conv.id} grouped={grouped} lastInRun={!runContinues} quoted={m.replyTo ? byId.get(m.replyTo) ?? null : undefined}
-                thread={replies.get(m.id)} onReply={() => setReplyTo(m)} onThread={() => openThread(m.id)} media={mediaUi.actions} {...messageActions(m)}
-                status={seen && seen.messageId === m.id ? seen : undefined} readBy={readBy.get(m.id)} query={q || undefined} current={currentHit?.id === m.id} postMode={posts} />
+                thread={replies.get(m.id)} onReply={m.local ? undefined : () => setReplyTo(m)} onThread={m.local ? undefined : () => openThread(m.id)} media={mediaUi.actions} {...localActions(m)} tick={tickOf(m)}
+                query={q || undefined} current={currentHit?.id === m.id} postMode={posts} />
               </Fragment>
             );
           })}
@@ -495,15 +515,17 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
             {threadRoot ? <MessageItem m={threadRoot} account={conv.orgId} conversation={conv.id} grouped={false} media={mediaUi.actions} {...messageActions(threadRoot)} /> : <p className="empty">{t("chatView.threadRootMissing")}</p>}
             <div className="thread-divider">{t("chatView.threadReplies", { count: replies.get(threadId)?.length ?? 0 })}</div>
             {(replies.get(threadId) ?? []).map((m, i, all) => (
-              <MessageItem key={m.id} m={m} account={conv.orgId} conversation={conv.id} grouped={i > 0 && all[i - 1]!.sender === m.sender} media={mediaUi.actions} {...messageActions(m)} />
+              <MessageItem key={m.id} m={m} account={conv.orgId} conversation={conv.id} grouped={i > 0 && all[i - 1]!.sender === m.sender} media={mediaUi.actions} {...localActions(m)} tick={tickOf(m)} />
             ))}
           </div>
           <Composer key={threadId} placeholder={t("composer.threadPlaceholder")} onSend={(m) => send({ ...m, threadRoot: threadId })} onNotice={onNotice} getMembers={getMembers} />
         </aside>
       )}
 
+      {threadsOpen && !threadId && <ThreadsPanel account={conv.orgId} conversation={conv.id} onOpen={openThread} onClose={() => setThreadsOpen(false)} />}
       {panel && !threadId && <RoomPanel conv={conv} onClose={() => setPanel(false)} onNotice={onNotice} />}
       {cloudPicker && <CloudFilePicker accounts={cloudAccounts} onPick={attachCloud} onClose={() => setCloudPicker(false)} />}
+      {statusOf && <MessageStatus conv={conv} message={statusOf} onClose={() => setStatusOf(null)} />}
       {pollDialog && <PollDialog conversation={conv.id} onClose={() => setPollDialog(false)} onError={onNotice} />}
       {forwarding && <ForwardDialog message={forwarding} from={conv.id} convs={allConvs} onClose={() => setForwarding(null)}
         onDone={(name) => { setForwarding(null); onNotice(t("forward.done", { name })); }} />}
@@ -524,38 +546,41 @@ const typingLabel = (names: string[]) =>
     : names.length === 2 ? t("chatView.typing2", { a: names[0]!, b: names[1]! })
     : t("chatView.typingMany", { a: names[0]!, count: names.length - 1 });
 
-type ReaderInfo = NonNullable<Conversation["readers"]>[number];
-
-/** Element-style read markers: each person sits under the last message they've read. */
-function readPositions(conv: Conversation, messages: Message[]): Map<string, ReaderInfo[]> {
-  const out = new Map<string, ReaderInfo[]>();
-  const visible = messages.filter((m) => !m.system && m.pos !== undefined);
-  for (const reader of conv.readers ?? []) {
-    let at: Message | undefined;
-    for (const m of visible) {
-      if (m.pos! <= reader.pos) at = m;
-      else break;
-    }
-    if (at) out.set(at.id, [...(out.get(at.id) ?? []), reader]);
-  }
-  return out;
-}
-
-interface Seen {
-  messageId: string;
-  label: string;
-  readers: { name: string; avatar?: string | null }[];
-}
-
-/** Teams-style status under your latest message: Sent, or Seen (by whom). */
-function seenLabel(conv: Conversation, messages: Message[]): Seen | null {
-  const mine = [...messages].reverse().find((m) => m.fromMe && !m.system);
-  if (!mine) return null;
-  const readers = (conv.readers ?? []).filter((r) => mine.pos !== undefined && r.pos >= mine.pos);
-  if (readers.length === 0) return { messageId: mine.id, label: t("chatView.sent"), readers };
-  if (conv.kind === "direct") return { messageId: mine.id, label: t("chatView.seen"), readers };
-  const names = readers.map((r) => r.name.split(" ")[0]);
-  return { messageId: mine.id, label: t("chatView.seenBy", { names: names.length <= 3 ? names.join(", ") : `${names.slice(0, 3).join(", ")} +${names.length - 3}` }), readers };
+/** Who has read one of your messages, and who hasn't yet (the chat's other members). */
+function MessageStatus({ conv, message, onClose }: { conv: Conversation; message: Message; onClose: () => void }) {
+  const org = useOrg(conv.orgId);
+  const [members, setMembers] = useState<Member[] | null>(isLive ? null : []);
+  useEffect(() => {
+    if (isLive) backend.members(conv.id).then(setMembers).catch(() => setMembers([]));
+  }, [conv.id]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const read = (conv.readers ?? []).filter((r) => message.pos !== undefined && r.pos >= message.pos && r.userId !== org.userId);
+  const unread = (members ?? []).filter((p) => p.userId !== org.userId && !read.some((r) => r.userId === p.userId));
+  const person = (p: { userId: string; name: string; avatar?: string | null }) => (
+    <div key={p.userId} className="status-person">
+      <Avatar account={conv.orgId} media={p.avatar ?? undefined} name={p.name} className="small" />
+      <span>{p.name}</span>
+    </div>
+  );
+  return (
+    <div className="login-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="login-card message-status">
+        <button className="icon-btn close" onClick={onClose} title={t("common.closeEsc")}>✕</button>
+        <h1>{t("status.title")}</h1>
+        <p className="status-quote">{message.media ? `📎 ${message.media.name}` : message.body}</p>
+        <p className="muted">{t("status.sent", { time: message.time })}</p>
+        <h4>✓✓ {t("status.read", { count: read.length })}</h4>
+        {read.length ? read.map(person) : <p className="muted">{t("status.nobodyYet")}</p>}
+        <h4>✓ {t("status.notRead", { count: unread.length })}</h4>
+        {members === null ? <p className="muted">{t("common.loading")}</p> : unread.length ? unread.map(person) : <p className="muted">{t("status.everyone")}</p>}
+        <p className="hint">{t("status.hint")}</p>
+      </div>
+    </div>
+  );
 }
 
 // Messages that are only a few emoji are shown large, like Element does.
@@ -587,6 +612,8 @@ function dayLabel(ts: number): string {
   return d.toLocaleDateString(locale(), { weekday: "long", day: "numeric", month: "long", ...(d.getFullYear() !== new Date(now).getFullYear() ? { year: "numeric" } : {}) });
 }
 
+type Tick = "sending" | "sent" | "seen" | "failed";
+
 interface ItemProps {
   conversation?: string;
   m: Message;
@@ -602,11 +629,15 @@ interface ItemProps {
   onReact?: (emoji: string) => void;
   onEdit?: (text: string) => void;
   onDelete?: () => void;
+  /** Our own message's state: ⏱ sending, ✓ sent, ✓✓ read, or not sent. */
+  tick?: Tick;
+  /** A message that couldn't be sent: try again, or drop it. */
+  onRetry?: () => void;
+  onDiscard?: () => void;
   onForward?: () => void;
   media: MediaActions;
-  status?: Seen;
-  /** People whose read marker is at this message. */
-  readBy?: ReaderInfo[];
+  /** Your own message: who has read it. */
+  onStatus?: () => void;
   postMode?: boolean;
   query?: string;
   current?: boolean;
@@ -614,7 +645,7 @@ interface ItemProps {
 
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 
-function MessageItem({ m, account, conversation, grouped, lastInRun = true, quoted, thread, onReply, onThread, onReact, onEdit, onDelete, onForward, media, status, readBy, query, current, postMode }: ItemProps) {
+function MessageItem({ m, account, conversation, grouped, lastInRun = true, quoted, thread, onReply, onThread, onReact, onEdit, onDelete, onForward, media, onStatus, query, current, postMode, tick, onRetry, onDiscard }: ItemProps) {
   const keyHelp = useContext(KeyHelpContext)(account);
   const visual = m.media?.kind === "image" || m.media?.kind === "sticker";
   const openProfile = useOpenProfile();
@@ -632,6 +663,17 @@ function MessageItem({ m, account, conversation, grouped, lastInRun = true, quot
     const up = r.bottom + height + 8 > window.innerHeight;
     setPopupStyle(up ? { position: "fixed", left, right: "auto", bottom: window.innerHeight - r.top + 4, top: "auto" } : { position: "fixed", left, right: "auto", top: r.bottom + 4, bottom: "auto" });
     setPopup(kind);
+  };
+  // Right-click on a message: the same menu as ⋯, at the pointer.
+  const onContextMenu = (e: ReactMouseEvent) => {
+    if (editing || m.deleted || m.encrypted || m.local || !(onReply || onReact || onStatus)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const [width, height] = [180, 200];
+    const left = Math.max(8, Math.min(e.clientX, window.innerWidth - width - 8));
+    const up = e.clientY + height + 8 > window.innerHeight;
+    setPopupStyle(up ? { position: "fixed", left, right: "auto", bottom: window.innerHeight - e.clientY, top: "auto" } : { position: "fixed", left, right: "auto", top: e.clientY, bottom: "auto" });
+    setPopup("more");
   };
   const canEdit = m.fromMe && !m.media && !m.deleted && !!onEdit;
   const canDelete = m.fromMe && !m.deleted && !!onDelete;
@@ -651,7 +693,7 @@ function MessageItem({ m, account, conversation, grouped, lastInRun = true, quot
 
   return (
     <div className={`msg-row ${m.fromMe ? "mine" : ""}`}>
-    <div data-msg={m.id} className={`msg ${m.fromMe ? "mine" : ""} ${grouped ? "grouped" : ""} ${current ? "current-hit" : ""}`}>
+    <div data-msg={m.id} className={`msg ${m.fromMe ? "mine" : ""} ${grouped ? "grouped" : ""} ${current ? "current-hit" : ""}`} onContextMenu={onContextMenu}>
       {!m.fromMe && (
         <span className="msg-avatar">
           {grouped ? m.ts && <span className="hover-time">{shortTime(m.ts)}</span> : (
@@ -688,7 +730,8 @@ function MessageItem({ m, account, conversation, grouped, lastInRun = true, quot
                   {quoted ? <><b>{quoted.sender}</b><span>{quoted.media ? `📎 ${quoted.media.name}` : quoted.deleted ? t("message.deletedShort") : quoted.body}</span></> : <span>{t("message.replyToEarlier")}</span>}
                 </div>
               )}
-              {m.encrypted ? <span className="waiting-key" title={t("message.waitingKeyHint")}>{t("message.waitingKey")}
+              {m.untrusted ? <span className="waiting-key" title={t("message.untrustedHint")}>{t("message.untrusted")}</span>
+                : m.encrypted ? <span className="waiting-key" title={t("message.waitingKeyHint")}>{t("message.waitingKey")}
                   {keyHelp && <> · <button className="link" onClick={keyHelp.fix}>{keyHelp.label}</button></>}</span>
                 : m.deleted ? <span>{t("message.deleted")}</span>
                 : m.poll ? <PollCard conversation={conversation ?? ""} poll={m.poll} question={m.body} />
@@ -698,9 +741,15 @@ function MessageItem({ m, account, conversation, grouped, lastInRun = true, quot
                   </>
                 : <RichText body={m.body} html={m.html} account={account} query={query} />}
               {m.edited && !m.deleted && <span className="edited" title={t("message.editedTitle")}>{t("message.edited")}</span>}
+              {tick && tick !== "failed" && <span className={`msg-tick ${tick}`} title={t(`message.tick.${tick}`)}>{tick === "sending" ? "⏱" : tick === "seen" ? "✓✓" : "✓"}</span>}
             </div>
           )}
-          {!editing && !m.deleted && !m.encrypted && (onReply || onThread || onReact) && (
+          {tick === "failed" && (
+            <div className="msg-failed" role="alert">
+              {t("message.notSent")} · <button className="link" onClick={onRetry}>{t("message.retry")}</button> · <button className="link" onClick={onDiscard}>{t("message.delete")}</button>
+            </div>
+          )}
+          {!editing && !m.deleted && !m.encrypted && (onReply || onThread || onReact || onStatus) && (
             <div className={`msg-actions ${popup ? "pinned" : ""}`}>
               {onReact && QUICK_REACTIONS.map((e) => (
                 <button key={e} className="icon-btn quick" title={t("message.reactWith", { emoji: e })} onClick={() => onReact(e)}>{e}</button>
@@ -715,12 +764,13 @@ function MessageItem({ m, account, conversation, grouped, lastInRun = true, quot
               {onReply && <button className="icon-btn" title={t("message.reply")} onClick={onReply}>↩</button>}
               {onThread && <button className="icon-btn" title={t("chatView.replyInThread")} onClick={onThread}>💬</button>}
               <span className="emoji-anchor">
-                <button className={`icon-btn ${popup === "more" ? "on" : ""}`} title={t("common.moreOptions")} onClick={(e) => openPopup("more", e, 160, 160)}>⋯</button>
+                <button className={`icon-btn ${popup === "more" ? "on" : ""}`} title={t("common.moreOptions")} onClick={(e) => openPopup("more", e, 200, 180)}>⋯</button>
                 {popup === "more" && (
                   <div className="menu more-menu" style={popupStyle} onClick={(e) => e.stopPropagation()}>
                     {canEdit && <button className="menu-item" onClick={() => { setDraft(m.body); setEditing(true); setPopup(null); }}>{t("message.edit")}</button>}
                     {onForward && !m.poll && <button className="menu-item" onClick={() => { setPopup(null); onForward(); }}>{t("forward.action")}</button>}
                     {!m.media && <button className="menu-item" onClick={() => { navigator.clipboard.writeText(m.body).catch(() => {}); setPopup(null); }}>{t("message.copy")}</button>}
+                    {onStatus && <button className="menu-item" onClick={() => { setPopup(null); onStatus(); }}>{t("status.title")}</button>}
                     {canDelete && <button className="menu-item danger" onClick={() => { setPopup(null); onDelete?.(); }}>{t("message.delete")}</button>}
                   </div>
                 )}
@@ -737,7 +787,6 @@ function MessageItem({ m, account, conversation, grouped, lastInRun = true, quot
             ))}
           </div>
         )}
-        {status && <div className="seen">{status.label}</div>}
         {postMode && lastInRun && !thread?.length && onThread && !m.deleted && <button className="thread-summary" onClick={onThread}>{t("message.replyPost")}</button>}
         {thread && thread.length > 0 && (
           <button className="thread-summary" onClick={onThread}>
@@ -746,13 +795,6 @@ function MessageItem({ m, account, conversation, grouped, lastInRun = true, quot
         )}
       </div>
     </div>
-    {/* Element-style read markers in the right margin: who read up to here. */}
-    {!!readBy?.length && (
-      <div className="read-markers" title={t("chatView.readUpTo", { names: readBy.map((r) => r.name).join(", ") })}>
-        {readBy.slice(0, 3).map((r) => <Avatar key={r.userId} account={account} media={r.avatar ?? undefined} name={r.name} className="tiny" />)}
-        {readBy.length > 3 && <span className="more-readers">+{readBy.length - 3}</span>}
-      </div>
-    )}
     </div>
   );
 }

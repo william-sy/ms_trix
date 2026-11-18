@@ -1072,6 +1072,7 @@ impl ProtocolAdapter for TalkAdapter {
             members,
             // Talk room types: 1 one-to-one, 2 group (invite only), 3 public (link).
             join_rule: if room["type"] == 3 { "public" } else { "invite" }.to_owned(),
+            in_team: false,
             can_set_join_rule: moderator && matches!(room["type"].as_i64(), Some(2 | 3)),
             can_encrypt: false,
             can_set_alias: false,

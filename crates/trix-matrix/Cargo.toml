@@ -16,6 +16,8 @@ serde_json = "1"
 tokio = { version = "1", features = ["rt", "sync", "macros", "time", "net", "io-util"] }
 tracing = "0.1"
 matrix-sdk = { version = "0.19", features = ["sso-login", "markdown", "qrcode"] }
+# Same version matrix-sdk uses; its crypto settings (invisible crypto).
+matrix-sdk-base = "0.19.1"
 # Same version matrix-sdk-qrcode uses; renders the verification QR code as SVG.
 qrcode = { version = "0.14.1", default-features = false, features = ["svg"] }
 # Same version matrix-sdk uses; for watching upload progress.

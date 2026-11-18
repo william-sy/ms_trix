@@ -459,6 +459,18 @@ pub trait ProtocolAdapter: Send + Sync {
     async fn set_server_acl(&self, _conversation: &ConversationId, _allow: Vec<String>, _deny: Vec<String>) -> Result<()> {
         Err(AdapterError::Unsupported("server access lists"))
     }
+    /// The threads in a conversation, newest first; `mine`: only those you're part of.
+    async fn threads(&self, _conversation: &ConversationId, _mine: bool) -> Result<Vec<ThreadInfo>> {
+        Err(AdapterError::Unsupported("thread lists"))
+    }
+    /// People in the conversation whose encryption identity changed since you last saw it.
+    async fn identity_warnings(&self, _conversation: &ConversationId) -> Result<Vec<IdentityWarning>> {
+        Ok(vec![])
+    }
+    /// Accepts someone's new identity (and withdraws an old verification), clearing the warning.
+    async fn accept_identity(&self, _user_id: &str) -> Result<()> {
+        Err(AdapterError::Unsupported("identity warnings"))
+    }
     /// Adds a room to a team (Matrix: an m.space.child event in the space) or takes it out.
     async fn set_team_room(&self, _team: &ConversationId, _room: &str, _add: bool) -> Result<()> {
         Err(AdapterError::Unsupported("editing teams"))

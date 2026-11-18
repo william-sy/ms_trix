@@ -48,7 +48,11 @@ export function SpeakerPicker() {
       <span className="speaker-picker">
         <select value={String(mac.find((o) => o.current)?.id ?? "")} onChange={(e) => {
           const id = Number(e.target.value);
-          void backend.setAudioOutput(id).then(() => setMac(mac.map((o) => ({ ...o, current: o.id === id })))).catch(() => {});
+          void backend.setAudioOutput(id).then(() => {
+            setMac(mac.map((o) => ({ ...o, current: o.id === id })));
+            // Playing calls reconnect their sound to the new output.
+            window.dispatchEvent(new Event("trix:audio-output"));
+          }).catch(() => {});
         }}>
           {mac.map((o) => <option key={o.id} value={String(o.id)}>{o.name}</option>)}
         </select>

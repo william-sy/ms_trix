@@ -95,6 +95,7 @@ interface MessageWire {
   edited: boolean;
   deleted: boolean;
   encrypted: boolean;
+  untrusted: boolean;
   event: RoomEvent | null;
 }
 
@@ -165,6 +166,8 @@ export interface RoomDetails {
   canInvite: boolean;
   members: RoomMember[];
   joinRule: "public" | "invite" | "knock" | "restricted";
+  /** In a team, so "members of the team" can be chosen. */
+  inTeam: boolean;
   canSetJoinRule: boolean;
   canEncrypt: boolean;
   canSetAlias: boolean;
@@ -335,6 +338,7 @@ const toMessage = (m: MessageWire): Message => ({
   edited: m.edited,
   deleted: m.deleted,
   encrypted: m.encrypted,
+  untrusted: m.untrusted,
   event: m.event ?? undefined,
   system: !!m.event,
   ...(m.event ? { body: describeEvent(m.event) } : {}),
@@ -348,6 +352,27 @@ export const mediaUrl = (account: string, media: string, size?: number, mime?: s
 };
 
 // ---- Commands ----
+
+/** A thread in a conversation (the list of threads). */
+export interface ThreadInfo {
+  root: string;
+  senderName: string;
+  senderAvatar: string | null;
+  preview: string;
+  sentAt: number;
+  replies: number;
+  latestName: string | null;
+  latestAt: number | null;
+  mine: boolean;
+}
+
+/** Someone whose encryption identity changed (invisible crypto). */
+export interface IdentityWarning {
+  userId: string;
+  name: string;
+  /** You had verified them; sending stops until you verify again or withdraw it. */
+  wasVerified: boolean;
+}
 
 /** Fired (on window) after a calendar change made in the app; meeting reminders look again. */
 export const CALENDAR_CHANGED = "trix:calendar-changed";
@@ -402,6 +427,9 @@ export const backend = {
   /** Your own ringtone: saved in the app's data folder / read back. */
   saveRingtone: (data: Uint8Array) => invoke<void>("save_ringtone", data),
   ringtone: () => invoke<ArrayBuffer>("ringtone"),
+  /** Your own moving camera background (video or GIF): saved in the app's data folder / read back. */
+  saveBackgroundVideo: (data: Uint8Array) => invoke<void>("save_background_video", data),
+  backgroundVideo: () => invoke<ArrayBuffer>("background_video"),
   /** Meeting reminders (JSON list, `count` rows) in a small window on top of everything. */
   openReminder: (reminders: string, count: number) => invoke<void>("open_reminder", { reminders, count }),
   closeReminder: () => invoke<void>("close_reminder"),
@@ -418,6 +446,7 @@ export const backend = {
   popOutCall: () => invoke<void>("pop_out_call"),
   popInCall: () => invoke<void>("pop_in_call"),
   dockCallWindow: (minimized: boolean, height: number) => invoke<void>("dock_call_window", { minimized, height }),
+  callPageSize: (width: number, height: number) => invoke<void>("call_page_size", { width, height }),
   focusCallWindow: () => invoke<void>("focus_call_window"),
   closeCallWindow: () => invoke<void>("close_call_window"),
   callWindowState: (conversation: string | null) => invoke<void>("call_window_state", { conversation }),
@@ -437,8 +466,9 @@ export const backend = {
   loginOauth: (homeserver: string) => invoke<AccountWire>("login_oauth", { homeserver }),
   loginTalk: (server: string) => invoke<AccountWire>("login_talk", { server }),
   signOut: (account: string) => invoke<void>("sign_out", { account }),
+  /** Resolves to the new message's id. */
   send: (key: string, m: Outgoing) =>
-    invoke<void>("send", { key, text: m.text, emote: !!m.emote, replyTo: m.replyTo ?? null, threadRoot: m.threadRoot ?? null, mentions: m.mentions ?? [], html: m.html ?? null, msgtype: m.msgtype ?? null, emotes: m.emotes ?? null }),
+    invoke<string>("send", { key, text: m.text, emote: !!m.emote, replyTo: m.replyTo ?? null, threadRoot: m.threadRoot ?? null, mentions: m.mentions ?? [], html: m.html ?? null, msgtype: m.msgtype ?? null, emotes: m.emotes ?? null }),
   members: (key: string) => invoke<Member[]>("members", { key }),
   runCommand: (key: string, name: string, args: string) => invoke<CommandOutput>("run_command", { key, name, args }),
   pickFiles: () => invoke<PickedFile[]>("pick_files"),
@@ -457,7 +487,8 @@ export const backend = {
   setTeamRoom: (team: string, room: string, add: boolean) => invoke<void>("set_team_room", { team, room, add }),
   setTeamOrder: (team: string, order: string | null) => invoke<void>("set_team_order", { team, order }),
   enableEncryption: (key: string) => invoke<void>("enable_encryption", { key }),
-  setJoinRule: (key: string, rule: "public" | "invite") => invoke<void>("set_join_rule", { key, rule }),
+  /** "restricted": members of the team(s) the room is in can join. */
+  setJoinRule: (key: string, rule: "public" | "invite" | "restricted") => invoke<void>("set_join_rule", { key, rule }),
   setRoomAlias: (key: string, name: string) => invoke<string>("set_room_alias", { key, name }),
   setArchived: (key: string, value: boolean) => invoke<void>("set_archived", { key, value }),
   loadOlder: (key: string, limit: number | null = null) => invoke<boolean>("load_older", { key, limit }),
@@ -472,8 +503,14 @@ export const backend = {
   /** Leave a chat, or decline an invite. */
   leave: (key: string) => invoke<void>("leave", { key }),
   searchUsers: (account: string, term: string) => invoke<Member[]>("search_users", { account, term }),
-  createRoom: (account: string, room: { name: string; topic: string | null; public: boolean; encrypted: boolean; alias: string | null; invite: string[] }) =>
+  /** A room; `space`: a team; `team`: a channel in that team (its room id). */
+  createRoom: (account: string, room: { name: string; topic: string | null; public: boolean; encrypted: boolean; alias: string | null; invite: string[]; space?: boolean; team?: string | null }) =>
     invoke<CommandOutput>("create_room", { account, room }),
+  /** macOS: the system spell checker's correction for the last word of `text`. */
+  spellSuggestion: (text: string) => invoke<string | null>("spell_suggestion", { text }),
+  threads: (key: string, mine: boolean) => invoke<ThreadInfo[]>("threads", { key, mine }),
+  identityWarnings: (key: string) => invoke<IdentityWarning[]>("identity_warnings", { key }),
+  acceptIdentity: (account: string, userId: string) => invoke<void>("accept_identity", { account, userId }),
   createChat: (account: string, users: string[], name: string | null) => invoke<CommandOutput>("create_chat", { account, users, name }),
   roomPreview: (account: string, address: string, via: string[]) => invoke<DirectoryRoom>("room_preview", { account, address, via }),
   knock: (account: string, address: string, via: string | null = null) => invoke<void>("knock", { account, address, via }),

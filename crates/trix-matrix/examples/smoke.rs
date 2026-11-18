@@ -51,6 +51,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     MessageBody::File { name, .. } => format!("📎 {name}"),
                     MessageBody::Redacted => "(deleted)".to_owned(),
                     MessageBody::Encrypted => "(waiting for key)".to_owned(),
+                    MessageBody::Untrusted => "(from an unverified device)".to_owned(),
                     MessageBody::Event { kind, actor, .. } => format!("({actor}: {kind:?})"),
                 };
                 let thread = if m.thread_root.is_some() { " (thread)" } else { "" };

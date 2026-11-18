@@ -106,7 +106,7 @@ fn doc_of(m: &Message, body: &MessageBody) -> Option<Doc> {
         MessageBody::File { name, caption, media, kind, mime, .. } => {
             (text_of(name, caption.as_deref()), Some(DocMedia { id: media.clone(), kind: kind_name(*kind).to_owned(), name: name.clone(), mime: mime.clone() }))
         }
-        MessageBody::Redacted | MessageBody::Event { .. } | MessageBody::Encrypted => return None,
+        MessageBody::Redacted | MessageBody::Event { .. } | MessageBody::Encrypted | MessageBody::Untrusted => return None,
     };
     (!text.trim().is_empty()).then(|| Doc { conversation: m.conversation.key(), event_id: m.id.0.clone(), sender_name: m.sender_name.clone(), from_me: m.from_me, body: text, ts: m.sent_at, media })
 }
@@ -174,7 +174,7 @@ pub async fn crawl(app: AppHandle, adapter: Arc<dyn ProtocolAdapter>) {
                         if removed.contains(&m.id.0) {
                             continue;
                         }
-                        if matches!(m.body, MessageBody::Encrypted) {
+                        if m.body.is_placeholder() {
                             if state.undecrypted.len() < MAX_UNDECRYPTED {
                                 state.undecrypted.push(m.id.0.clone());
                             }
@@ -240,7 +240,7 @@ async fn retry_undecrypted(app: &AppHandle, index: &Arc<SearchIndex>, adapter: &
             let mut readable = HashSet::new();
             for event in events {
                 if let AdapterEvent::Message(m) = event {
-                    if !matches!(m.body, MessageBody::Encrypted) {
+                    if !m.body.is_placeholder() {
                         readable.insert(m.id.0.clone());
                         docs.extend(doc_of(&m, &m.body));
                     }

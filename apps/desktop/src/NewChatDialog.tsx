@@ -8,8 +8,10 @@ import { t } from "./i18n";
 interface Props {
   /** Preselected account (the org in view), else the first one. */
   orgId?: string;
-  /** Start with the chat or the room form. */
-  initialMode?: "chat" | "room";
+  /** Start with the chat, room or team form. */
+  initialMode?: "chat" | "room" | "team";
+  /** Create a channel in this team (Matrix space) instead. */
+  team?: { account: string; spaceId: string; name: string };
   onClose: () => void;
   /** Called with the conversation to open once it has synced. */
   onOpen: (key: string) => void;
@@ -18,16 +20,18 @@ interface Props {
 const ROOM_ADDRESS = /^[#!][^\s:]+:\S+$/;
 const USER_ID = /^@[^\s:]+:\S+$/;
 
-export function NewChatDialog({ orgId, initialMode = "chat", onClose, onOpen }: Props) {
-  const orgs = useOrgs();
-  const [mode, setMode] = useState(initialMode);
+export function NewChatDialog({ orgId, initialMode = "chat", team, onClose, onOpen }: Props) {
+  const allOrgs = useOrgs();
+  const [mode, setMode] = useState<"chat" | "room" | "team">(team ? "room" : initialMode);
+  // Teams (and channels in them) are Matrix spaces.
+  const orgs = mode === "team" ? allOrgs.filter((o) => o.protocol === "matrix") : allOrgs;
   // Room form; people picked below are invited.
   const [roomName, setRoomName] = useState("");
   const [topic, setTopic] = useState("");
   const [isPublic, setPublic] = useState(false);
-  const [encrypted, setEncrypted] = useState(true);
+  const [encrypted, setEncrypted] = useState(mode !== "team");
   const [alias, setAlias] = useState("");
-  const [account, setAccount] = useState(orgId ?? orgs[0]?.id ?? "");
+  const [account, setAccount] = useState(team?.account ?? (orgs.some((o) => o.id === orgId) ? orgId! : orgs[0]?.id ?? ""));
   const isMatrix = orgs.find((o) => o.id === account)?.protocol === "matrix";
   const [term, setTerm] = useState("");
   const [results, setResults] = useState<Member[]>([]);
@@ -76,8 +80,10 @@ export function NewChatDialog({ orgId, initialMode = "chat", onClose, onOpen }: 
   };
 
   const createRoom = () => run(() => backend.createRoom(account, {
-    name: roomName.trim(), topic: topic.trim() || null, public: isPublic, encrypted: encrypted && isMatrix, alias: isPublic && isMatrix ? alias.trim() || null : null, invite: picked.map((p) => p.userId),
+    name: roomName.trim(), topic: topic.trim() || null, public: isPublic, encrypted: encrypted && isMatrix && mode !== "team", alias: isPublic && isMatrix ? alias.trim() || null : null, invite: picked.map((p) => p.userId),
+    space: mode === "team", team: team?.spaceId ?? null,
   }));
+  const formTitle = team ? t("newChannel.title", { team: team.name }) : mode === "team" ? t("newTeam.title") : mode === "room" ? t("newRoom.title") : t("newChat.title");
   const start = () => run(() => backend.createChat(account, picked.map((p) => p.userId), picked.length > 1 ? name : null));
   const join = () => run(() => backend.joinRoom(account, query));
 
@@ -85,14 +91,16 @@ export function NewChatDialog({ orgId, initialMode = "chat", onClose, onOpen }: 
     <div className="login-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="login-card new-chat">
         <button className="icon-btn close" onClick={onClose} title={t("common.closeEsc")}>✕</button>
-        <h1>{mode === "room" ? t("newRoom.title") : t("newChat.title")}</h1>
-        <div className="segmented" role="radiogroup">
-          {(["chat", "room"] as const).map((m) => (
-            <button key={m} role="radio" aria-checked={mode === m} className={mode === m ? "on" : ""} onClick={() => setMode(m)}>{t(`newChat.mode.${m}`)}</button>
-          ))}
-        </div>
+        <h1>{formTitle}</h1>
+        {mode !== "team" && !team && (
+          <div className="segmented" role="radiogroup">
+            {(["chat", "room"] as const).map((m) => (
+              <button key={m} role="radio" aria-checked={mode === m} className={mode === m ? "on" : ""} onClick={() => setMode(m)}>{t(`newChat.mode.${m}`)}</button>
+            ))}
+          </div>
+        )}
 
-        {orgs.length > 1 && (
+        {orgs.length > 1 && !team && (
           <label>
             {t("newChat.org")}
             <select value={account} onChange={(e) => { setAccount(e.target.value); setPicked([]); }}>
@@ -101,10 +109,10 @@ export function NewChatDialog({ orgId, initialMode = "chat", onClose, onOpen }: 
           </label>
         )}
 
-        {mode === "room" && (
+        {(mode === "room" || mode === "team") && (
           <>
             <label>
-              {t("newRoom.name")}
+              {t(mode === "team" ? "newTeam.name" : "newRoom.name")}
               <input autoFocus value={roomName} onChange={(e) => setRoomName(e.target.value)} placeholder={t("newRoom.namePlaceholder")} />
             </label>
             <label>
@@ -116,7 +124,7 @@ export function NewChatDialog({ orgId, initialMode = "chat", onClose, onOpen }: 
               <div className="segmented small" role="radiogroup">
                 {([false, true] as const).map((p) => (
                   <button key={String(p)} role="radio" aria-checked={isPublic === p} className={isPublic === p ? "on" : ""}
-                    onClick={() => { setPublic(p); setEncrypted(!p); }}>{t(p ? "room.join.public" : "room.join.invite")}</button>
+                    onClick={() => { setPublic(p); setEncrypted(!p && mode !== "team"); }}>{t(p ? "room.join.public" : team ? "room.join.team" : "room.join.invite")}</button>
                 ))}
               </div>
             </div>
@@ -126,18 +134,19 @@ export function NewChatDialog({ orgId, initialMode = "chat", onClose, onOpen }: 
                 <span className="alias-edit">#<input value={alias} onChange={(e) => setAlias(e.target.value.replace(/[\s#:]/g, ""))} placeholder={t("newRoom.aliasPlaceholder")} /></span>
               </label>
             )}
-            {isMatrix && (
+            {isMatrix && mode !== "team" && (
               <label className="toggle-row">
                 <input type="checkbox" checked={encrypted} onChange={(e) => setEncrypted(e.target.checked)} />
                 <span>{t("newRoom.encrypted")}</span>
               </label>
             )}
-            {isMatrix && isPublic && encrypted && <p className="hint">{t("newRoom.publicEncryptedHint")}</p>}
+            {isMatrix && isPublic && encrypted && mode !== "team" && <p className="hint">{t("newRoom.publicEncryptedHint")}</p>}
+            {mode === "team" && <p className="hint">{t("newTeam.hint")}</p>}
           </>
         )}
 
         <label>
-          {mode === "room" ? t("newRoom.invite") : t("newChat.to")}
+          {mode !== "chat" ? t("newRoom.invite") : t("newChat.to")}
           <div className="to-field">
             {picked.map((p) => (
               <span key={p.userId} className="chip" title={p.userId}>
@@ -178,9 +187,9 @@ export function NewChatDialog({ orgId, initialMode = "chat", onClose, onOpen }: 
           </label>
         )}
 
-        {mode === "room" && (
-          <button className="btn primary wide" disabled={busy || !roomName.trim()} onClick={createRoom}>
-            {busy ? t("newChat.starting") : t("newRoom.create")}
+        {mode !== "chat" && (
+          <button className="btn primary wide" disabled={busy || !roomName.trim() || !account} onClick={createRoom}>
+            {busy ? t("newChat.starting") : t(team ? "newChannel.create" : mode === "team" ? "newTeam.create" : "newRoom.create")}
           </button>
         )}
         {mode === "chat" && !ROOM_ADDRESS.test(query) && (

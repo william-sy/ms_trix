@@ -9,6 +9,7 @@ const Svg = ({ children, size = 20 }: { children: ReactNode; size?: number }) =>
 
 export const BellIcon = () => <Svg><path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15L6 16Z" /><path d="M10 20a2 2 0 0 0 4 0" /></Svg>;
 export const ChatIcon = () => <Svg><path d="M4 5h16v11H9l-5 4V5Z" /></Svg>;
+export const ThreadsIcon = () => <Svg><path d="M3 4h12v8H7l-4 3V4Z" /><path d="M9 15v1h8l4 3V8h-3" /></Svg>;
 export const TeamsIcon = () => <Svg><circle cx="9" cy="8" r="3" /><circle cx="17" cy="9" r="2.2" /><path d="M3 19c0-3.3 2.7-5 6-5s6 1.7 6 5" /><path d="M15 14.5c3 0 6 1.2 6 4.5" /></Svg>;
 export const CallIcon = () => <Svg><path d="M6 4h3l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v3a2 2 0 0 1-2 2A15 15 0 0 1 4 6a2 2 0 0 1 2-2Z" /></Svg>;
 export const CalendarIcon = () => <Svg><rect x="4" y="5" width="16" height="15" rx="2" /><path d="M4 10h16M9 3v4M15 3v4" /></Svg>;
@@ -44,4 +45,5 @@ export const LayoutIcon = () => <Svg><rect x="4" y="4" width="16" height="16" rx
 export const ExpandIcon = () => <Svg><path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7" /></Svg>;
 export const PopInIcon = () => <Svg><rect x="3" y="4" width="18" height="16" rx="2" /><rect x="12" y="12" width="7" height="6" rx="1" /></Svg>;
 export const NewWindowIcon = () => <Svg><rect x="3" y="7" width="13" height="13" rx="2" /><path d="M8 7V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-3" /></Svg>;
+export const GearIcon = () => <Svg><path d="M19 10.1L21.4 10.7L21.4 13.3L19 13.9L18.2 15.6L19.6 17.7L17.7 19.6L15.6 18.2L13.9 19L13.3 21.4L10.7 21.4L10.1 19L8.4 18.2L6.3 19.6L4.4 17.7L5.8 15.6L5 13.9L2.6 13.3L2.6 10.7L5 10.1L5.8 8.4L4.4 6.3L6.3 4.4L8.4 5.8L10.1 5L10.7 2.6L13.3 2.6L13.9 5L15.6 5.8L17.7 4.4L19.6 6.3L18.2 8.4Z" /><circle cx="12" cy="12" r="3" /></Svg>;
 export const SpeakerIcon = () => <Svg><path d="M4 9h4l5-4v14l-5-4H4V9Z" /><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" /></Svg>;

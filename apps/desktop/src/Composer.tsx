@@ -5,10 +5,10 @@ import { autoReplace } from "./emoticons";
 import { applyFormat, type Format } from "./format";
 import { AttachIcon, EmojiIcon, FormatIcon, MicIcon, PlusIcon, SendIcon } from "./Icons";
 import { formatDuration, useVoiceRecorder, type Voice } from "./voice";
-import { mediaUrl, type ImagePack, type PackImage } from "./backend";
+import { backend, isLive, mediaUrl, type ImagePack, type PackImage } from "./backend";
 import type { Attachment, Member, Message, Outgoing } from "./types";
 import { t, type Key } from "./i18n";
-import { currentSettings } from "./settings";
+import { currentSettings, isMac } from "./settings";
 
 // Markdown the format buttons insert; the adapter sends it as rich text.
 // `label` is a symbol shown as-is; `labelKey` is translated.
@@ -107,6 +107,30 @@ export function Composer(p: Props) {
   const [showHelp, setShowHelp] = useState(false);
   const suggestions = /^\/\S*$/.test(text) ? commandList.filter((c) => c.name.startsWith(text.slice(1).toLowerCase())) : showHelp && !text ? commandList : [];
   const canSend = !!text.trim() || attachments.length > 0;
+
+  // Spelling (macOS): the system's correction for the word just typed, which Tab takes. (The
+  // web view's own suggestions can't be accepted with Tab.) Esc hides it for that word.
+  const [spell, setSpell] = useState<{ word: string; start: number; fix: string } | null>(null);
+  const dismissedSpell = useRef<string | null>(null);
+  useEffect(() => {
+    setSpell(null);
+    if (!isLive || !isMac || !currentSettings().spellCheck || mentionQuery !== undefined || text.startsWith("/")) return;
+    // Only with the cursor right after a word, not in the middle of one.
+    if (/[\p{L}']/u.test(text.charAt(cursor))) return;
+    const before = text.slice(0, cursor);
+    const word = /[\p{L}']{3,}$/u.exec(before);
+    if (!word || dismissedSpell.current === `${word.index}:${word[0]}`) return;
+    let live = true;
+    const timer = window.setTimeout(() => {
+      backend.spellSuggestion(before).then((fix) => { if (live && fix) setSpell({ word: word[0], start: word.index, fix }); }).catch(() => {});
+    }, 250);
+    return () => { live = false; window.clearTimeout(timer); };
+  }, [text, cursor]); // eslint-disable-line react-hooks/exhaustive-deps
+  const acceptSpell = () => {
+    if (!spell) return;
+    update(text.slice(0, spell.start) + spell.fix + text.slice(spell.start + spell.word.length), spell.start + spell.fix.length);
+    setSpell(null);
+  };
   const voice = useVoiceRecorder((v) => p.onVoice?.(v), (message) => onNotice(t("composer.micError", { error: message })), () => onNotice(t("composer.micSilent")));
 
   useEffect(() => {
@@ -220,6 +244,11 @@ export function Composer(p: Props) {
           ))}
         </div>
       )}
+      {spell && !mentionHits.length && !suggestions.length && (
+        <div className="spell-suggestion" onMouseDown={(e) => e.preventDefault()}>
+          <s>{spell.word}</s> → <button className="link" onClick={acceptSpell}>{spell.fix}</button> <kbd>Tab</kbd>
+        </div>
+      )}
       {suggestions.length > 0 && (
         <div className="menu suggestions" onMouseDown={(e) => e.preventDefault()}>
           {showHelp && !text && (
@@ -241,7 +270,7 @@ export function Composer(p: Props) {
           ))}
           <span className="sep" />
           <button className="fmt" disabled title={t("composer.tableSoon")}>{t("composer.table")}</button>
-          <span className="soon-note">{t("composer.markdownHint")}</span>
+          <span className="soon-note">{currentSettings().enterSends ? t("composer.markdownHintEnter") : t("composer.markdownHint", { key: isMac ? "⌘" : "Ctrl" })}</span>
         </div>
       )}
       {attachments.length > 0 && (
@@ -307,15 +336,20 @@ export function Composer(p: Props) {
                 e.preventDefault();
                 return;
               }
-              // In format mode (or with "Enter sends" off) Enter adds a line; ⌘/Ctrl+Enter always sends.
-              if (e.key === "Enter" && ((!e.shiftKey && !rich && currentSettings().enterSends) || e.metaKey || e.ctrlKey)) {
+              // Settings → "Send messages with": Enter (Shift+Enter adds a line, also in format
+              // mode) or ⌘/Ctrl+Enter (Enter adds a line). ⌘/Ctrl+Enter always sends.
+              if (e.key === "Enter" && ((!e.shiftKey && currentSettings().enterSends) || e.metaKey || e.ctrlKey)) {
                 e.preventDefault();
                 send();
               }
               if (e.key === "Tab" && suggestions[0]) {
                 e.preventDefault();
                 update(`/${suggestions[0].name} `, suggestions[0].name.length + 2);
+              } else if (e.key === "Tab" && !e.shiftKey && spell) {
+                e.preventDefault();
+                acceptSpell();
               }
+              if (e.key === "Escape" && spell) { dismissedSpell.current = `${spell.start}:${spell.word}`; setSpell(null); return; }
               if (e.key === "Escape" && showHelp) { setShowHelp(false); return; }
               if (e.key === "Escape" && replyTo) onCancelReply?.();
             }}

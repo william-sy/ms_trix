@@ -37,7 +37,13 @@ export type Action =
   | { type: "upsertConvs"; convs: Conversation[] }
   | { type: "removeConvs"; keys: string[] }
   | { type: "setMessages"; key: string; messages: Message[] }
-  | { type: "appendMessages"; items: { key: string; message: Message }[] };
+  | { type: "appendMessages"; items: { key: string; message: Message }[] }
+  // Sending: our copy shows at once (⏱), gets the real id (✓) and is replaced by the real message.
+  | { type: "localSend"; key: string; message: Message }
+  | { type: "localSent"; key: string; txn: string; realId: string }
+  | { type: "localStatus"; key: string; txn: string; status: "sending" | "failed" }
+  | { type: "retrySend"; id: string; txn: string }
+  | { type: "discardLocal"; id: string; txn: string };
 
 export const initialState: State = isLive
   ? { orgs: [], orgFilter: "all", convs: [], selectedId: null, armed: {}, messages: {} }
@@ -103,15 +109,40 @@ export function reducer(state: State, action: Action): State {
       const gone = new Set(action.keys);
       return { ...state, convs: state.convs.filter((c) => !gone.has(c.id)), selectedId: state.selectedId && gone.has(state.selectedId) ? null : state.selectedId };
     }
-    case "setMessages":
-      return { ...state, messages: { ...state.messages, [action.key]: action.messages } };
+    case "setMessages": {
+      // Messages still being sent stay until their real version is in the list (a sent one
+      // whose real version never shows up goes after a while, so it can't linger as a double).
+      const locals = (state.messages[action.key] ?? []).filter((m) => m.local && !action.messages.some((x) => x.id === m.local!.realId)
+        && (!m.local.realId || Date.now() - (m.ts ?? 0) < 15_000));
+      return { ...state, messages: { ...state.messages, [action.key]: [...action.messages, ...locals] } };
+    }
+    case "localSend":
+      return { ...state, messages: { ...state.messages, [action.key]: [...(state.messages[action.key] ?? []), action.message] } };
+    case "localSent": {
+      const list = state.messages[action.key] ?? [];
+      // The real message may have arrived first (then our copy just goes).
+      const arrived = list.some((m) => m.id === action.realId);
+      const next = arrived
+        ? list.filter((m) => m.local?.txn !== action.txn)
+        : list.map((m) => (m.local?.txn === action.txn ? { ...m, status: undefined, local: { ...m.local, realId: action.realId } } : m));
+      return { ...state, messages: { ...state.messages, [action.key]: next } };
+    }
+    case "localStatus":
+      return { ...state, messages: { ...state.messages, [action.key]: (state.messages[action.key] ?? []).map((m) => (m.local?.txn === action.txn ? { ...m, status: action.status } : m)) } };
+    // Resending happens in the app (live mode); nothing to change here.
+    case "retrySend":
+      return state;
+    case "discardLocal":
+      return { ...state, messages: { ...state.messages, [action.id]: (state.messages[action.id] ?? []).filter((m) => m.local?.txn !== action.txn) } };
     case "appendMessages": {
       // New messages are appended; reacted/edited/deleted ones are replaced in place.
       const messages = { ...state.messages };
       for (const { key, message } of action.items) {
         const list = messages[key];
         if (!list) continue; // not loaded yet: fetched on open
-        messages[key] = list.some((m) => m.id === message.id) ? list.map((m) => (m.id === message.id ? message : m)) : [...list, message];
+        // Our sent message replaces its "sending" copy where it stood.
+        if (list.some((m) => m.local?.realId === message.id)) messages[key] = list.map((m) => (m.local?.realId === message.id ? message : m));
+        else messages[key] = list.some((m) => m.id === message.id) ? list.map((m) => (m.id === message.id ? message : m)) : [...list, message];
       }
       return { ...state, messages };
     }

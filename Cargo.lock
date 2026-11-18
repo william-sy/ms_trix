@@ -3694,13 +3694,15 @@ dependencies = [
 
 [[package]]
 name = "ms-trix-desktop"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "base64 0.22.1",
  "futures",
  "keyring",
  "log",
  "mime_guess",
+ "objc2-app-kit",
+ "objc2-foundation",
  "percent-encoding",
  "rand 0.9.5",
  "serde",
@@ -6893,6 +6895,7 @@ dependencies = [
  "eyeball",
  "futures",
  "matrix-sdk",
+ "matrix-sdk-base",
  "mime",
  "mime_guess",
  "qrcode",

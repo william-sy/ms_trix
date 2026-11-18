@@ -8,6 +8,8 @@ several organisations at once.
 
 > **Status:** early, in daily use and testing at SURF (matrix.surf.nl and SURF's Nextcloud
 > Talk). Builds are not signed yet, so macOS and Windows will warn when you first open the app.
+> Runs on macOS (Apple Silicon), Windows and Linux.
+> What changed in each version: [release notes](RELEASE_NOTES.md).
 
 ## Why
 
@@ -38,7 +40,9 @@ messages stay on your own servers.
 - Talk group calls with gallery, large gallery, speaker and pinned layouts
 - Screen sharing with a red border around what you share, and drawing on your screen (pen,
   highlighter, arrow, laser pointer) so the others can follow along
-- Background blur and pictures, raise hand, reactions, speaker choice
+- Background blur, pictures and moving backgrounds (leaves in the wind, drifting clouds,
+  fireflies, misty mountains, or your own video or GIF), raise hand, reactions; switch microphone, speaker or
+  camera during a call
 - Calls in the app or in a window of their own (for a second screen); moving between the two
   keeps the call going
 - Matrix 1:1 voice and video calls

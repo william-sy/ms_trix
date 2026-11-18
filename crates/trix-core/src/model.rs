@@ -299,6 +299,41 @@ pub struct NewRoom {
     /// Address without # and :server.
     pub alias: Option<String>,
     pub invite: Vec<String>,
+    /// A team (Matrix space) rather than a room.
+    #[serde(default)]
+    pub space: bool,
+    /// Created as a channel in this team (its room id); unless public, the team's members can join.
+    #[serde(default)]
+    pub team: Option<String>,
+}
+
+/// A thread in a conversation, for the list of its threads.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ThreadInfo {
+    pub root: String,
+    pub sender_name: String,
+    pub sender_avatar: Option<String>,
+    /// The first message's text (a short preview).
+    pub preview: String,
+    pub sent_at: u64,
+    pub replies: u32,
+    pub latest_name: Option<String>,
+    pub latest_at: Option<u64>,
+    /// You wrote in it (or started it).
+    pub mine: bool,
+}
+
+/// Someone in a conversation whose encryption identity changed (invisible crypto). Their
+/// messages still arrive, but you should know: it can mean a new login, or someone in the middle.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IdentityWarning {
+    pub user_id: String,
+    pub name: String,
+    /// You had verified them: more serious, and sending to the conversation stops until you
+    /// verify again or withdraw the verification.
+    pub was_verified: bool,
 }
 
 /// Everything the room info panel shows and may edit.
@@ -318,6 +353,9 @@ pub struct RoomDetails {
     pub members: Vec<RoomMemberInfo>,
     /// Who can join: "public", "invite", "knock" or "restricted" (members of a space).
     pub join_rule: String,
+    /// The room is in a team, so "members of the team" can be chosen as who can join.
+    #[serde(default)]
+    pub in_team: bool,
     pub can_set_join_rule: bool,
     /// Allowed to turn encryption on (and it's still off).
     pub can_encrypt: bool,
@@ -425,6 +463,9 @@ pub enum MessageBody {
     Redacted,
     /// Couldn't be decrypted yet; replaced by the real message once the key arrives.
     Encrypted,
+    /// Not decrypted because it was sent from a device its owner hasn't verified (invisible
+    /// crypto: only cross-signed devices are trusted). Replaced if the device gets verified.
+    Untrusted,
     /// Something that happened in the room rather than a message: joins,
     /// renames, ... Names are display names; the UI words and translates it.
     Event { kind: RoomEventKind, actor: String, target: Option<String>, value: Option<String> },
@@ -472,8 +513,13 @@ impl MessageBody {
             MessageBody::File { name, caption, .. } => caption.clone().unwrap_or_else(|| name.clone()),
             MessageBody::Poll { question, .. } => format!("📊 {question}"),
             MessageBody::Redacted | MessageBody::Event { .. } => String::new(),
-            MessageBody::Encrypted => "🔒".to_owned(),
+            MessageBody::Encrypted | MessageBody::Untrusted => "🔒".to_owned(),
         }
+    }
+
+    /// Stands in for a message we can't read (yet).
+    pub fn is_placeholder(&self) -> bool {
+        matches!(self, MessageBody::Encrypted | MessageBody::Untrusted)
     }
 }
 

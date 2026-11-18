@@ -16,7 +16,7 @@ import { matches } from "./shortcuts";
 import { PRESENCE_KEY, useAutoAway } from "./presence";
 import { warmUpEffects } from "./cameraEffects";
 import { applySettings, currentSettings, loadSettings, onSettingsChanged, saveSettings, type Settings } from "./settings";
-import type { Attachment, Conversation, PresenceState } from "./types";
+import type { Attachment, Conversation, Outgoing, PresenceState } from "./types";
 
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp|heic|bmp)$/i;
 const VIDEO_EXT = /\.(mp4|m4v|mov|webm)$/i;
@@ -31,7 +31,7 @@ import { JoinRoomDialog } from "./JoinRoomDialog";
 import { CallsContext, useMatrixCalls } from "./calls";
 import { CallScreen } from "./CallScreen";
 import { TalkRing } from "./TalkCallScreen";
-import { TalkCallsContext, useTalkCallHost } from "./talkCalls";
+import { lastCameraOn, TalkCallsContext, useTalkCallHost } from "./talkCalls";
 import { CallsPane } from "./CallsPane";
 import { CalendarPane } from "./CalendarPane";
 import { MeetingReminder } from "./MeetingReminder";
@@ -39,7 +39,7 @@ import { ContextDialog } from "./ContextDialog";
 import { ImageCropper } from "./ImageCropper";
 import { VerificationDialog } from "./VerificationDialog";
 import { RoomLinkContext, type OpenRoomLink } from "./roomLinks";
-import { commandText, friendlyError, rustTexts, t } from "./i18n";
+import { commandText, friendlyError, locale, rustTexts, t } from "./i18n";
 
 export function App() {
   const [state, dispatch] = useReducer(reducer, initialState);
@@ -80,7 +80,8 @@ export function App() {
   });
   const autoAway = useAutoAway(state.orgs.map((o) => o.id), ownPresence, settings.awayAfter);
   const [showSettings, setShowSettings] = useState<false | SettingsTab>(false);
-  const [newChat, setNewChat] = useState<false | "chat" | "room">(false);
+  const [newChat, setNewChat] = useState<false | "chat" | "room" | "team">(false);
+  const [newChannelIn, setNewChannelIn] = useState<TeamView | null>(null);
   const [profileFor, setProfileFor] = useState<{ account: string; userId: string; at: { x: number; y: number } } | null>(null);
   const openProfile = useCallback<OpenProfile>((account, userId, at) => setProfileFor({ account, userId, at }), []);
   const [browse, setBrowse] = useState<false | { space?: DirectoryRoom }>(false);
@@ -96,7 +97,10 @@ export function App() {
   const [teams, setTeams] = useState<TeamView[]>([]);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [activitySelected, setActivitySelected] = useState<string | null>(null);
-  const [focusMessage, setFocusMessage] = useState<string | null>(null);
+  // A message to scroll to (from Activity, search or a link), only for its own conversation:
+  // other chats would page back through their whole history looking for it.
+  const [focusMessage, setFocusState] = useState<{ conversation: string; message: string } | null>(null);
+  const setFocusMessage = (conversation: string, message: string | null) => setFocusState(message ? { conversation, message } : null);
   // Activity newer than seenAt counts on the rail badge; opening the feed clears it.
   // The dots in the feed stay until read: everything up to readAt, plus single items.
   const [seenAt, setSeenAt] = useStored("ms_trix.activity.seenAt", 0);
@@ -118,9 +122,13 @@ export function App() {
     if (isLive && (s.shareReceipts !== settings.shareReceipts || s.shareTyping !== settings.shareTyping)) {
       backend.setPrivacy(s.shareReceipts, s.shareTyping).catch((e) => setNotice(String(e)));
     }
-    setSettingsState(s);
-    saveSettings(s);
-    applySettings(s);
+    // Only what changed here, onto the stored settings: a call's own page may have changed others
+    // (its devices) that this copy hasn't caught up with.
+    const changed = Object.fromEntries(Object.entries(s).filter(([k, v]) => v !== settings[k as keyof Settings]));
+    const next: Settings = { ...loadSettings(), ...changed };
+    setSettingsState(next);
+    saveSettings(next);
+    applySettings(next);
   };
   // Settings changed elsewhere (a call's background choice) must not be overwritten by a stale copy.
   useEffect(() => onSettingsChanged(setSettingsState), []);
@@ -339,7 +347,7 @@ export function App() {
   const showInChat = (conversation: string, message: string) => {
     setView("chat");
     setQuery("");
-    setFocusMessage(message);
+    setFocusMessage(conversation, message);
     act({ type: "select", id: conversation });
   };
   // A result that isn't loaded yet opens as a quick preview first; paging back to it can take a while.
@@ -360,11 +368,12 @@ export function App() {
       if (!room.joined) return setJoinPreview({ account, room, via: link.via });
       setView("chat");
       setQuery("");
-      if (link.event) setFocusMessage(link.event);
+      if (link.event) setFocusMessage(room.joined!, link.event);
       setPendingOpen(room.joined);
     }).catch((e) => setNotice(t("roomLink.failed", { address: link.address, error: String(e) })));
   }, []);
-  const openNewChat = (mode: "chat" | "room" = "chat") => (isLive ? setNewChat(mode) : setNotice(t("desktopOnly.newChat")));
+  const openNewChat = (mode: "chat" | "room" | "team" = "chat") => (isLive ? setNewChat(mode) : setNotice(t("desktopOnly.newChat")));
+  const openNewChannel = (team: TeamView) => (isLive ? (setNewChannelIn(team), setNewChat("room")) : setNotice(t("desktopOnly.newChat")));
 
   const runCommand = (key: string, name: string, args: string) => {
     if (!isLive) return setNotice(t("desktopOnly.command", { name }));
@@ -446,6 +455,13 @@ export function App() {
     }
   }, [state.selectedId]);
 
+  const messagesRef = useRef(state.messages);
+  messagesRef.current = state.messages;
+  /** Sends `message` for our copy `txn` (shown already); marks it sent or failed. */
+  const sendLocal = (key: string, txn: string, message: Outgoing) =>
+    backend.send(key, message)
+      .then((realId) => dispatch({ type: "localSent", key, txn, realId }))
+      .catch((e) => { dispatch({ type: "localStatus", key, txn, status: "failed" }); setNotice(String(e)); });
   const act = useCallback((action: Action) => {
     if (!isLive) return dispatch(action);
     const report = (e: unknown) => setNotice(String(e));
@@ -467,9 +483,28 @@ export function App() {
         if (!conv?.archived && state.selectedId === action.id) dispatch({ type: "setSelected", id: null });
         return void backend.setArchived(action.id, !conv?.archived).catch(report);
       }
-      case "send":
+      case "send": {
         if (action.message.attachments?.length) return void sendAttachments(action.id, action.message.attachments, action.message.text);
-        return void backend.send(action.id, action.message).catch(report);
+        // Shown at once (like WhatsApp), with ⏱ until the server has it.
+        const txn = crypto.randomUUID();
+        const me = [...(messagesRef.current[action.id] ?? [])].reverse().find((m) => m.fromMe && !m.system && !m.local);
+        const { text, emote, html, replyTo, threadRoot } = action.message;
+        const now = Date.now();
+        dispatch({ type: "localSend", key: action.id, message: {
+          id: `local:${txn}`, sender: me?.sender ?? "", senderId: me?.senderId, avatar: me?.avatar, fromMe: true, ts: now,
+          time: new Date(now).toLocaleString(locale(), { weekday: "long", hour: "2-digit", minute: "2-digit" }),
+          body: emote ? `* ${me?.sender ?? ""} ${text}` : text, html, replyTo, threadRoot, status: "sending", local: { txn, outgoing: action.message },
+        } });
+        return void sendLocal(action.id, txn, action.message);
+      }
+      case "retrySend": {
+        const local = messagesRef.current[action.id]?.find((m) => m.local?.txn === action.txn)?.local;
+        if (!local) return;
+        dispatch({ type: "localStatus", key: action.id, txn: action.txn, status: "sending" });
+        return void sendLocal(action.id, action.txn, local.outgoing);
+      }
+      case "discardLocal":
+        return dispatch(action);
       case "react":
         return void backend.toggleReaction(action.id, action.target, action.emoji).catch(report);
       case "edit":
@@ -568,18 +603,18 @@ export function App() {
             {view === "teams" && (
               <TeamsPane teams={teams.filter((t) => state.orgFilter === "all" || t.account === state.orgFilter)} convs={state.convs} selectedId={state.selectedId}
                 onSelect={(id) => act({ type: "select", id })} onBrowse={() => openBrowse()} onLeaveTeam={leaveTeam}
-                onAccept={acceptInvite} onDecline={declineInvite} onTeamInfo={setTeamInfo}
+                onAccept={acceptInvite} onDecline={declineInvite} onTeamInfo={setTeamInfo} onNewTeam={() => openNewChat("team")} onNewChannel={openNewChannel}
                 onBrowseTeam={(t) => openBrowse({ id: t.spaceId, alias: null, name: t.name, topic: t.topic, members: 0, avatar: t.avatar, isSpace: true, joined: t.key, joinRule: null })} />
             )}
             {view === "calendar" && (
               <CalendarPane orgs={cloudOrgs} convs={state.convs} onOpenChat={(id) => { setView("chat"); act({ type: "select", id }); }}
-                onJoinCall={(id) => { setView("chat"); act({ type: "select", id }); talkCalls.start(id, true); }} />
+                onJoinCall={(id) => { setView("chat"); act({ type: "select", id }); talkCalls.start(id, lastCameraOn()); }} />
             )}
             {view === "calls" && <CallsPane convs={state.convs} onOpen={(id) => { setView("chat"); act({ type: "select", id }); }} />}
             {view === "activity" && (
               <ActivityPane items={activity.filter((a) => inOrg(a.conversation))} isUnread={activityUnread} selected={activitySelected}
                 onMarkAllRead={() => setActivityRead({ at: Date.now(), read: [], unread: [] })} onSetRead={setActivityItemRead}
-                onOpen={(a) => { setActivitySelected(a.id); if (activityUnread(a)) setActivityItemRead(a, true); setFocusMessage(a.message); act({ type: "select", id: a.conversation }); }} />
+                onOpen={(a) => { setActivitySelected(a.id); if (activityUnread(a)) setActivityItemRead(a, true); setFocusMessage(a.conversation, a.message); act({ type: "select", id: a.conversation }); }} />
             )}
             {teamInfo && view === "teams" && (
               <RoomPanel key={teamInfo.key} onClose={() => setTeamInfo(null)} onNotice={setNotice}
@@ -587,7 +622,7 @@ export function App() {
             )}
             {/* The calendar fills the whole width, like Teams; the other views are a list beside the chat. */}
             {view === "calendar" ? null : selected ? (
-              <ChatView conv={selected} messages={timeline(state, selected)} dispatch={act} onNotice={setNotice} focusMessage={focusMessage}
+              <ChatView conv={selected} messages={timeline(state, selected)} dispatch={act} onNotice={setNotice} focusMessage={focusMessage?.conversation === selected.id ? focusMessage.message : null}
                 onLoadOlder={(limit) => loadOlder(selected.id, limit)} onLoadThread={(root) => loadThread(selected.id, root)}
                 onCommand={(name, args) => runCommand(selected.id, name, args)} attachments={staged[selected.id] ?? []} upload={uploads[selected.id]} onPreview={(m) => setPreview({ conversation: selected.id, message: m })}
                 onPickFiles={() => pickFiles(selected.id)} onAddFiles={(files) => addFiles(selected.id, files)} onRemoveAttachment={(id) => removeStaged(selected.id, id)}
@@ -617,7 +652,9 @@ export function App() {
         <JoinRoomDialog {...joinPreview} onClose={() => setJoinPreview(null)}
           onJoined={(key, room) => { setJoinPreview(null); if (room.isSpace) setView("teams"); else if (key) { setView("chat"); setPendingOpen(key); } }} />
       )}
-      {newChat && <NewChatDialog initialMode={newChat} orgId={state.orgFilter === "all" ? undefined : state.orgFilter} onClose={() => setNewChat(false)} onOpen={setPendingOpen} />}
+      {newChat && <NewChatDialog initialMode={newChat} orgId={state.orgFilter === "all" ? undefined : state.orgFilter} onOpen={setPendingOpen}
+        team={newChannelIn ? { account: newChannelIn.account, spaceId: newChannelIn.spaceId, name: newChannelIn.name } : undefined}
+        onClose={() => { setNewChat(false); setNewChannelIn(null); }} />}
       {showSettings && <SettingsDialog initialTab={showSettings} settings={settings} onChange={setSettings} onClose={() => setShowSettings(false)} />}
       {profileFor && (
         <ProfileCard {...profileFor} convs={state.convs} onClose={() => setProfileFor(null)} onNotice={setNotice}
@@ -633,12 +670,12 @@ export function App() {
       {cloudOrgsAll.length > 0 && (
         <MeetingReminder orgs={cloudOrgsAll} convs={state.convs} minutes={settings.reminderMinutes}
           onOpenChat={(id) => { setView("chat"); act({ type: "select", id }); }}
-          onJoin={(id) => { setView("chat"); act({ type: "select", id }); talkCalls.start(id, true); }} />
+          onJoin={(id) => { setView("chat"); act({ type: "select", id }); talkCalls.start(id, lastCameraOn()); }} />
       )}
       {isLive && (
         <TalkRing convs={state.convs} talkOrgs={new Set(state.orgs.filter((o) => o.protocol === "talk").map((o) => o.id))}
           busy={talkCalls.call && talkCalls.call.phase !== "ended" ? talkCalls.call.conversation : null}
-          onJoin={(id) => { setView("chat"); act({ type: "select", id }); talkCalls.start(id, true); }} />
+          onJoin={(id) => { setView("chat"); act({ type: "select", id }); talkCalls.start(id, lastCameraOn()); }} />
       )}
     </TalkCallsContext.Provider>
     </CallsContext.Provider>

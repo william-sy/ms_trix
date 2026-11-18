@@ -71,11 +71,25 @@ interface Peer extends TalkPeerView {
 }
 
 const log = (msg: string) => { console.info("[talk-call]", msg); void backend.logUi(`talk call: ${msg}`).catch(() => {}); };
+export const callLog = log;
+
+// Audio engines (speaking detection). WebKit can start one paused on a page nobody has clicked
+// yet (the call's own page, opened from the app): resumed now, and on the next click or key.
+const contexts = new Set<AudioContext>();
+export function resumeAudio() {
+  for (const ctx of contexts) if (ctx.state === "suspended") void ctx.resume().catch(() => {});
+}
+for (const kind of ["pointerdown", "keydown"]) window.addEventListener(kind, resumeAudio, true);
 
 /** Speaking detection: calls `on(true/false)` as the level crosses a threshold. */
 function speakingMeter(stream: MediaStream, on: (speaking: boolean) => void): () => void {
   if (!stream.getAudioTracks().length) return () => {};
   const ctx = new AudioContext();
+  contexts.add(ctx);
+  if (ctx.state !== "running") {
+    log(`audio engine ${ctx.state}; resuming`);
+    void ctx.resume().catch(() => {});
+  }
   const analyser = ctx.createAnalyser();
   analyser.fftSize = 512;
   ctx.createMediaStreamSource(stream).connect(analyser);
@@ -88,7 +102,7 @@ function speakingMeter(stream: MediaStream, on: (speaking: boolean) => void): ()
     const now = Math.sqrt(sum / data.length) > 0.02;
     if (now !== speaking) { speaking = now; on(now); }
   }, 150);
-  return () => { window.clearInterval(timer); void ctx.close(); };
+  return () => { window.clearInterval(timer); contexts.delete(ctx); void ctx.close(); };
 }
 
 interface Signaling {
@@ -111,6 +125,8 @@ export class TalkCall {
   restoreAfterShare = false;
   /** The preview's camera background being applied (joining waits for it). */
   effectReady: Promise<void> = Promise.resolve();
+  /** The preview being (re)opened, one at a time; joining waits for it. */
+  private preparing: Promise<void> = Promise.resolve();
   iceServers: RTCIceServer[] = [];
   publishers: Partial<Record<"video" | "screen", RTCPeerConnection>> = {};
   ownPending: Partial<Record<"video" | "screen", RTCIceCandidateInit[]>> = {};
@@ -137,18 +153,29 @@ export class TalkCall {
     return JSON.parse(json);
   }
 
-  /** Pre-join: open microphone (and camera) for the preview. */
-  async prepare(video: boolean, micId?: string | null, cameraId?: string | null) {
+  /**
+   * Pre-join: open microphone (and camera) for the preview. One at a time: WebKit can refuse a
+   * device asked for while the previous request is still open (devices picked in quick succession).
+   */
+  prepare(video: boolean, micId?: string | null, cameraId?: string | null): Promise<void> {
+    this.preparing = this.preparing.then(() => this.openPreview(video, micId, cameraId));
+    return this.preparing;
+  }
+
+  private async openPreview(video: boolean, micId?: string | null, cameraId?: string | null) {
+    if (this.closed || this.state.phase === "connected") return;
     try {
       this.selfMeter?.();
       this.state.local?.getTracks().forEach((t) => t.stop());
       // The preview shows the plain camera at once; the background follows when it's ready.
       const local = await openMedia(video, micId, cameraId, false);
       local.getAudioTracks().forEach((t) => (t.enabled = !this.state.muted));
+      local.getAudioTracks().forEach(watchMic);
       this.selfMeter = speakingMeter(local, (speakingSelf) => this.set({ speakingSelf }));
       this.set({ local, cameraOn: local.getVideoTracks().length > 0 });
       this.effectReady = switchEffect(local, [], currentEffect()).then((changed) => { if (changed) this.set({ local }); }, () => {});
     } catch (e) {
+      log(`couldn't open the microphone or camera: ${String(e)}`);
       this.set({ error: String(e) });
     }
   }
@@ -173,10 +200,13 @@ export class TalkCall {
       log(`joined the conversation, Nextcloud session ${this.nextcloudSid.slice(0, 8)}…`);
       const names = this.loadNames().then(() => { this.nick = this.names.get(this.nextcloudSid) ?? ""; });
 
+      // "Join now" pressed before the preview was ready: joins with it, camera included.
+      await this.preparing;
       const local = this.state.local ?? await openMedia(false);
       await this.effectReady;
       // A camera switched off in the preview joins switched off.
       local.getVideoTracks().forEach((t) => (t.enabled = this.state.cameraOn));
+      rememberCamera(local.getVideoTracks().length > 0 && this.state.cameraOn);
 
       this.sig = settings.signalingMode === "internal" || !settings.server
         ? this.internalSignaling()
@@ -536,15 +566,50 @@ export class TalkCall {
     if (!track) return; // joined without a camera
     track.enabled = on;
     if (this.state.phase === "prejoin") return this.set({ cameraOn: on });
+    rememberCamera(on);
     this.broadcast({ type: on ? "unmute" : "mute", payload: { name: "video" } });
     this.set({ cameraOn: on });
   }
 
+  /** The connections that send our camera and microphone. */
+  private videoConnections() {
+    return [this.publishers.video, ...[...this.peers.values()].map((p) => p.pcs.video)];
+  }
+
   /** Blur or replace the camera background (also in the pre-join preview). */
   async setBackground(effect: CameraEffect) {
-    const connections = [this.publishers.video, ...[...this.peers.values()].map((p) => p.pcs.video)];
-    await switchEffect(this.state.local, connections, effect);
+    await switchEffect(this.state.local, this.videoConnections(), effect);
     this.set({ local: this.state.local });
+  }
+
+  /** In the call: another microphone or camera (`null`: the system's), sent to everyone at once. */
+  async switchDevice(kind: "audioinput" | "videoinput", id: string | null) {
+    const local = this.state.local;
+    const audio = kind === "audioinput";
+    const old = audio ? local?.getAudioTracks()[0] : local?.getVideoTracks()[0];
+    if (!local || !old) return;
+    const want = id ? { deviceId: { exact: id } } : true;
+    try {
+      const opened = await navigator.mediaDevices.getUserMedia(audio ? { audio: want } : { video: want });
+      const raw = (audio ? opened.getAudioTracks() : opened.getVideoTracks())[0]!;
+      const track = audio ? raw : await processCamera(raw);
+      track.enabled = old.enabled;
+      for (const pc of this.videoConnections()) {
+        for (const sender of pc?.getSenders() ?? []) if (sender.track === old) await sender.replaceTrack(track).catch(() => {});
+      }
+      local.removeTrack(old);
+      old.stop();
+      local.addTrack(track);
+      if (audio) {
+        watchMic(track);
+        this.selfMeter?.();
+        this.selfMeter = speakingMeter(local, (speakingSelf) => this.set({ speakingSelf }));
+      }
+      this.set({ local });
+    } catch (e) {
+      log(`couldn't switch the ${audio ? "microphone" : "camera"}: ${String(e)}`);
+      this.set({ error: String(e) });
+    }
   }
 
   async setSharing(on: boolean) {
@@ -605,13 +670,41 @@ export class TalkCall {
   }
 }
 
+/** In the log, for "they can't hear me": which microphone, and whether the system muted it. */
+function watchMic(track: MediaStreamTrack) {
+  log(`microphone: ${track.label || "unnamed"} (${track.readyState}${track.muted ? ", muted by the system" : ""})`);
+  track.onmute = () => log(`microphone muted by the system: ${track.label}`);
+  track.onunmute = () => log(`microphone back: ${track.label}`);
+  track.onended = () => log(`microphone stopped: ${track.label}`);
+}
+
+/** The camera picked now, or else the saved one (found by name if its id changed); null: none. */
+async function openCamera(cameraId?: string | null): Promise<MediaStream | null> {
+  const { cameraId: saved, deviceLabels } = currentSettings();
+  const id = cameraId ?? saved;
+  try {
+    let stream = await navigator.mediaDevices.getUserMedia({ video: id ? { deviceId: { ideal: id } } : true });
+    const want = deviceLabels.videoinput;
+    if (!cameraId && saved && want && stream.getVideoTracks()[0]?.label !== want) {
+      const match = (await navigator.mediaDevices.enumerateDevices()).find((d) => d.kind === "videoinput" && d.label === want);
+      if (match) {
+        stream.getTracks().forEach((t) => t.stop());
+        stream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: match.deviceId } } });
+      }
+    }
+    return stream;
+  } catch (e) {
+    log(`no camera: ${String(e)}`);
+    return null;
+  }
+}
+
 /** Microphone and camera, opened side by side; `effects`: with the camera background. */
 async function openMedia(video: boolean, micId?: string | null, cameraId?: string | null, effects = true): Promise<MediaStream> {
-  const id = cameraId ?? currentSettings().cameraId;
   const [mic, cam] = await Promise.all([
     micId ? navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: micId } } }) : openMic(),
     // No camera: audio only.
-    video ? navigator.mediaDevices.getUserMedia({ video: id ? { deviceId: { ideal: id } } : true }).catch(() => null) : null,
+    video ? openCamera(cameraId) : null,
   ]);
   for (const t of cam?.getVideoTracks() ?? []) mic.addTrack(effects ? await processCamera(t) : t);
   return mic;
@@ -637,6 +730,8 @@ export interface TalkCalls {
   cancel: () => void;
   /** Pre-join: switch camera on/off or devices (reopens the preview). */
   reprepare: (video: boolean, micId?: string | null, cameraId?: string | null) => void;
+  /** In the call: another microphone or camera. */
+  switchDevice: (kind: "audioinput" | "videoinput", id: string | null) => void;
   leave: () => void;
   setMuted: (muted: boolean) => void;
   setCamera: (on: boolean) => void;
@@ -653,6 +748,10 @@ export const TalkCallsContext = createContext<TalkCallHost | null>(null);
 // ---- Calls in their own window ----
 
 const OWN_WINDOW = "trix.callOwnWindow";
+const CAMERA_ON = "trix.callCameraOn";
+/** Joining a running call: with the camera on or off, as you last were in a call (on at first). */
+export const lastCameraOn = () => { try { return localStorage.getItem(CAMERA_ON) !== "0"; } catch { return true; } };
+const rememberCamera = (on: boolean) => { try { localStorage.setItem(CAMERA_ON, on ? "1" : "0"); } catch { /* not kept */ } };
 export const callsInOwnWindow = () => { try { return localStorage.getItem(OWN_WINDOW) === "1"; } catch { return false; } };
 export const setCallsInOwnWindow = (on: boolean) => { try { localStorage.setItem(OWN_WINDOW, on ? "1" : "0"); } catch { /* not kept */ } };
 
@@ -719,6 +818,7 @@ export function useTalkCallEngine(onError: (message: string) => void): TalkCalls
     join: () => void current.current?.start(),
     cancel: () => current.current?.cancel(),
     reprepare: (video, micId, cameraId) => void current.current?.prepare(video, micId, cameraId),
+    switchDevice: (kind, id) => void current.current?.switchDevice(kind, id),
     leave: () => void current.current?.leave(),
     setMuted: (m) => current.current?.setMuted(m),
     setCamera: (on) => current.current?.setCamera(on),

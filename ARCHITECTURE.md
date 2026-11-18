@@ -66,6 +66,13 @@ that state to the UI through commands and events.
   local redirect server) are supported. Native OAuth (MAS) is a later step.
 * Sessions live in the OS keychain (service `ms_trix`); `accounts.json` in the
   app data dir holds only the non-secret account list.
+* Invisible crypto (MSC4153, like Element X): the client shares room keys with
+  `CollectStrategy::IdentityBasedStrategy`, so sending encrypted messages needs this
+  device cross-signed. Decryption keeps the default trust requirement (any device):
+  `CrossSignedOrLegacy` also refused history from devices that were since removed.
+  Should a stricter setting come back, those messages become `MessageBody::Untrusted`.
+  Identity changes come from `Room::subscribe_to_identity_status_changes` (first
+  item = current state) and are accepted with `UserIdentity::pin`.
 
 ## UI text (i18n)
 
@@ -113,7 +120,9 @@ that state to the UI through commands and events.
 * Screen sharing opens click-through overlay windows: a red border, a bar with
   Stop and drawing tools, and a see-through drawing layer that is captured with
   the screen. Sharing minimises the call so it doesn't film itself.
-* Background blur and pictures use MediaPipe's segmenter, bundled with the app.
+* Background blur and pictures use MediaPipe's segmenter, bundled with the app. Moving
+  backgrounds are drawn in code each frame (`movingBackgrounds.ts`); your own video or GIF is
+  kept in the app's data folder (too big for the webview's local storage).
 * Speaker choice: WebView2 (Windows) supports `setSinkId`; WebKit doesn't, so on
   macOS the call switches the system output through CoreAudio (`audio_out.rs`).
 

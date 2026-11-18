@@ -29,7 +29,7 @@ built yet is visibly disabled in the UI with a "coming soon" tooltip.
 - [x] Slash commands (/me /shrug /tableflip /unflip /lenny /plain /help) with suggestions
 - [x] Markdown sending (renders for recipients), format bar incl. code block, sticky format mode
 - [x] Emoji picker (categories + recent), big emoji-only messages
-- [x] Read receipts ("Seen" / "Seen by"), typing indicators (both directions)
+- [x] Read receipts (ticks on your messages; who read it under Message status), typing indicators (both directions)
 - [x] Chat list search (⌘E) by chat/channel name and last message
 - [x] Rich text rendering (sanitized HTML: code blocks, lists, quotes, tables, links, mention pills)
 - [x] Search inside a chat (loaded messages, ↑/↓, "search older messages")
@@ -45,7 +45,6 @@ built yet is visibly disabled in the UI with a "coming soon" tooltip.
 - [x] Own colour per account (Settings → Accounts, click the account tile)
 - [x] Settings → Audio & video: choose microphone / speaker / camera, mic test with level meter,
       speaker test sound, camera preview; voice messages use the chosen microphone
-- [x] Read markers in the right margin (Element-style): who read up to which message
 - [x] Invites: listed at the top of the chat list with Accept / Decline, invite screen in the chat pane
 - [x] New chat: search people, start a DM (reuses an existing one) or an encrypted group chat, join by #address
 - [x] Browse rooms & spaces: public rooms / public spaces / people, your own server by default (any server
@@ -67,7 +66,7 @@ built yet is visibly disabled in the UI with a "coming soon" tooltip.
 - [x] Nextcloud Talk adapter: browser sign-in, conversations, messages, replies, edits, deletes,
       reactions, files (send + view), read markers, mark unread, favourites, notification level,
       presence, members, invite, new chats, open conversations to join; polling every 5 s
-- [x] Build pipeline: GitHub Actions job per OS (macOS universal, Windows, Linux) with installers as artifacts
+- [x] Build pipeline: GitHub Actions job per OS (macOS Apple Silicon only, Windows, Linux) with installers as artifacts
 - [x] Talk calls (step A): Start / Join call opens Talk's own call screen in an ms_trix window
       (video, screen sharing, HPB); "call in progress" 📞 in the chat list; notification when a call starts
 - [x] Captions under images/files (Matrix `filename` + `body`, Talk text with a shared file)
@@ -198,7 +197,9 @@ built yet is visibly disabled in the UI with a "coming soon" tooltip.
       mesh) or Talk's built-in signalling; WebRTC here. Teams-like grid with speaker ring, own tile
       in the corner, shared screen large with a strip of faces, mute/camera/share/leave, minimise.
       Every step logged ("talk call:" in the log); Talk's own window stays in the ⋯ menu.
-      Pre-join screen (preview, mic level, device choice, join muted / camera off)
+      Pre-join screen (preview, mic level, device choice, join muted / camera off); devices picked
+      there are remembered for the next call, and can be switched during the call (⚙ menu);
+      joining a running call starts with the camera as you last had it
 - [ ] Talk calls: test group calls (grid layout) and screen sharing on SURF
 - [x] Screen sharing: red border around the shared screen + floating "Stop sharing" bar (both kept
       out of the capture), "You're sharing · Stop sharing" in the call header; Talk (video server):
@@ -230,6 +231,8 @@ built yet is visibly disabled in the UI with a "coming soon" tooltip.
       app (Settings → Notifications); 1–30 minutes before or never; meetings made or changed in
       the app are picked up at once, moved or cancelled ones lose their old reminder; double
       booked: one pop-up with a row per meeting and one sound
+- [x] Moving camera backgrounds: leaves in the wind, drifting clouds, fireflies, misty mountains
+      with depth (drawn in code, no video files), or your own video (MP4/MOV/WebM) or GIF up to 60 MB
 - [x] Ringtones: Tide, Lantern, Sparkle, Old telephone, 90s mobile, Classic beeps (made in code,
       no sound files), or your own sound file, for incoming calls; meeting reminders have their
       own sound (a short chime by default, or any ringtone)
@@ -246,7 +249,8 @@ built yet is visibly disabled in the UI with a "coming soon" tooltip.
       history), Calls rail with recent calls + missed-call badge + call back, glare handling
 - [x] Matrix calls: picture-in-picture (system floating video window) where the webview supports it
 - [ ] Matrix group calls via MatrixRTC / Element Call widget (matrix-sdk widget driver is ready; matrix.surf.nl
-      has no MatrixRTC/LiveKit configured yet, so this waits for SURF's server side)
+      has no MatrixRTC/LiveKit configured yet, so this waits for SURF's server side). Also 1:1 calls
+      over MatrixRTC: Element X only calls that way, so our legacy 1:1 calls can't reach Element X users
 - [x] Native OAuth login (MAS): "Sign in with your browser" when the server offers it; loopback
       redirect, dynamic client registration, refreshed tokens saved to the keychain (to be tested on
       a server with MAS)
@@ -288,6 +292,31 @@ built yet is visibly disabled in the UI with a "coming soon" tooltip.
       notification to open the chat on macOS/Windows
 - [ ] Email add-on (idea): step 1 unread count + new-mail notifications + open in your mail app;
       step 2 a Mail view (IMAP/SMTP; Microsoft 365 / Google need OAuth and may block IMAP)
+
+## Matrix client listing (matrix.org/ecosystem/clients)
+Submit once the repo has three months of commit history (first commit 2026-11-16, so from about
+2027-02-16): a PR to matrix-org/matrix.org with the client page, an SVG logo + REUSE licence file,
+screenshots and a project Matrix room. Maturity: Beta until SURF has used it in production for a while.
+
+Their feature list, and where ms_trix stands:
+- Supported: end-to-end encryption, spaces (view, browse, join), 1:1 calls (legacy), SSO, OAuth 2.0
+  (MAS), multiple accounts, multiple languages, image packs (emoji, stickers, own pack), sliding sync
+- [x] Invisible crypto (MSC4153): room keys only go to cross-signed devices (incoming messages are
+      still decrypted from any device, like Element X: the strict rule also hid history from
+      removed devices); a warning above the chat
+      when someone's identity changes (OK accepts it; for someone you verified: withdraw the
+      verification); clear messages when sending needs this device verified or recovery set up.
+      Also fixed: undecryptable messages now really ask key backup again
+- [x] Spaces: create a team (space); new channel in a team (team members can join, or anyone);
+      "Team members" as who can join in room settings; adding existing rooms was already there
+- [x] Threads: a list of all threads in a room (All / Mine) next to the thread panel
+- [x] Sending feels instant: your message shows at once with ⏱, then ✓ once the server has it and
+      ✓✓ when someone has read it (Matrix and Talk have read receipts, no "delivered"); a failed
+      send stays with "Not sent · Try again · Delete". The "Seen" line and the read markers in the
+      margin made way for Message status (⋯ or right-click on your message): who read it, who not yet
+- [ ] Group calls (MatrixRTC): see "Beyond" above
+- [ ] Jitsi conferences (legacy Element group calls via a Jitsi widget): probably skip in favour of
+      MatrixRTC; decide when someone asks for it
 
 ## Zulip (backlog)
 - [ ] Sign in (API key / password; server's auth methods), adapter in its own crate

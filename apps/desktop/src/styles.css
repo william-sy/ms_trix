@@ -343,8 +343,6 @@ button.file-chip:hover { text-decoration: underline; }
 .lightbox-bar .btn { color: #fff; border-color: rgba(255, 255, 255, 0.35); }
 .lightbox-bar .icon-btn { color: #fff; }
 .lightbox-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.seen { display: flex; align-items: center; gap: 3px; margin-top: 3px; font-size: 11px; color: var(--text-subtle); }
-.msg.mine .seen { justify-content: flex-end; }
 .avatar.tiny { width: 16px; height: 16px; font-size: 7px; margin-left: 2px; }
 .typing { margin: 0 24px -4px; font-size: 12px; color: var(--text-muted); font-style: italic; }
 .composer { position: relative; }
@@ -425,8 +423,6 @@ mark { background: rgba(255, 196, 0, 0.45); color: inherit; border-radius: 2px; 
 .att-text { display: flex; flex-direction: column; min-width: 0; }
 .att-name { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .att-size { font-size: 11px; color: var(--text-subtle); }
-.more-readers { font-size: 10px; color: var(--text-subtle); margin-left: 2px; }
-.msg:not(.mine) .seen { justify-content: flex-end; }
 
 /* ---------- Presence ---------- */
 .presence-dot { position: absolute; right: -2px; bottom: -2px; width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--bg-list); }
@@ -438,9 +434,6 @@ mark { background: rgba(255, 196, 0, 0.45); color: inherit; border-radius: 2px; 
 /* ---------- Read markers in the right margin ---------- */
 .msg-row { position: relative; display: flex; flex-direction: column; }
 .msg-row.mine { align-items: flex-end; }
-.read-markers { position: absolute; right: -60px; bottom: 2px; display: flex; align-items: center; }
-.read-markers .avatar.tiny { margin-left: -5px; box-shadow: 0 0 0 1.5px var(--bg-main); }
-.read-markers .avatar.tiny:first-child { margin-left: 0; }
 .thread-pane .messages { padding-right: 56px; }
 
 /* ---------- Invites, new chat ---------- */
@@ -984,7 +977,7 @@ mark { background: rgba(255, 196, 0, 0.45); color: inherit; border-radius: 2px; 
 /* Camera backgrounds */
 .bg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 6px; }
 .bg-tile { aspect-ratio: 16 / 9; border-radius: 6px; overflow: hidden; display: grid; place-items: center; background: rgba(127, 127, 127, 0.18); font-size: 18px; outline: 2px solid transparent; outline-offset: 1px; color: inherit; }
-.bg-tile img { width: 100%; height: 100%; object-fit: cover; }
+.bg-tile img, .bg-tile video, .bg-tile canvas { width: 100%; height: 100%; object-fit: cover; display: block; }
 .bg-tile.on { outline-color: var(--accent); }
 .bg-tile.add { font-size: 20px; opacity: 0.8; }
 .bg-blur { filter: blur(1.5px); font-size: 22px; }
@@ -1122,3 +1115,36 @@ html.call-page .call-mini { left: 0; top: 0; right: 0; bottom: auto; width: auto
 .speaker-picker .hint { font-size: 11px; color: var(--text-muted); }
 .menu.speaker-menu { right: 0; left: auto; top: calc(100% + 4px); width: 260px; padding: 10px; display: flex; flex-direction: column; gap: 6px; color: var(--text); }
 .speaker-menu select { width: 100%; }
+
+/* Threads list (Matrix): every thread in the conversation */
+.threads-filter { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+.thread-item { display: flex; gap: 10px; width: 100%; padding: 10px 12px; text-align: left; border-radius: 6px; }
+.thread-item:hover { background: var(--bg-hover); }
+.thread-item-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.thread-item-preview { font-size: 13px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.thread-item-meta { font-size: 12px; color: var(--accent); }
+
+/* Someone's encryption identity changed (invisible crypto) */
+.identity-banner { display: flex; flex-direction: column; gap: 6px; padding: 8px 16px 0; }
+.identity-warning { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 6px; font-size: 13px; background: color-mix(in srgb, #ffb900 16%, transparent); border: 1px solid color-mix(in srgb, #ffb900 45%, transparent); }
+.identity-warning span { flex: 1; }
+.identity-warning.serious { background: color-mix(in srgb, #d13438 14%, transparent); border-color: color-mix(in srgb, #d13438 45%, transparent); }
+
+/* Spelling suggestion above the composer (macOS); Tab takes it */
+.spell-suggestion { position: absolute; bottom: calc(100% + 6px); left: 12px; z-index: 5; display: flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 6px; font-size: 13px; background: var(--bg-menu); border: 1px solid var(--border); box-shadow: var(--shadow); }
+.spell-suggestion s { color: var(--text-muted); }
+.spell-suggestion .link { font-weight: 600; }
+.spell-suggestion kbd { font-size: 11px; padding: 0 5px; border: 1px solid var(--border); border-radius: 3px; color: var(--text-muted); }
+
+/* Own messages: ⏱ sending, ✓ sent, ✓✓ read (like WhatsApp); a failed send can be retried */
+.msg-tick { float: right; margin: 4px 0 -4px 10px; font-size: 11px; line-height: 1; color: var(--text-subtle); letter-spacing: -2px; user-select: none; }
+.msg-tick.sending { letter-spacing: 0; opacity: 0.8; }
+.msg-tick.seen { color: var(--accent); }
+.msg-failed { font-size: 12px; color: #d13438; text-align: right; margin-top: 2px; }
+.msg-failed .link { font-size: 12px; }
+
+/* Message status: who read your message */
+.login-card.message-status { width: min(420px, 100%); max-height: 80vh; overflow-y: auto; gap: 6px; }
+.message-status h4 { margin: 12px 0 2px; font-size: 13px; }
+.status-quote { margin: 0; padding: 6px 10px; border-left: 3px solid var(--accent); background: var(--bg-hover); border-radius: 4px; font-size: 13px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+.status-person { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 13px; }

@@ -103,6 +103,20 @@ fn err(e: impl std::fmt::Display) -> AdapterError {
     AdapterError::Other(e.to_string())
 }
 
+/// Sending failed: with invisible crypto, say what to do when it's about verification.
+fn send_err(e: impl std::fmt::Display) -> AdapterError {
+    let text = e.to_string();
+    if text.contains("your device is not verified") {
+        AdapterError::Other("Verify this device first: encrypted messages can only be sent from a verified device (Settings → Accounts, with your recovery key or another device).".into())
+    } else if text.contains("cross-signing is not set up") {
+        AdapterError::Other("Set up recovery for this account first (Settings → Accounts): encrypted messages need it.".into())
+    } else if text.contains("verified have changed their identity") {
+        AdapterError::Other("Someone you verified has a new identity; see the warning above the messages before sending again.".into())
+    } else {
+        AdapterError::Other(text)
+    }
+}
+
 fn now() -> Timestamp {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
 }
@@ -132,6 +146,8 @@ struct PendingDecryption {
     session: Option<String>,
     /// Asked key backup for this session already.
     tried_backup: bool,
+    /// Shown as "sent from an unverified device" already.
+    untrusted: bool,
 }
 
 impl Index {
@@ -382,8 +398,42 @@ impl MatrixAdapter {
         if let Some(watcher) = watcher {
             watcher.abort();
         }
-        result.map_err(err)?;
+        result.map_err(send_err)?;
         Ok(())
+    }
+
+    /// The teams (spaces) a room is in: its own m.space.parent links, or spaces we're in that
+    /// list it as a child.
+    async fn teams_of(&self, room: &Room) -> Vec<OwnedRoomId> {
+        use matrix_sdk::ruma::events::StateEventType;
+        let state_key = |raw: &str| serde_json::from_str::<serde_json::Value>(raw).ok().and_then(|v| v["state_key"].as_str().map(ToOwned::to_owned));
+        let has_via = |raw: &str| serde_json::from_str::<serde_json::Value>(raw).ok().is_some_and(|v| v["content"]["via"].as_array().is_some_and(|a| !a.is_empty()));
+        let mut teams: Vec<OwnedRoomId> = vec![];
+        for raw in room.get_state_events(StateEventType::SpaceParent).await.unwrap_or_default() {
+            let json = match &raw {
+                matrix_sdk::deserialized_responses::RawAnySyncOrStrippedState::Sync(r) => r.json().get().to_owned(),
+                matrix_sdk::deserialized_responses::RawAnySyncOrStrippedState::Stripped(r) => r.json().get().to_owned(),
+            };
+            if has_via(&json) {
+                if let Some(id) = state_key(&json).and_then(|k| OwnedRoomId::try_from(k).ok()) {
+                    teams.push(id);
+                }
+            }
+        }
+        if teams.is_empty() {
+            for space in self.client.joined_rooms().into_iter().filter(|r| r.is_space()) {
+                if let Ok(Some(raw)) = space.get_state_event(StateEventType::SpaceChild, room.room_id().as_str()).await {
+                    let json = match &raw {
+                        matrix_sdk::deserialized_responses::RawAnySyncOrStrippedState::Sync(r) => r.json().get().to_owned(),
+                        matrix_sdk::deserialized_responses::RawAnySyncOrStrippedState::Stripped(r) => r.json().get().to_owned(),
+                    };
+                    if has_via(&json) {
+                        teams.push(space.room_id().to_owned());
+                    }
+                }
+            }
+        }
+        teams
     }
 
     fn room(&self, conversation: &ConversationId) -> Result<Room> {
@@ -532,7 +582,7 @@ impl MatrixAdapter {
                 let (tx, me, account, index) = (tx.clone(), me.clone(), account.clone(), index.clone());
                 async move {
                     let raw = matrix_sdk::ruma::serde::Raw::<OriginalSyncRoomEncryptedEvent>::from_json(raw.0.clone());
-                    if let Some(event) = encrypted_placeholder(&room, raw, &me, &account, &index).await {
+                    if let Some(event) = encrypted_placeholder(&room, raw, &me, &account, &index, false).await {
                         let _ = tx.send(event);
                     }
                 }
@@ -737,7 +787,7 @@ impl ProtocolAdapter for MatrixAdapter {
             waveform: Some(waveform.into_iter().map(|v| v.clamp(0.0, 1.0)).collect()),
         };
         let config = AttachmentConfig::new().info(AttachmentInfo::Voice(info));
-        self.room(conversation)?.send_attachment(format!("Voice message.{ext}"), &parsed, data, config).await.map_err(err)?;
+        self.room(conversation)?.send_attachment(format!("Voice message.{ext}"), &parsed, data, config).await.map_err(send_err)?;
         Ok(())
     }
 
@@ -909,13 +959,13 @@ impl ProtocolAdapter for MatrixAdapter {
             },
             "org.matrix.msc1767.text": fallback,
         });
-        self.room(conversation)?.send_raw("org.matrix.msc3381.poll.start", content).await.map_err(err)?;
+        self.room(conversation)?.send_raw("org.matrix.msc3381.poll.start", content).await.map_err(send_err)?;
         Ok(())
     }
 
     async fn send_sticker(&self, conversation: &ConversationId, url: &str, body: &str) -> Result<()> {
         let content = serde_json::json!({ "body": body, "url": url, "info": {} });
-        self.room(conversation)?.send_raw("m.sticker", content).await.map_err(err)?;
+        self.room(conversation)?.send_raw("m.sticker", content).await.map_err(send_err)?;
         Ok(())
     }
 
@@ -1146,10 +1196,29 @@ impl ProtocolAdapter for MatrixAdapter {
         }
         request.room_alias_name = spec.alias.as_deref().map(|a| a.trim().trim_start_matches('#')).filter(|a| !a.is_empty()).map(|a| a.split(':').next().unwrap_or(a).to_owned());
         request.invite = spec.invite.iter().filter_map(|u| UserId::parse(u).ok()).collect();
-        if spec.encrypted {
+        let server = self.client.user_id().ok_or_else(|| AdapterError::Auth("not logged in".into()))?.server_name().to_string();
+        // Spaces hold no messages, so they're never encrypted.
+        if spec.encrypted && !spec.space {
             request.initial_state = vec![InitialStateEvent::with_empty_state_key(RoomEncryptionEventContent::with_recommended_defaults()).to_raw_any()];
         }
+        if spec.space {
+            let creation = serde_json::json!({ "type": "m.space" });
+            request.creation_content = Some(matrix_sdk::ruma::serde::Raw::from_json(serde_json::value::to_raw_value(&creation).map_err(err)?));
+        }
+        // A channel in a team: linked to it, and (unless public) open to the team's members.
+        let team = spec.team.as_deref().map(OwnedRoomId::try_from).transpose().map_err(err)?;
+        if let Some(team) = &team {
+            let raw = |v: serde_json::Value| serde_json::value::to_raw_value(&v).map(matrix_sdk::ruma::serde::Raw::from_json);
+            request.initial_state.push(raw(serde_json::json!({ "type": "m.space.parent", "state_key": team, "content": { "via": [server], "canonical": true } })).map_err(err)?);
+            if !spec.public {
+                request.initial_state.push(raw(serde_json::json!({ "type": "m.room.join_rules", "state_key": "", "content": { "join_rule": "restricted", "allow": [{ "type": "m.room_membership", "room_id": team }] } })).map_err(err)?);
+            }
+        }
         let room = self.client.create_room(request).await.map_err(err)?;
+        if let Some(team) = &team {
+            let space = self.client.get_room(team).ok_or_else(|| err("unknown team"))?;
+            space.send_state_event_raw("m.space.child", room.room_id().as_str(), serde_json::json!({ "via": [server] })).await.map_err(err)?;
+        }
         Ok(CommandOutput::open(ConversationId { account: self.account().id, remote: room.room_id().to_string() }.key()))
     }
 
@@ -1411,6 +1480,7 @@ impl ProtocolAdapter for MatrixAdapter {
             can_invite: power.as_ref().is_some_and(|p| p.user_can_invite(&me)),
             members,
             join_rule: join_rule.to_owned(),
+            in_team: !self.teams_of(&room).await.is_empty(),
             can_set_join_rule: can(StateEventType::RoomJoinRules),
             can_encrypt: !encrypted && can(StateEventType::RoomEncryption),
             can_set_alias: can(StateEventType::RoomCanonicalAlias),
@@ -1488,6 +1558,78 @@ impl ProtocolAdapter for MatrixAdapter {
         Ok(())
     }
 
+    async fn threads(&self, conversation: &ConversationId, mine: bool) -> Result<Vec<ThreadInfo>> {
+        use matrix_sdk::room::ListThreadsOptions;
+        use matrix_sdk::ruma::api::client::threads::get_threads::v1::IncludeThreads;
+
+        let room = self.room(conversation)?;
+        let me = self.client.user_id().ok_or_else(|| AdapterError::Auth("not logged in".into()))?.to_owned();
+        let include_threads = if mine { IncludeThreads::Participated } else { IncludeThreads::All };
+        let page = room.list_threads(ListThreadsOptions { include_threads, limit: Some(50u32.into()), ..Default::default() }).await.map_err(err)?;
+        let mut out = vec![];
+        for event in &page.chunk {
+            let Ok(v) = serde_json::from_str::<serde_json::Value>(event.raw().json().get()) else { continue };
+            let (Some(id), Some(sender)) = (v["event_id"].as_str(), v["sender"].as_str()) else { continue };
+            let Ok(sender_id) = UserId::parse(sender) else { continue };
+            let (sender_name, sender_avatar) = member_profile(&room, &sender_id).await;
+            // The server's summary of the thread (replies, the latest one, whether we're in it).
+            let summary = &v["unsigned"]["m.relations"]["m.thread"];
+            let latest = &summary["latest_event"];
+            let latest_name = match latest["sender"].as_str().and_then(|s| UserId::parse(s).ok()) {
+                Some(id) => Some(member_profile(&room, &id).await.0),
+                None => None,
+            };
+            let preview = v["content"]["body"].as_str().unwrap_or_default().lines().next().unwrap_or_default().chars().take(140).collect();
+            out.push(ThreadInfo {
+                root: id.to_owned(),
+                sender_name,
+                sender_avatar,
+                preview,
+                sent_at: v["origin_server_ts"].as_u64().unwrap_or(0),
+                replies: summary["count"].as_u64().unwrap_or(0) as u32,
+                latest_name,
+                latest_at: latest["origin_server_ts"].as_u64(),
+                mine: sender_id == me || summary["current_user_participated"].as_bool().unwrap_or(false),
+            });
+        }
+        out.sort_by_key(|t| std::cmp::Reverse(t.latest_at.unwrap_or(t.sent_at)));
+        Ok(out)
+    }
+
+    async fn identity_warnings(&self, conversation: &ConversationId) -> Result<Vec<IdentityWarning>> {
+        use futures::StreamExt;
+        use matrix_sdk_base::crypto::IdentityState;
+
+        let room = self.room(conversation)?;
+        if !room.encryption_state().is_encrypted() {
+            return Ok(vec![]);
+        }
+        // The stream starts with everyone in the room who isn't pinned or verified.
+        let changes = room.subscribe_to_identity_status_changes().await.map_err(err)?;
+        let mut changes = std::pin::pin!(changes);
+        let now = tokio::time::timeout(Duration::from_secs(5), changes.next()).await.ok().flatten().unwrap_or_default();
+        let mut out = vec![];
+        for change in now {
+            let was_verified = match change.changed_to {
+                IdentityState::PinViolation => false,
+                IdentityState::VerificationViolation => true,
+                _ => continue,
+            };
+            let name = member_profile(&room, &change.user_id).await.0;
+            out.push(IdentityWarning { user_id: change.user_id.to_string(), name, was_verified });
+        }
+        Ok(out)
+    }
+
+    async fn accept_identity(&self, user_id: &str) -> Result<()> {
+        let user = UserId::parse(user_id).map_err(err)?;
+        let identity = self.client.encryption().get_user_identity(&user).await.map_err(err)?.ok_or_else(|| err("no identity for this person"))?;
+        if identity.has_verification_violation() {
+            identity.withdraw_verification().await.map_err(err)?;
+        }
+        identity.pin().await.map_err(err)
+    }
+
     async fn set_team_order(&self, team: &ConversationId, order: Option<&str>) -> Result<()> {
         use matrix_sdk::ruma::serde::Raw;
         let content = match order {
@@ -1505,12 +1647,22 @@ impl ProtocolAdapter for MatrixAdapter {
 
     async fn set_join_rule(&self, conversation: &ConversationId, rule: &str) -> Result<()> {
         use matrix_sdk::ruma::room::JoinRule;
+        use matrix_sdk::ruma::room::{AllowRule, Restricted};
+        let room = self.room(conversation)?;
         let rule = match rule {
             "public" => JoinRule::Public,
             "invite" => JoinRule::Invite,
+            // Members of the team(s) the room is in can join without an invite.
+            "restricted" => {
+                let teams = self.teams_of(&room).await;
+                if teams.is_empty() {
+                    return Err(AdapterError::Other("This room isn't in a team yet.".into()));
+                }
+                JoinRule::Restricted(Restricted::new(teams.into_iter().map(AllowRule::room_membership).collect()))
+            }
             other => return Err(AdapterError::Other(format!("unknown join rule {other}"))),
         };
-        self.room(conversation)?.privacy_settings().update_join_rule(rule).await.map_err(err)
+        room.privacy_settings().update_join_rule(rule).await.map_err(err)
     }
 
     async fn set_room_alias(&self, conversation: &ConversationId, name: &str) -> Result<String> {
@@ -1871,7 +2023,7 @@ impl ProtocolAdapter for MatrixAdapter {
             (None, Some(reply)) => Some(Relation::Reply(Reply::new(InReplyTo::new(event_id(reply)?)))),
             (None, None) => None,
         };
-        let sent = room.send(content).await.map_err(err)?;
+        let sent = room.send(content).await.map_err(send_err)?;
         Ok(MessageId(sent.response.event_id.to_string()))
     }
 
@@ -1993,9 +2145,14 @@ fn forget_to_device_token(store: &Path) -> bool {
 }
 
 async fn build_client(store: &Path, homeserver: &str, passphrase: &str) -> Result<Client> {
+    use matrix_sdk_base::crypto::CollectStrategy;
     Client::builder()
         .server_name_or_homeserver_url(homeserver)
         .sqlite_store(store, Some(passphrase))
+        // Invisible crypto (MSC4153, like Element X): room keys only go to devices their owner
+        // signed. Incoming messages are still decrypted whatever device sent them, as Element X
+        // does: a stricter rule also locks out history from devices that have since been removed.
+        .with_room_key_recipient_strategy(CollectStrategy::IdentityBasedStrategy)
         // OAuth access tokens expire after minutes; refreshed sessions are stored (see `MatrixAdapter::new`).
         .handle_refresh_tokens()
         .build()
@@ -2223,6 +2380,12 @@ fn redaction_from(room: &Room, ev: &OriginalSyncRoomRedactionEvent, account: &Ac
     })
 }
 
+/// The event couldn't be decrypted because its sender's device isn't signed by its owner.
+fn untrusted_sender(event: &matrix_sdk::deserialized_responses::TimelineEvent) -> bool {
+    use matrix_sdk::deserialized_responses::{TimelineEventKind, UnableToDecryptReason};
+    matches!(&event.kind, TimelineEventKind::UnableToDecrypt { utd_info, .. } if matches!(utd_info.reason, UnableToDecryptReason::SenderIdentityNotTrusted(_)))
+}
+
 /// A "waiting for the key" placeholder; the raw event is kept for retrying.
 async fn encrypted_placeholder(
     room: &Room,
@@ -2230,6 +2393,7 @@ async fn encrypted_placeholder(
     me: &OwnedUserId,
     account: &AccountId,
     index: &Mutex<Index>,
+    untrusted: bool,
 ) -> Option<AdapterEvent> {
     use matrix_sdk::ruma::events::room::encrypted::EncryptedEventScheme;
 
@@ -2241,7 +2405,8 @@ async fn encrypted_placeholder(
     };
     let pos = {
         let mut index = index.lock().unwrap();
-        index.pending.entry(ev.event_id.clone()).or_insert(PendingDecryption { room: room.room_id().to_owned(), raw, session, tried_backup: false });
+        let pending = index.pending.entry(ev.event_id.clone()).or_insert(PendingDecryption { room: room.room_id().to_owned(), raw, session, tried_backup: false, untrusted: false });
+        pending.untrusted |= untrusted;
         index.assign(&ev.event_id, sent_at)
     };
     let (sender_name, sender_avatar) = member_profile(room, &ev.sender).await;
@@ -2252,7 +2417,7 @@ async fn encrypted_placeholder(
         sender: ev.sender.to_string(),
         sender_name,
         sent_at,
-        body: MessageBody::Encrypted,
+        body: if untrusted { MessageBody::Untrusted } else { MessageBody::Encrypted },
         thread_root: None,
         reply_to: None,
         sender_avatar,
@@ -2276,14 +2441,31 @@ async fn retry_decryption(client: Client, tx: mpsc::UnboundedSender<AdapterEvent
             .collect();
         for (event_id, room_id, raw, session, tried_backup) in pending {
             let Some(room) = client.get_room(&room_id) else { continue };
-            match room.decrypt_event(&raw, None).await {
-                Ok(decrypted) => {
+            // A failed decryption comes back as an "unable to decrypt" event, not as an error.
+            use matrix_sdk::deserialized_responses::TimelineEventKind;
+            let result = room.decrypt_event(&raw, None).await;
+            let failed = match &result {
+                Ok(e) if !matches!(e.kind, TimelineEventKind::UnableToDecrypt { .. }) => None,
+                Ok(e) => Some(untrusted_sender(e)),
+                Err(_) => Some(false),
+            };
+            match (result, failed) {
+                (Ok(decrypted), None) => {
                     index.lock().unwrap().pending.remove(&event_id);
                     if let Some(event) = convert(&room, &decrypted, &me, &account, &index).await {
                         let _ = tx.send(event);
                     }
                 }
-                Err(_) if !tried_backup => {
+                // Sent from a device its owner hasn't verified: say so instead of "waiting".
+                (_, Some(true)) => {
+                    let shown = index.lock().unwrap().pending.get(&event_id).is_some_and(|p| p.untrusted);
+                    if !shown {
+                        if let Some(event) = encrypted_placeholder(&room, raw, &me, &account, &index, true).await {
+                            let _ = tx.send(event);
+                        }
+                    }
+                }
+                _ if !tried_backup => {
                     if let Some(p) = index.lock().unwrap().pending.get_mut(&event_id) {
                         p.tried_backup = true;
                     }
@@ -2293,7 +2475,7 @@ async fn retry_decryption(client: Client, tx: mpsc::UnboundedSender<AdapterEvent
                         }
                     }
                 }
-                Err(_) => {}
+                _ => {}
             }
         }
         if tx.is_closed() {
@@ -2408,7 +2590,7 @@ async fn convert(room: &Room, event: &matrix_sdk::deserialized_responses::Timeli
             call_line(room, ev.event_id(), ev.sender(), u64::from(ev.origin_server_ts().0), &ev.event_type().to_string(), &content, me, account, index).await
         }
         AnySyncTimelineEvent::MessageLike(AnySyncMessageLikeEvent::RoomEncrypted(SyncMessageLikeEvent::Original(_))) => {
-            encrypted_placeholder(room, event.raw().clone().cast_unchecked(), me, account, index).await
+            encrypted_placeholder(room, event.raw().clone().cast_unchecked(), me, account, index, untrusted_sender(event)).await
         }
         _ => None,
     }

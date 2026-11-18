@@ -191,14 +191,14 @@ export function RoomPanel({ conv, onClose, onNotice }: Props) {
               <div className="setting">
                 <span>{t("room.whoCanJoin")}</span>
                 <div className="segmented small" role="radiogroup">
-                  {(["invite", "public"] as const).map((rule) => (
+                  {(details.inTeam || details.joinRule === "restricted" ? (["invite", "restricted", "public"] as const) : (["invite", "public"] as const)).map((rule) => (
                     <button key={rule} role="radio" aria-checked={details.joinRule === rule} className={details.joinRule === rule ? "on" : ""}
                       onClick={() => details.joinRule !== rule && backend.setJoinRule(conv.id, rule).then(reload).catch((e) => onNotice(String(e)))}>
-                      {t(`room.join.${rule}`)}
+                      {t(rule === "restricted" ? "room.join.team" : `room.join.${rule}`)}
                     </button>
                   ))}
                 </div>
-                {(details.joinRule === "knock" || details.joinRule === "restricted") && <p className="hint">{t(`room.join.${details.joinRule}`)}</p>}
+                {details.joinRule === "knock" && <p className="hint">{t("room.join.knock")}</p>}
               </div>
             )}
             {details.canSetAlias && (

@@ -19,11 +19,11 @@ jobs:
       matrix:
         include:
           - name: macOS
+            # Apple Silicon only (the runner's own architecture); Intel Macs aren't supported.
             os: macos-latest
-            # One app for Apple Silicon and Intel.
-            args: --target universal-apple-darwin
-            targets: aarch64-apple-darwin,x86_64-apple-darwin
-            bundle: target/universal-apple-darwin/release/bundle
+            args: ""
+            targets: ""
+            bundle: target/release/bundle
           - name: Windows
             os: windows-latest
             args: ""

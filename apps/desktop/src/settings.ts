@@ -139,13 +139,25 @@ export function saveSettings(s: Settings) {
 
 const listeners = new Set<(s: Settings) => void>();
 
-/** Changes settings from outside the Settings dialog (e.g. a call's background); the app's copy follows. */
+/**
+ * Changes settings from outside the Settings dialog (e.g. a call's background); the app's copy
+ * follows. Onto the stored settings, not this page's copy: another page may have changed others.
+ */
 export function updateSettings(patch: Partial<Settings>) {
-  const next = { ...current, ...patch };
+  const next = { ...loadSettings(), ...patch };
   saveSettings(next);
   applySettings(next);
   listeners.forEach((l) => l(next));
 }
+
+// Settings changed by another page of the app (a call's own webview: its devices, background):
+// this page follows, so it won't later save its older copy over them.
+window.addEventListener("storage", (e) => {
+  if (e.key !== KEY) return;
+  const next = loadSettings();
+  applySettings(next);
+  listeners.forEach((l) => l(next));
+});
 
 export function onSettingsChanged(listener: (s: Settings) => void): () => void {
   listeners.add(listener);

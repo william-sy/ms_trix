@@ -72,6 +72,14 @@ export function CallWindow() {
     return () => observer.disconnect();
   }, [minimized, docked, !!call]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // After a move: tells the app how big this page is laid out, so it can fix a page that kept
+  // its size from the other window.
+  useEffect(() => {
+    const report = () => void backend.callPageSize(window.innerWidth, window.innerHeight).catch(() => {});
+    const timers = [300, 1200].map((ms) => window.setTimeout(report, ms));
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
+  }, [docked]);
+
   // Call over (or cancelled before joining): the webview goes too.
   useEffect(() => {
     if (call?.phase !== "ended") return;

@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { SpeakerPicker } from "./SpeakerPicker";
 import { BackgroundPicker } from "./BackgroundPicker";
+import { rawCamera } from "./cameraEffects";
 import { useRingtone } from "./CallScreen";
 import { Avatar } from "./Avatar";
-import { CallIcon, CameraIcon, CameraOffIcon, EmojiIcon, ExpandIcon, HandIcon, LayoutIcon, MicIcon, MicOffIcon, PinIcon, ShareScreenIcon, SparkleIcon, NewWindowIcon, SpeakerIcon } from "./Icons";
+import { CallIcon, CameraIcon, CameraOffIcon, EmojiIcon, ExpandIcon, GearIcon, HandIcon, LayoutIcon, MicIcon, MicOffIcon, PinIcon, ShareScreenIcon, SparkleIcon, NewWindowIcon } from "./Icons";
 import { t } from "./i18n";
-import { currentSettings, onSettingsChanged } from "./settings";
-import type { TalkCalls, TalkPeerView } from "./talkCalls";
+import { currentSettings, onSettingsChanged, updateSettings } from "./settings";
+import { callLog, type TalkCalls, type TalkPeerView } from "./talkCalls";
 import type { Conversation } from "./types";
 import { formatDuration } from "./voice";
 
@@ -18,6 +19,17 @@ function Video({ stream, muted, mirror, className }: { stream?: MediaStream; mut
     el.srcObject = stream ?? null;
     const speaker = currentSettings().speakerId;
     if (!muted && speaker && el.setSinkId) void el.setSinkId(speaker).catch(() => {});
+    if (!stream || muted) return;
+    // Sound that may not start on its own (no click on this page yet) plays on the next click.
+    const play = () => void el.play().catch((e) => {
+      callLog(`playback blocked (${String(e)}); retrying on the next click`);
+      window.addEventListener("pointerdown", play, { once: true, capture: true });
+    });
+    play();
+    // macOS: another speaker was picked (the system output); reconnect so the sound follows.
+    const reattach = () => { el.srcObject = null; el.srcObject = stream; play(); };
+    window.addEventListener("trix:audio-output", reattach);
+    return () => { window.removeEventListener("pointerdown", play, { capture: true }); window.removeEventListener("trix:audio-output", reattach); };
   }, [stream, muted]);
   // A speaker picked during the call applies at once.
   useEffect(() => onSettingsChanged((st) => { const el = ref.current; if (!muted && st.speakerId && el?.setSinkId) void el.setSinkId(st.speakerId).catch(() => {}); }), [muted]);
@@ -29,8 +41,50 @@ export function SpeakerButton() {
   const [open, setOpen] = useState(false);
   return (
     <span className="bg-anchor">
-      <button className={`icon-btn ${open ? "on" : ""}`} title={t("av.speaker")} onClick={() => setOpen(!open)}><SpeakerIcon /></button>
+      <button className={`icon-btn ${open ? "on" : ""}`} title={t("av.speaker")} onClick={() => setOpen(!open)}><GearIcon /></button>
       {open && <div className="menu speaker-menu" onMouseLeave={() => setOpen(false)}><b>{t("av.speaker")}</b><SpeakerPicker /></div>}
+    </span>
+  );
+}
+
+/** The device a microphone or camera track comes from (behind a background effect, too). */
+const inUse = (track?: MediaStreamTrack) => (track && rawCamera(track).getSettings().deviceId) ?? null;
+
+/** Microphone or camera list; a device picked is saved, so the next call starts with it. */
+function DeviceSelect({ kind, devices, value, onPick }: {
+  kind: "audioinput" | "videoinput"; devices: MediaDeviceInfo[]; value: string | null; onPick: (id: string | null) => void;
+}) {
+  return (
+    <select value={value ?? ""} onChange={(e) => {
+      const id = e.target.value || null;
+      const label = devices.find((d) => d.deviceId === id)?.label ?? "";
+      updateSettings({ [kind === "audioinput" ? "micId" : "cameraId"]: id, deviceLabels: { ...currentSettings().deviceLabels, [kind]: label } });
+      callLog(`${kind === "audioinput" ? "microphone" : "camera"} saved for next time: ${label || "system default"}`);
+      onPick(id);
+    }}>
+      <option value="">{t("av.systemDefault")}</option>
+      {devices.filter((d) => d.kind === kind && d.deviceId !== "default").map((d, i) => <option key={d.deviceId} value={d.deviceId}>{d.label || t("av.unnamed", { n: i + 1 })}</option>)}
+    </select>
+  );
+}
+
+/** In a Talk call: microphone, speaker and camera, switched without leaving. */
+function DeviceButton({ calls }: { calls: TalkCalls }) {
+  const [open, setOpen] = useState(false);
+  const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
+  useEffect(() => { if (open) void navigator.mediaDevices.enumerateDevices().then(setDevices); }, [open]);
+  const mic = calls.call?.local?.getAudioTracks()[0];
+  const camera = calls.call?.local?.getVideoTracks()[0];
+  return (
+    <span className="bg-anchor">
+      <button className={`icon-btn ${open ? "on" : ""}`} title={t("talkcall.devices")} onClick={() => setOpen(!open)}><GearIcon /></button>
+      {open && (
+        <div className="menu speaker-menu" onMouseLeave={() => setOpen(false)}>
+          {mic && <><b>{t("av.microphone")}</b><DeviceSelect kind="audioinput" devices={devices} value={inUse(mic)} onPick={(id) => calls.switchDevice("audioinput", id)} /></>}
+          <b>{t("av.speaker")}</b><SpeakerPicker />
+          {camera && <><b>{t("av.camera")}</b><DeviceSelect kind="videoinput" devices={devices} value={inUse(camera)} onPick={(id) => calls.switchDevice("videoinput", id)} /></>}
+        </div>
+      )}
     </span>
   );
 }
@@ -229,7 +283,7 @@ export function TalkCallScreen({ calls, conversation, docked, onPopOut, onPopIn 
             <button className="icon-btn" title={t("talkcall.nextPage")} disabled={shownPage === pages - 1} onClick={() => setPage(shownPage + 1)}>›</button>
           </span>
         )}
-        <SpeakerButton />
+        <DeviceButton calls={calls} />
         <span className="bg-anchor">
           <button className="icon-btn" title={t("talkcall.layout")} onClick={() => setLayoutMenu(!layoutMenu)}><LayoutIcon /></button>
           {layoutMenu && (
@@ -287,12 +341,6 @@ function PreJoin({ calls, name, onPopOut }: { calls: TalkCalls; name: string; on
   const [cameraId, setCameraId] = useState<string | null>(null);
   useEffect(() => { void navigator.mediaDevices.enumerateDevices().then(setDevices); }, [call.local]);
   const hasCamera = !!call.local?.getVideoTracks().length;
-  const pick = (kind: MediaDeviceKind, value: string | null, onPick: (id: string | null) => void) => (
-    <select value={value ?? ""} onChange={(e) => onPick(e.target.value || null)}>
-      <option value="">{t("av.systemDefault")}</option>
-      {devices.filter((d) => d.kind === kind && d.deviceId !== "default").map((d, i) => <option key={d.deviceId} value={d.deviceId}>{d.label || t("av.unnamed", { n: i + 1 })}</option>)}
-    </select>
-  );
   return (
     <div className="call-screen talk prejoin">
       <header className="call-head"><b>{name}</b><span className="muted">{t("talkcall.prejoin")}</span><span className="spacer" />
@@ -302,9 +350,10 @@ function PreJoin({ calls, name, onPopOut }: { calls: TalkCalls; name: string; on
           {hasCamera && call.cameraOn ? <Video key={call.local?.getVideoTracks()[0]?.id} stream={call.local} muted mirror className="talk-tile-video" /> : <span className="muted">{t("talkcall.cameraOff")}</span>}
         </div>
         <div className="prejoin-side">
-          <label>{t("av.microphone")}{pick("audioinput", micId, (id) => { setMicId(id); calls.reprepare(hasCamera, id, cameraId); })}</label>
+          {/* The device in use (saved in Settings, or the system's) until another is picked. */}
+          <label>{t("av.microphone")}<DeviceSelect kind="audioinput" devices={devices} value={micId ?? inUse(call.local?.getAudioTracks()[0])} onPick={(id) => { setMicId(id); calls.reprepare(hasCamera, id, cameraId); }} /></label>
           <label>{t("av.speaker")}<SpeakerPicker /></label>
-          <label>{t("av.camera")}{pick("videoinput", cameraId, (id) => { setCameraId(id); calls.reprepare(true, micId, id); })}</label>
+          <label>{t("av.camera")}<DeviceSelect kind="videoinput" devices={devices} value={cameraId ?? inUse(call.local?.getVideoTracks()[0])} onPick={(id) => { setCameraId(id); calls.reprepare(true, micId, id); }} /></label>
           <div className="call-controls">
             <button className={`call-btn ${call.muted ? "off" : ""}`} title={call.muted ? t("mxcall.unmute") : t("mxcall.mute")} onClick={() => calls.setMuted(!call.muted)}>{call.muted ? <MicOffIcon /> : <MicIcon />}</button>
             <button className={`call-btn ${call.cameraOn ? "" : "off"}`} title={call.cameraOn ? t("mxcall.cameraOff") : t("mxcall.cameraOn")}

@@ -77,6 +77,12 @@ export interface Message {
   deleted?: boolean;
   /** Waiting for its decryption key. */
   encrypted?: boolean;
+  /** Not decrypted: sent from a device its owner hasn't verified. */
+  untrusted?: boolean;
+  /** Our copy of a message being sent, shown at once until the real one arrives. */
+  local?: { txn: string; outgoing: Outgoing; /** The real message's id, once the server has it. */ realId?: string };
+  /** For `local`: still sending, or sending failed. */
+  status?: "sending" | "failed";
   /** Room event (join, rename, ...) shown as a grey line; `body` holds its description. */
   event?: RoomEvent;
   avatar?: string;

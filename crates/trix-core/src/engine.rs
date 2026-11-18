@@ -254,6 +254,8 @@ pub struct MessageView {
     pub deleted: bool,
     /// Waiting for its decryption key.
     pub encrypted: bool,
+    /// Not decrypted: sent from a device its owner hasn't verified.
+    pub untrusted: bool,
     /// Set for room events (joins, renames, ...), shown as a grey line.
     pub event: Option<EventView>,
 }
@@ -310,7 +312,7 @@ impl MessageView {
                 (name.clone(), None, Some(MediaView { id: media.clone(), kind: *kind, name: name.clone(), mime: mime.clone(), caption: caption.clone(), voice: voice.clone() }))
             }
             MessageBody::Poll { question, .. } => (question.clone(), None, None),
-            MessageBody::Redacted | MessageBody::Event { .. } | MessageBody::Encrypted => (String::new(), None, None),
+            MessageBody::Redacted | MessageBody::Event { .. } | MessageBody::Encrypted | MessageBody::Untrusted => (String::new(), None, None),
         };
         let poll = match &m.body {
             MessageBody::Poll { id, .. } => Some(id.clone()),
@@ -357,7 +359,8 @@ impl MessageView {
             reactions: grouped,
             edited,
             deleted: matches!(m.body, MessageBody::Redacted),
-            encrypted: matches!(m.body, MessageBody::Encrypted),
+            encrypted: m.body.is_placeholder(),
+            untrusted: matches!(m.body, MessageBody::Untrusted),
             event,
         }
     }
@@ -418,7 +421,8 @@ impl Entry {
     /// "waiting for key" placeholder in place (and also returns false).
     fn insert(&mut self, m: Message) -> bool {
         if let Some(existing) = self.messages.iter_mut().find(|x| x.id == m.id) {
-            if matches!(existing.body, MessageBody::Encrypted) && !matches!(m.body, MessageBody::Encrypted) {
+            // Also from "waiting for key" to "unverified device" (both placeholders).
+            if existing.body.is_placeholder() && std::mem::discriminant(&existing.body) != std::mem::discriminant(&m.body) {
                 *existing = m;
                 let id = existing.id.clone();
                 self.apply_edit(&id);
@@ -1357,6 +1361,19 @@ mod tests {
         assert_eq!(out.new_messages.len(), 1);
         let m = &e.messages(&conv_id())[0];
         assert!(!m.encrypted && m.body == "hello 1");
+        assert_eq!(e.view(&conv_id()).unwrap().unread, 1);
+    }
+
+    #[test]
+    fn untrusted_sender_replaces_waiting_placeholder() {
+        let mut e = Engine::new();
+        e.handle(upsert(), 0);
+        let AdapterEvent::Message(real) = msg(1, false) else { unreachable!() };
+        e.handle(AdapterEvent::Message(Message { body: MessageBody::Encrypted, ..real.clone() }), 0);
+        e.handle(AdapterEvent::Message(Message { body: MessageBody::Untrusted, ..real.clone() }), 0);
+        let m = &e.messages(&conv_id())[0];
+        assert!(m.encrypted && m.untrusted);
+        // Still counted once.
         assert_eq!(e.view(&conv_id()).unwrap().unread, 1);
     }
 

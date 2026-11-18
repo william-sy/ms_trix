@@ -122,10 +122,12 @@ function General({ settings, set }: Section) {
 
       <section>
         <h2>{t("settings.messages")}</h2>
-        <label className="toggle-row">
-          <input type="checkbox" checked={settings.enterSends} onChange={(e) => set({ enterSends: e.target.checked })} />
-          <span>{t("settings.enterSends")}</span>
-        </label>
+        <div className="field-row">
+          <span>{t("settings.sendWith")}</span>
+          <Segmented value={settings.enterSends ? "enter" : "mod"} options={["enter", "mod"] as const}
+            label={(v) => (v === "enter" ? t("settings.sendWith.enter") : isMac ? "⌘ + Enter" : "Ctrl + Enter")} onPick={(v) => set({ enterSends: v === "enter" })} />
+        </div>
+        <p className="hint">{settings.enterSends ? t("settings.sendWith.enterHint") : t("settings.sendWith.modHint", { key: isMac ? "⌘" : "Ctrl" })}</p>
         <div className="field-row">
           <span>{t("settings.emojiSize")}</span>
           <Segmented value={settings.emojiSize} options={["small", "medium", "large"] as const} label={(v) => t(`settings.size.${v === "medium" ? "normal" : v}`)} onPick={(emojiSize) => set({ emojiSize })} />

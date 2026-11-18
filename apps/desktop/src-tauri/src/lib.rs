@@ -1,4 +1,5 @@
 mod audio_out;
+mod spell;
 mod accounts;
 mod search;
 
@@ -265,24 +266,73 @@ struct CallDock {
 }
 static CALL_DOCK: Mutex<CallDock> = Mutex::new(CallDock { popped: false, mini: None, title: String::new() });
 
-/// Puts the call where it belongs: filling its own window, or docked in the main window (filling
-/// it, or the card in the corner). Also after either window is resized.
-fn place_call(app: &AppHandle) {
+/// The size of `window`'s content. On macOS read from its content view: Tauri measures a window
+/// it thinks has no child webviews (one the call was moved into) by its first webview, so the call
+/// would be told to keep the size it came with.
+fn content_size(window: &tauri::Window) -> Option<tauri::LogicalSize<f64>> {
+    #[cfg(target_os = "macos")]
+    {
+        let view = window.ns_view().ok()? as usize;
+        let (tx, rx) = std::sync::mpsc::channel();
+        window
+            .run_on_main_thread(move || {
+                // SAFETY: the window's own content view, read on the main thread.
+                let view = unsafe { &*(view as *const objc2_app_kit::NSView) };
+                let _ = tx.send(view.frame().size);
+            })
+            .ok()?;
+        let size = rx.recv().ok()?;
+        Some(tauri::LogicalSize::new(size.width, size.height))
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let size = window.inner_size().ok()?;
+        Some(size.to_logical(window.scale_factor().unwrap_or(1.0)))
+    }
+}
+
+/// Where the call belongs: filling its own window, or docked in the main window (filling it, or
+/// the card in the corner).
+fn call_bounds(app: &AppHandle) -> Option<(tauri::Webview, tauri::LogicalPosition<f64>, tauri::LogicalSize<f64>)> {
     let (popped, mini) = {
         let dock = CALL_DOCK.lock().unwrap();
         (dock.popped, dock.mini)
     };
-    let (Some(window), Some(webview)) = (app.get_window(if popped { CALL_POPOUT } else { "main" }), app.get_webview(CALL_WINDOW)) else { return };
-    let Ok(size) = window.inner_size() else { return };
-    let size = size.to_logical::<f64>(window.scale_factor().unwrap_or(1.0));
-    let (position, size) = match mini.filter(|_| !popped) {
+    let window = app.get_window(if popped { CALL_POPOUT } else { "main" })?;
+    let webview = app.get_webview(CALL_WINDOW)?;
+    let size = content_size(&window)?;
+    Some(match mini.filter(|_| !popped) {
         Some(height) => (
+            webview,
             tauri::LogicalPosition::new((size.width - MINI_WIDTH - MINI_MARGIN).max(0.0), (size.height - height - MINI_MARGIN).max(0.0)),
             tauri::LogicalSize::new(MINI_WIDTH, height),
         ),
-        None => (tauri::LogicalPosition::new(0.0, 0.0), size),
-    };
-    let _ = webview.set_bounds(tauri::Rect { position: position.into(), size: size.into() });
+        None => (webview, tauri::LogicalPosition::new(0.0, 0.0), size),
+    })
+}
+
+/// Puts the call where it belongs (call_bounds). Also after either window is resized.
+fn place_call(app: &AppHandle) {
+    if let Some((webview, position, size)) = call_bounds(app) {
+        let _ = webview.set_bounds(tauri::Rect { position: position.into(), size: size.into() });
+    }
+}
+
+/// The call's page says how big it is laid out, after a move. WebKit can keep the size it had in
+/// the other window although the webview has its new size, and setting that same size again
+/// changes nothing: then it's nudged a pixel and back, as resizing the window by hand would.
+/// (The page is a little less tall than its place: WebKit keeps it clear of the title bar.)
+#[tauri::command]
+async fn call_page_size(app: AppHandle, width: f64, height: f64) {
+    let Some((webview, position, size)) = call_bounds(&app) else { return };
+    if (width - size.width).abs() <= 2.0 && height <= size.height + 2.0 {
+        return;
+    }
+    log::info!("call page is {width:.0}×{height:.0} instead of {:.0}×{:.0}; refitting", size.width, size.height);
+    let nudged = tauri::LogicalSize::new(size.width - 1.0, size.height - 1.0);
+    let _ = webview.set_bounds(tauri::Rect { position: position.into(), size: nudged.into() });
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    place_call(&app);
 }
 
 fn call_popout_window(app: &AppHandle, title: &str) -> tauri::Result<tauri::Window> {
@@ -718,12 +768,13 @@ async fn messages(app: AppHandle, key: String) -> CmdResult<Vec<MessageView>> {
 }
 
 #[tauri::command]
-async fn send(state: State<'_, AppState>, key: String, text: String, emote: bool, reply_to: Option<String>, thread_root: Option<String>, mentions: Vec<String>, html: Option<String>, msgtype: Option<String>, emotes: Option<Vec<(String, String)>>) -> CmdResult<()> {
+/// Sends a message; returns its id, so the UI can swap its "sending" copy for the real one.
+async fn send(state: State<'_, AppState>, key: String, text: String, emote: bool, reply_to: Option<String>, thread_root: Option<String>, mentions: Vec<String>, html: Option<String>, msgtype: Option<String>, emotes: Option<Vec<(String, String)>>) -> CmdResult<String> {
     let id = conv(&key)?;
     let adapter = state.engine.lock().unwrap().adapter(&id.account).ok_or("account not signed in")?;
     let message = Outgoing { text, emote, reply_to: reply_to.map(MessageId), thread_root: thread_root.map(MessageId), mentions, html, msgtype, emotes: emotes.unwrap_or_default() };
-    adapter.send(&id, message).await.map_err(|e| e.to_string())?;
-    Ok(())
+    let sent = adapter.send(&id, message).await.map_err(|e| e.to_string())?;
+    Ok(sent.0)
 }
 
 /// Fetches the page before the oldest loaded message; the UI re-reads `messages`.
@@ -1061,9 +1112,48 @@ async fn ringtone(state: State<'_, AppState>) -> CmdResult<tauri::ipc::Response>
     std::fs::read(state.data_dir.join(RINGTONE_FILE)).map(tauri::ipc::Response::new).map_err(|e| e.to_string())
 }
 
+const BACKGROUND_FILE: &str = "camera-background";
+const BACKGROUND_MAX: usize = 60 * 1024 * 1024;
+
+/// Your own moving camera background (a video or GIF, sent as the request body), kept in the
+/// app's data folder: too big for the webview's local storage.
+#[tauri::command]
+async fn save_background_video(state: State<'_, AppState>, request: tauri::ipc::Request<'_>) -> CmdResult<()> {
+    let tauri::ipc::InvokeBody::Raw(data) = request.body() else { return Err("no video".into()) };
+    if data.len() > BACKGROUND_MAX {
+        return Err("the video is too big".into());
+    }
+    std::fs::write(state.data_dir.join(BACKGROUND_FILE), data).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn background_video(state: State<'_, AppState>) -> CmdResult<tauri::ipc::Response> {
+    std::fs::read(state.data_dir.join(BACKGROUND_FILE)).map(tauri::ipc::Response::new).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 async fn calendar_people(state: State<'_, AppState>, account: String, term: String) -> CmdResult<Vec<trix_core::Attendee>> {
     adapter_for(&state, &account)?.calendar_people(&term).await.map_err(|e| e.to_string())
+}
+
+/// The threads in a conversation (all, or only those you're part of).
+#[tauri::command]
+async fn threads(state: State<'_, AppState>, key: String, mine: bool) -> CmdResult<Vec<trix_core::ThreadInfo>> {
+    let id = conv(&key)?;
+    adapter_for(&state, &id.account.0)?.threads(&id, mine).await.map_err(|e| e.to_string())
+}
+
+/// People in the conversation whose encryption identity changed (invisible crypto).
+#[tauri::command]
+async fn identity_warnings(state: State<'_, AppState>, key: String) -> CmdResult<Vec<trix_core::IdentityWarning>> {
+    let id = conv(&key)?;
+    adapter_for(&state, &id.account.0)?.identity_warnings(&id).await.map_err(|e| e.to_string())
+}
+
+/// Accepts someone's new identity, clearing the warning.
+#[tauri::command]
+async fn accept_identity(state: State<'_, AppState>, account: String, user_id: String) -> CmdResult<()> {
+    adapter_for(&state, &account)?.accept_identity(&user_id).await.map_err(|e| e.to_string())
 }
 
 /// Web address to join a conversation (e.g. a Talk meeting link for a calendar event).
@@ -2061,18 +2151,25 @@ pub fn run() {
             share_raise_bar,
             open_call_window,
             audio_out::audio_outputs,
+            spell::spell_suggestion,
             audio_out::set_audio_output,
             focus_call_window,
             close_call_window,
             call_window_state,
             pop_out_call,
             open_reminder,
+            threads,
+            identity_warnings,
+            accept_identity,
             close_reminder,
             save_ringtone,
             ringtone,
             reminder_action,
             pop_in_call,
             dock_call_window,
+            call_page_size,
+            save_background_video,
+            background_video,
             hide_share_overlay,
             stop_sharing,
             cached_chat_list,

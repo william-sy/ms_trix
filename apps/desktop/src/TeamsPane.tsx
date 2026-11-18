@@ -18,6 +18,9 @@ interface Props {
   onAccept: (key: string) => void;
   onDecline: (key: string) => void;
   onTeamInfo: (team: TeamView) => void;
+  onNewTeam: () => void;
+  /** Create a new channel in this team. */
+  onNewChannel: (team: TeamView) => void;
 }
 
 /** Teams view sidebar: your spaces as teams, with the channels you're in. */
@@ -28,7 +31,8 @@ const loadOrder = (): Order => {
 };
 
 /** Teams view sidebar: your spaces as teams (sub-spaces nested), with the channels you're in. */
-export function TeamsPane({ teams, convs, selectedId, onSelect, onBrowseTeam, onBrowse, onLeaveTeam, onAccept, onDecline, onTeamInfo }: Props) {
+export function TeamsPane({ teams, convs, selectedId, onSelect, onBrowseTeam, onBrowse, onLeaveTeam, onAccept, onDecline, onTeamInfo, onNewTeam, onNewChannel }: Props) {
+  const [headMenu, setHeadMenu] = useState(false);
   const invites = convs.filter((c) => c.kind === "team" && c.invitedBy);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [menu, setMenu] = useState<{ team: TeamView; x: number; y: number } | null>(null);
@@ -43,7 +47,7 @@ export function TeamsPane({ teams, convs, selectedId, onSelect, onBrowseTeam, on
     try { localStorage.setItem(ORDER_KEY, JSON.stringify(next)); } catch { /* private mode */ }
   };
   useEffect(() => {
-    const close = () => { setMenu(null); setChannelMenu(null); };
+    const close = () => { setMenu(null); setChannelMenu(null); setHeadMenu(false); };
     window.addEventListener("click", close);
     return () => window.removeEventListener("click", close);
   }, []);
@@ -134,7 +138,15 @@ export function TeamsPane({ teams, convs, selectedId, onSelect, onBrowseTeam, on
       <header className="pane-head">
         <h1>{t("teams.title")}</h1>
         <div className="head-actions">
-          <button className="icon-btn" title={t("teams.join")} onClick={onBrowse}>＋</button>
+          <span className="emoji-anchor">
+            <button className={`icon-btn ${headMenu ? "on" : ""}`} title={t("teams.joinOrCreate")} onClick={(e) => { e.stopPropagation(); setHeadMenu(!headMenu); }}>＋</button>
+            {headMenu && (
+              <div className="menu head-menu" onClick={(e) => e.stopPropagation()}>
+                <button className="menu-item" onClick={() => { setHeadMenu(false); onNewTeam(); }}>{t("teams.create")}</button>
+                <button className="menu-item" onClick={() => { setHeadMenu(false); onBrowse(); }}>{t("teams.join")}</button>
+              </div>
+            )}
+          </span>
         </div>
       </header>
       <div className="list-scroll">
@@ -159,7 +171,8 @@ export function TeamsPane({ teams, convs, selectedId, onSelect, onBrowseTeam, on
         {top.length === 0 && invites.length === 0 && (
           <div className="empty">
             <p>{t("teams.none")}</p>
-            <button className="btn primary small" onClick={onBrowse}>{t("teams.browse")}</button>
+            <button className="btn primary small" onClick={onNewTeam}>{t("teams.create")}</button>
+            <button className="btn small" onClick={onBrowse}>{t("teams.browse")}</button>
           </div>
         )}
         {top.map((team) => renderTeam(team, 0))}
@@ -167,6 +180,7 @@ export function TeamsPane({ teams, convs, selectedId, onSelect, onBrowseTeam, on
       {menu && (
         <ContextMenu x={menu.x} y={menu.y}>
           <button className="menu-item" onClick={() => { setMenu(null); onTeamInfo(menu.team); }}>{t("teams.info")}</button>
+          <button className="menu-item" onClick={() => { setMenu(null); onNewChannel(menu.team); }}>{t("teams.newChannel")}</button>
           <button className="menu-item" onClick={() => { setMenu(null); onBrowseTeam(menu.team); }}>{t("teams.browseChannels")}</button>
           <button className="menu-item" onClick={() => { setAdding(menu.team); setMenu(null); }}>{t("teams.addRooms")}</button>
           <button className="menu-item" onClick={() => { togglePin(menu.team); setMenu(null); }}>{order.pinned.includes(menu.team.key) ? t("teams.unpin") : t("teams.pin")}</button>
