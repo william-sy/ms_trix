@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { createContext, useState, type FormEvent } from "react";
 import { backend, type SecurityStatus } from "./backend";
 import { LockIcon } from "./Icons";
 import type { Org } from "./types";
@@ -74,3 +74,8 @@ export function RecoveryDialog({ org, status, onClose, onUpdated }: { org: Org; 
     </div>
   );
 }
+
+/** For "waiting for key" messages: what would help this account get its keys, if anything. */
+export type KeyHelp = (orgId: string) => { label: string; fix: () => void } | null;
+export const KeyHelpContext = createContext<KeyHelp>(() => null);
+

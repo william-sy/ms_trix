@@ -1,15 +1,16 @@
 # ms_trix architecture
 
-A Teams-style chat client that is protocol-open and multi-org.
+A Teams-style chat, meetings and calendar client that is protocol-open and multi-org.
+Licensed GPL-3.0-or-later.
 
 ## Decisions
 
 | Topic | Decision |
 |---|---|
 | Core protocol | Matrix first; other networks via mautrix bridges |
-| Other protocols | Plugin adapters implementing `trix_core::ProtocolAdapter` (XMPP, IRC later) |
+| Other protocols | Adapters implementing `trix_core::ProtocolAdapter`: Nextcloud Talk now; Zulip and Mattermost next (see ROADMAP.md); XMPP and IRC skipped |
 | Multi-org | One signed-in account = one org. All accounts sync simultaneously |
-| Rail items | Driven by protocol capabilities: Teams = Matrix spaces; Calls hidden until MatrixRTC; no Calendar (would need CalDAV/Exchange integration) |
+| Rail items | Driven by protocol capabilities: Teams = Matrix spaces; Calls = Matrix 1:1 and Talk calls (Matrix group calls wait for MatrixRTC); Calendar = Nextcloud over CalDAV |
 | Org switching | Org switcher in the top tile of the app rail (where Teams shows the org logo); "All organizations" combined view; ⌘0 / ⌘1-9 |
 | E2EE | Required. Matrix via matrix-rust-sdk crypto |
 | Unread | Client-owned state machine in `trix-core/src/unread.rs`; server counts are inputs only |
@@ -20,9 +21,11 @@ A Teams-style chat client that is protocol-open and multi-org.
 ```
 crates/
   trix-core/      protocol-agnostic model, adapter trait, unread state machine
-  trix-matrix/    Matrix adapter (matrix-sdk 0.19, classic sync for now)
-  trix-xmpp/      XMPP adapter                                [later]
-  trix-irc/       IRC adapter                                 [later]
+  trix-matrix/    Matrix adapter (matrix-sdk 0.19, sliding sync with classic fallback)
+  trix-talk/      Nextcloud Talk adapter (OCS REST, Login Flow v2, polling, CalDAV)
+  trix-search/    encrypted local full-text index (all history, the Shared tab)
+  trix-zulip/     Zulip adapter                               [next]
+  trix-mattermost/ Mattermost adapter                         [next]
 apps/
   desktop/        Tauri app; React UI in src/, Rust host in src-tauri/
 ```
@@ -75,3 +78,54 @@ that state to the UI through commands and events.
   misses a key or has different placeholders.
 * Strings produced in Rust (chat previews, notifications, command results,
   errors) are still English; they move to structured data the UI translates.
+
+## Nextcloud Talk notes
+
+* Login Flow v2 (browser) gives an app password, kept in the keychain like a
+  Matrix session and revoked (`DELETE /ocs/v2.php/core/apppassword`) on sign-out.
+* Talk message ids only grow, so the id is the timeline position; read markers
+  (`lastReadMessage`) map onto it directly.
+* Updates: the conversation list is polled every 5 s (`modifiedSince`, full list
+  every 30 s to notice removals such as deleted meetings); new messages are
+  fetched where `lastMessage` moved. Typing and push are still to come.
+* Room settings (notifications, lobby, permissions, password, recording consent,
+  message expiry, picture, …) go through `call_api`, which allows only Talk's own
+  room endpoints; Meet now creates a public room (`roomType` 3).
+* Reactions arrive as counts (`ReactionsReplaced`); edits/deletes/reactions come
+  as system messages carrying the updated parent. Other system messages are
+  shown with the server's own (translated) wording (`RoomEventKind::Other`).
+* Files are uploaded to the user's `Talk/` folder over WebDAV and shared into
+  the conversation (share type 10), with the caption in `talkMetaData`.
+
+## Calls
+
+* Talk calls run in the webview (WebRTC, `apps/desktop/src/talkCalls.ts`) over
+  Talk's signalling: the high-performance backend (WebSocket, with or without an
+  MCU, as on SURF) or Talk's internal signalling (polling) when there is none.
+  Offers carry the display name, so tiles and raised hands show names.
+* Each Talk call gets a webview of its own (`talk-call`, `OwnCallWindow.tsx`).
+  The host docks it in the main window (filling it, or a card in the corner when
+  minimised) or reparents it into a window of its own (`talk-call-window`);
+  moving between the two keeps the connection. This uses Tauri's `unstable`
+  multi-webview feature. The main window only sees which conversation is in a
+  call (`trix://call-window`).
+* Matrix 1:1 calls (legacy `m.call.*` events) run in the main webview.
+* Screen sharing opens click-through overlay windows: a red border, a bar with
+  Stop and drawing tools, and a see-through drawing layer that is captured with
+  the screen. Sharing minimises the call so it doesn't film itself.
+* Background blur and pictures use MediaPipe's segmenter, bundled with the app.
+* Speaker choice: WebView2 (Windows) supports `setSinkId`; WebKit doesn't, so on
+  macOS the call switches the system output through CoreAudio (`audio_out.rs`).
+
+## Calendar
+
+* Nextcloud calendars over CalDAV (`crates/trix-talk/src/dav.rs`). Repeating
+  events keep their RRULE; editing one occurrence writes a `RECURRENCE-ID`
+  override, deleting one adds an `EXDATE`, and editing the series shifts it while
+  keeping its time zone.
+
+## Search
+
+* `trix-search` keeps a full-text index of all history on this device. It holds
+  decrypted messages, so it is encrypted on disk with a key in the OS keychain;
+  older history is indexed in the background.

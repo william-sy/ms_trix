@@ -78,6 +78,13 @@ export function BrowseDialog({ orgId, initialSpace, onClose, onOpen }: Props) {
   };
 
   const join = (r: DirectoryRoom) => act(r.id, () => backend.joinRoom(account, r.alias ?? r.id, server || home || null));
+  const [knocked, setKnocked] = useState<Set<string>>(new Set());
+  const knock = (r: DirectoryRoom) =>
+    act(r.id, async () => {
+      await backend.knock(account, r.alias ?? r.id, server || home || null);
+      setKnocked((s) => new Set(s).add(r.id));
+      return { open: null };
+    });
 
   return (
     <div className="login-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
@@ -133,7 +140,7 @@ export function BrowseDialog({ orgId, initialSpace, onClose, onOpen }: Props) {
             <div key={r.id} className={`result ${r.isSpace ? "clickable" : ""}`} onClick={() => r.isSpace && setSpaces([...spaces, r])}>
               <Avatar account={account} media={r.avatar ?? undefined} name={r.name} className={r.isSpace ? "space" : "kind-channel"} channel={!r.isSpace} />
               <span className="result-text">
-                <b>{r.name}{r.isSpace && <span className="tag">{t("browse.space")}</span>}</b>
+                <b>{r.name}{r.isSpace && <span className="tag">{t("browse.space")}</span>}{r.joinRule === "restricted" && <span className="tag">{t("browse.teamOnly")}</span>}</b>
                 <small>{[r.alias, t("browse.members", { count: r.members })].filter(Boolean).join(" · ")}</small>
                 {r.topic && <small className="topic">{r.topic}</small>}
               </span>
@@ -141,6 +148,10 @@ export function BrowseDialog({ orgId, initialSpace, onClose, onOpen }: Props) {
                 <button className="btn small" onClick={(e) => { e.stopPropagation(); onOpen(r.joined!); onClose(); }}>{t("browse.open")}</button>
               ) : r.isSpace ? (
                 <span className="chev">›</span>
+              ) : r.joinRule === "knock" ? (
+                <button className="btn small" disabled={busy === r.id || knocked.has(r.id)} onClick={(e) => { e.stopPropagation(); knock(r); }}>{knocked.has(r.id) ? t("browse.knocked") : t("browse.knock")}</button>
+              ) : r.joinRule === "invite" ? (
+                <span className="muted small">{t("browse.inviteOnly")}</span>
               ) : (
                 <button className="btn primary small" disabled={busy === r.id} onClick={(e) => { e.stopPropagation(); join(r); }}>{busy === r.id ? t("browse.joining") : t("browse.joinRoom")}</button>
               )}

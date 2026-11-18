@@ -1,7 +1,9 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Avatar } from "./Avatar";
-import { backend, isLive, type Profile } from "./backend";
+import { backend, isLive, type DeviceInfo, type Profile } from "./backend";
 import { t } from "./i18n";
+import { useOrgs } from "./store";
+import { VERIFIED_EVENT } from "./VerificationDialog";
 import type { Conversation } from "./types";
 
 /** Opens the profile card for `userId` near the clicked element. */
@@ -32,7 +34,10 @@ export function ProfileCard({ account, userId, at, convs, onClose, onOpen, onNot
 
   useEffect(() => {
     if (!isLive) return setError(t("desktopOnly.profiles"));
-    backend.profile(account, userId).then(setProfile).catch((e) => setError(String(e)));
+    const load = () => backend.profile(account, userId).then(setProfile).catch((e) => setError(String(e)));
+    load();
+    window.addEventListener(VERIFIED_EVENT, load);
+    return () => window.removeEventListener(VERIFIED_EVENT, load);
   }, [account, userId]);
 
   useEffect(() => {
@@ -52,6 +57,25 @@ export function ProfileCard({ account, userId, at, convs, onClose, onOpen, onNot
     if (!r) return;
     setPos({ x: Math.max(8, Math.min(at.x, window.innerWidth - r.width - 8)), y: Math.max(8, Math.min(at.y, window.innerHeight - r.height - 8)) });
   }, [at, profile]);
+
+  const org = useOrgs().find((o) => o.id === account);
+  const me = org?.userId;
+  const isMatrix = org?.protocol === "matrix";
+  const toggleIgnore = () => {
+    if (!profile) return;
+    if (!profile.ignored && !confirm(t("profile.ignoreConfirm", { name: profile.name }))) return;
+    backend.setIgnored(account, userId, !profile.ignored)
+      .then(() => setProfile({ ...profile, ignored: !profile.ignored }))
+      .catch((e) => setError(String(e)));
+  };
+
+  // Their sessions, loaded when opened (Matrix only).
+  const [devices, setDevices] = useState<DeviceInfo[] | null | "open">(null);
+  const toggleDevices = () => {
+    if (devices) return setDevices(null);
+    setDevices("open");
+    backend.userDevices(account, userId).then(setDevices).catch((e) => { setDevices(null); setError(String(e)); });
+  };
 
   const chat = () => {
     if (dm) return onOpen(dm.id);
@@ -78,7 +102,24 @@ export function ProfileCard({ account, userId, at, convs, onClose, onOpen, onNot
       <div className="profile-actions">
         <button className="btn primary small" onClick={chat}>{t("profile.chat")}</button>
         <button className="btn small" onClick={() => navigator.clipboard.writeText(userId).catch(() => {})}>{t("profile.copyId")}</button>
+        {profile && profile.userId !== me && isMatrix && (
+          <button className="btn small" onClick={toggleIgnore}>{profile.ignored ? t("profile.unignore") : t("profile.ignore")}</button>
+        )}
+        {profile?.verified === false && <button className="btn small" onClick={() => backend.startVerification(account, userId).catch((e) => setError(String(e)))}>{t("verify.start")}</button>}
       </div>
+      {isMatrix && profile && (
+        <div className="profile-devices">
+          <button className="link" onClick={toggleDevices}>{devices ? t("profile.hideSessions") : t("profile.showSessions")}</button>
+          {devices === "open" && <p className="muted">{t("common.loading")}</p>}
+          {Array.isArray(devices) && devices.length === 0 && <p className="muted">{t("profile.noSessions")}</p>}
+          {Array.isArray(devices) && devices.map((d) => (
+            <div key={d.id} className="profile-device" title={d.id}>
+              <span className="device-name">{d.name || d.id}</span>
+              <span className={`tag ${d.verified ? "ok" : "warn"}`}>{d.verified ? t("profile.sessionSigned") : t("profile.sessionUnsigned")}</span>
+            </div>
+          ))}
+        </div>
+      )}
       {shared.length > 0 && (
         <div className="profile-shared">
           <h3>{t("profile.shared", { count: shared.length })}</h3>

@@ -33,6 +33,38 @@ export function setLanguage(choice: string) {
   document.documentElement.lang = current;
 }
 
+/** The "rust.*" texts in the current language (English where missing), for the host. */
+export function rustTexts(): Record<string, string> {
+  const dict = { ...(en as Dict), ...(locales[current] ?? {}) };
+  return Object.fromEntries(Object.entries(dict).filter(([k]) => k.startsWith("rust.")).map(([k, v]) => [k.slice("rust.".length), v]));
+}
+
+/** Words a command result in the current language when the host sent a text key. */
+export const commandText = (out: { message: string; text: { key: string; args: Record<string, string> } | null }) =>
+  out.text ? t(`rust.${out.text.key}` as Key, out.text.args) : out.message;
+
+// Errors from servers and the SDK arrive as English text with a Matrix code or a
+// network message; the common ones get a readable sentence in the UI language.
+const errorPatterns: [RegExp, Key][] = [
+  [/M_FORBIDDEN|\b403 Forbidden/, "error.forbidden"],
+  [/M_LIMIT_EXCEEDED|\b429 Too Many Requests/, "error.rateLimited"],
+  [/M_UNKNOWN_TOKEN|M_MISSING_TOKEN|\b401 Unauthorized/, "error.signedOut"],
+  [/M_NOT_FOUND|\b404 Not Found/, "error.notFound"],
+  [/M_ROOM_IN_USE/, "error.addressTaken"],
+  [/M_TOO_LARGE|\b413 Payload Too Large/, "error.tooLarge"],
+  [/M_USER_IN_USE/, "error.nameTaken"],
+  [/M_INVALID_PARAM|M_BAD_JSON/, "error.invalid"],
+  [/error sending request|connection (refused|reset|closed)|dns error|operation timed out/i, "error.network"],
+];
+
+/** A readable error in the UI language, keeping the original (short) for reference. */
+export function friendlyError(raw: string): string {
+  const hit = errorPatterns.find(([re]) => re.test(raw));
+  if (!hit) return raw;
+  const code = /M_[A-Z_]+/.exec(raw)?.[0];
+  return code ? `${t(hit[1])} (${code})` : t(hit[1]);
+}
+
 /** BCP 47 code for Intl date/number formatting. */
 export const locale = () => current;
 

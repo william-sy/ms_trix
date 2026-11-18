@@ -1,18 +1,31 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
+import { Fragment, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
 import { Avatar } from "./Avatar";
-import { backend, isLive } from "./backend";
+import { backend, formatTime, isLive, type SearchHit, type UploadProgress } from "./backend";
+import { Highlight } from "./TitleBar";
 import { Lightbox, MediaBody, MediaMenu, useMediaUi, type MediaActions } from "./Media";
 import { EmojiPicker } from "./EmojiPicker";
 import { RichText } from "./RichText";
-import { LockIcon, MoreIcon, SearchIcon } from "./Icons";
+import { CallIcon, CameraIcon, LockIcon, MoreIcon, SearchIcon } from "./Icons";
 import { OrgAvatar } from "./OrgSwitcher";
-import { useOrg, type Action } from "./store";
+import { useOrg, useOrgs, type Action } from "./store";
+import { CloudFilePicker } from "./CloudFilePicker";
 import { Composer } from "./Composer";
-import type { Attachment, Conversation, Message, Outgoing } from "./types";
-import { t } from "./i18n";
+import { ForwardDialog } from "./ForwardDialog";
+import type { Attachment, CloudFile, Conversation, Message, Outgoing } from "./types";
+import { locale, t } from "./i18n";
+import { currentSettings } from "./settings";
+import { matches } from "./shortcuts";
+import { ChatEffect } from "./ChatEffect";
+import { useCalls } from "./calls";
+import { useTalkCalls } from "./talkCalls";
+import { KeyHelpContext } from "./Security";
+import { SharedPane } from "./SharedPane";
+import { PollCard, PollDialog } from "./Poll";
+import { effectFor, type EffectName } from "./effects";
 import { RoomPanel } from "./RoomPanel";
 import { useOpenProfile } from "./Profile";
 import { summarize } from "./roomEvents";
+import { capabilities } from "./mock";
 
 interface Props {
   conv: Conversation;
@@ -20,21 +33,28 @@ interface Props {
   dispatch: (a: Action) => void;
   onNotice: (message: string) => void;
   /** Loads the page before the oldest message; resolves to whether more exist. */
-  onLoadOlder: () => Promise<boolean>;
+  /** `limit`: page size; bigger when jumping far back. */
+  onLoadOlder: (limit?: number) => Promise<boolean>;
   onLoadThread: (root: string) => Promise<void>;
   onCommand: (name: string, args: string) => void;
   attachments: Attachment[];
+  /** File upload in progress for this chat. */
+  upload?: UploadProgress;
+  /** Quick preview of a message that isn't loaded (older search matches). */
+  onPreview?: (message: string) => void;
   onPickFiles: () => void;
   onAddFiles: (files: File[]) => void;
   onRemoveAttachment: (id: string) => void;
   onAccept: () => void;
   onDecline: () => void;
   onLeave: () => void;
+  /** Every chat, for picking where to forward a message. */
+  allConvs: Conversation[];
   /** Message to scroll to and highlight (from the Activity feed). */
   focusMessage?: string | null;
 }
 
-export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLoadThread, onCommand, attachments, onPickFiles, onAddFiles, onRemoveAttachment, onAccept, onDecline, onLeave, focusMessage }: Props) {
+export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLoadThread, onCommand, attachments, onPickFiles, onAddFiles, onRemoveAttachment, onAccept, onDecline, onLeave, focusMessage, upload, onPreview, allConvs }: Props) {
   const posts = conv.kind === "channel";
   const openProfile = useOpenProfile();
   const [panel, setPanel] = useState(false);
@@ -50,8 +70,20 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
   const setLevel = (level: string) => backend.setNotificationLevel(conv.id, level).catch((e) => onNotice(String(e)));
   const getMembers = useMemo(() => (isLive ? () => backend.members(conv.id) : undefined), [conv.id]);
   const org = useOrg(conv.orgId);
+  // Calls open the protocol's own call screen in a separate window (Talk for now).
+  const canCall = capabilities[org.protocol].calls && !conv.invitedBy;
+  // Matrix: 1:1 calls in direct chats (group calls need MatrixRTC, which the server lacks).
+  const calls = useCalls();
+  const canMatrixCall = isLive && org.protocol === "matrix" && conv.kind === "direct" && !!conv.dmUser && !conv.invitedBy;
+  const inThisCall = calls?.call && calls.call.conversation === conv.id && calls.call.phase !== "ended";
+  const talkCalls = useTalkCalls();
+  const inThisTalkCall = talkCalls?.call && talkCalls.call.conversation === conv.id && talkCalls.call.phase !== "ended";
+  const talkBusy = !!talkCalls?.call && talkCalls.call.phase !== "ended";
+  const openCall = () =>
+    isLive ? backend.openCall(conv.id, t("call.window", { name: conv.name })).catch((e) => onNotice(String(e))) : onNotice(t("desktopOnly.newChat"));
   const scroller = useRef<HTMLDivElement>(null);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [forwarding, setForwarding] = useState<Message | null>(null);
   const [threadId, setThreadId] = useState<string | null>(null);
   const mediaUi = useMediaUi();
   const seen = seenLabel(conv, main(messages));
@@ -79,10 +111,45 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
   const [hasMore, setHasMore] = useState(true);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [search, setSearch] = useState<string | null>(null);
+  const searchInput = useRef<HTMLInputElement>(null);
   const [hit, setHit] = useState(0);
   const q = search?.trim().toLowerCase() ?? "";
   const hits = q ? mainList.filter((m) => !m.system && `${m.body} ${m.media?.name ?? ""}`.toLowerCase().includes(q)) : [];
   const currentHit = hits.length ? hits[Math.min(hit, hits.length - 1)] : undefined;
+  // Full-history matches (local index) that aren't among the loaded messages.
+  const [historyHits, setHistoryHits] = useState<SearchHit[]>([]);
+  useEffect(() => {
+    if (!isLive || q.length < 2) return setHistoryHits([]);
+    const timer = window.setTimeout(() => backend.searchMessages(q, conv.id).then(setHistoryHits).catch(() => setHistoryHits([])), 250);
+    return () => window.clearTimeout(timer);
+  }, [q, conv.id]);
+  const olderHits = historyHits.filter((h) => !messages.some((m) => m.id === h.message));
+
+  // Chat effects play for messages that arrive while the chat is open, not for history.
+  const [effect, setEffect] = useState<EffectName | null>(null);
+  const newest = mainList[mainList.length - 1];
+  const lastSeen = useRef<{ conv: string; id?: string }>({ conv: conv.id });
+  useEffect(() => {
+    const prev = lastSeen.current;
+    lastSeen.current = { conv: conv.id, id: newest?.id };
+    if (prev.conv !== conv.id || !prev.id || !newest || newest.id === prev.id || newest.system) return;
+    const name = effectFor(newest.body);
+    if (name) setEffect(name);
+  }, [conv.id, newest?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ⌘F / Ctrl+F: search in this chat.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (matches(e, "findInChat")) {
+        e.preventDefault();
+        setSearch((s) => s ?? "");
+        setHit(0);
+        requestAnimationFrame(() => searchInput.current?.select());
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   useEffect(() => {
     setReplyTo(null);
@@ -93,17 +160,21 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
   }, [conv.id]);
 
   // Stick to the bottom for new messages; keep the reading position when older ones are prepended.
-  const scrollState = useRef({ conv: "", lastId: "", height: 0, top: 0 });
+  // New chat: start at the bottom. New message at the end: follow it if we were at the bottom.
+  // Older messages added at the top: keep what's on screen in place. Anything else (a picture
+  // finishing loading, a reaction) leaves the scroll position alone.
+  const scrollState = useRef({ conv: "", firstId: "", lastId: "", height: 0, top: 0 });
   useLayoutEffect(() => {
     const el = scroller.current;
     if (!el) return;
     const prev = scrollState.current;
+    const firstId = mainList[0]?.id ?? "";
     const lastId = mainList[mainList.length - 1]?.id ?? "";
     if (prev.conv !== conv.id) el.scrollTop = el.scrollHeight;
     else if (lastId !== prev.lastId) {
       if (prev.height - prev.top - el.clientHeight < 120) el.scrollTop = el.scrollHeight;
-    } else if (el.scrollHeight !== prev.height) el.scrollTop = prev.top + (el.scrollHeight - prev.height);
-    scrollState.current = { conv: conv.id, lastId, height: el.scrollHeight, top: el.scrollTop };
+    } else if (firstId !== prev.firstId && el.scrollHeight !== prev.height) el.scrollTop = prev.top + (el.scrollHeight - prev.height);
+    scrollState.current = { conv: conv.id, firstId, lastId, height: el.scrollHeight, top: el.scrollTop };
   }, [conv.id, mainList]);
 
   const loadOlder = async () => {
@@ -118,9 +189,15 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
     }
   };
 
+  // More than a screen up from the newest message: offer a jump back down.
+  const [awayFromLatest, setAwayFromLatest] = useState(false);
+  useEffect(() => setAwayFromLatest(false), [conv.id]);
+  const toLatest = () => scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" });
+
   const onScroll = () => {
     const el = scroller.current;
     if (!el) return;
+    setAwayFromLatest(el.scrollHeight - el.scrollTop - el.clientHeight > el.clientHeight);
     scrollState.current = { ...scrollState.current, height: el.scrollHeight, top: el.scrollTop };
     if (el.scrollTop < 80) loadOlder();
   };
@@ -135,10 +212,75 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
     if (el && hasMore && !loadingOlder && el.scrollHeight <= el.clientHeight + 40) loadOlder();
   }, [conv.id, mainList.length, hasMore, loadingOlder]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Jump to a message from the Activity feed once it's loaded; thread replies open their thread.
+  // Jump target: a search hit picked here, or a message opened from Activity / global search.
+  const [jump, setJump] = useState<string | null>(null);
+  const [tab, setTab] = useState<"chat" | "shared">("chat");
+  const [pollDialog, setPollDialog] = useState(false);
+  const [cloudPicker, setCloudPicker] = useState(false);
+  // Nextcloud accounts to attach files from; this chat's own account first (shares become file messages).
+  const allOrgs = useOrgs();
+  const cloudAccounts = isLive ? allOrgs.filter((o) => o.protocol === "talk").sort((a, b) => Number(b.id === conv.orgId) - Number(a.id === conv.orgId)) : [];
+  const attachCloud = async (account: string, file: CloudFile) => {
+    const link = await backend.attachCloudFile(account, file.path, conv.id, null);
+    if (link) send({ text: `📎 ${file.name}\n${link}` });
+    setCloudPicker(false);
+  };
+  useEffect(() => setTab("chat"), [conv.id]);
+  const target = jump ?? focusMessage;
+  useEffect(() => setJump(null), [conv.id]);
+  // Not loaded yet: page back until it is (bounded), then the effect below scrolls to it.
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
+  const [seeking, setSeeking] = useState(false);
   useEffect(() => {
-    if (!focusMessage) return;
-    const m = messages.find((x) => x.id === focusMessage);
+    if (!target || messagesRef.current.some((x) => x.id === target)) return;
+    let cancelled = false;
+    (async () => {
+      setSeeking(true);
+      try {
+        for (let page = 0; page < 100 && !cancelled; page++) {
+          const more = await onLoadOlder(250);
+          setHasMore(more);
+          await new Promise((r) => requestAnimationFrame(r)); // let the new messages render
+          if (!more || messagesRef.current.some((x) => x.id === target)) break;
+        }
+      } catch (e) {
+        onNotice(String(e));
+      } finally {
+        if (!cancelled) setSeeking(false);
+      }
+    })();
+    return () => { cancelled = true; setSeeking(false); };
+  }, [target, conv.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // /jumptodate: load back until that day is reached, then jump to its first message.
+  const jumpToDate = async (args: string) => {
+    const m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(args.trim());
+    const ts = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getTime() : NaN;
+    if (Number.isNaN(ts)) return onNotice(t("chatView.jumpDateUsage"));
+    setSeeking(true);
+    try {
+      for (let page = 0; page < 200; page++) {
+        const [, oldest] = await backend.messageAt(conv.id, ts);
+        if (oldest !== null && oldest <= ts) break;
+        const more = await onLoadOlder(250);
+        setHasMore(more);
+        if (!more) break;
+      }
+      const [first] = await backend.messageAt(conv.id, ts);
+      if (first) setJump(first);
+      else onNotice(t("chatView.jumpDateNone"));
+    } catch (e) {
+      onNotice(String(e));
+    } finally {
+      setSeeking(false);
+    }
+  };
+
+  // Scroll to the jump target once it's loaded; thread replies open their thread.
+  useEffect(() => {
+    if (!target) return;
+    const m = messages.find((x) => x.id === target);
     if (!m) return;
     if (m.threadRoot) setThreadId(m.threadRoot);
     requestAnimationFrame(() => {
@@ -147,7 +289,7 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
       el?.classList.add("flash");
       window.setTimeout(() => el?.classList.remove("flash"), 1600);
     });
-  }, [focusMessage, messages.length > 0 && messages.some((x) => x.id === focusMessage)]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [target, messages.length > 0 && messages.some((x) => x.id === target)]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const openThread = (id: string) => {
     setPanel(false);
@@ -161,11 +303,13 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
     onReact: (emoji: string) => dispatch({ type: "react", id: conv.id, target: m.id, emoji }),
     onEdit: (text: string) => dispatch({ type: "edit", id: conv.id, target: m.id, text }),
     onDelete: () => confirm(t("chatView.deleteConfirm")) && dispatch({ type: "delete", id: conv.id, target: m.id }),
+    onForward: () => setForwarding(m),
   });
   const threadRoot = threadId ? byId.get(threadId) : undefined;
 
   return (
     <div className={`chat-area ${posts ? "posts" : ""}`}>
+      {effect && <ChatEffect name={effect} onDone={() => setEffect(null)} />}
       <main className="chat-view">
         <header className="chat-head">
           <button className="head-avatar" onClick={(e) => conv.dmUser ? openProfile(conv.orgId, conv.dmUser, { x: e.clientX, y: e.clientY + 16 }) : setPanel(!panel)}>
@@ -178,8 +322,8 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
             )}
           </div>
           <nav className="tabs">
-            <button className="tab on">{conv.kind === "channel" ? t("chatView.tab.posts") : t("chatView.tab.chat")}</button>
-            <button className="tab" disabled title={t("chatView.tab.sharedSoon")}>{t("chatView.tab.shared")}</button>
+            <button className={`tab ${tab === "chat" ? "on" : ""}`} onClick={() => setTab("chat")}>{conv.kind === "channel" ? t("chatView.tab.posts") : t("chatView.tab.chat")}</button>
+            <button className={`tab ${tab === "shared" ? "on" : ""}`} onClick={() => setTab("shared")}>{t("chatView.tab.shared")}</button>
             {conv.kind === "meeting" && <button className="tab" disabled title={t("common.comingSoon")}>{t("chatView.tab.recap")}</button>}
           </nav>
           <span className="spacer" />
@@ -187,6 +331,25 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
             <OrgAvatar org={org} size={16} /> {org.name}
           </span>
           {conv.encrypted && <span className="e2ee" title={t("chatView.encrypted")}><LockIcon /></span>}
+          {canMatrixCall && (inThisCall ? (
+            <button className="btn primary small call-join" onClick={() => calls?.setMinimized(false)}><CallIcon /> {t("mxcall.show")}</button>
+          ) : (
+            <>
+              <button className="icon-btn" title={t("mxcall.voice")} disabled={!!calls?.call && calls.call.phase !== "ended"} onClick={() => calls?.start(conv.id, conv.orgId, conv.dmUser!, false)}><CallIcon /></button>
+              <button className="icon-btn" title={t("mxcall.video")} disabled={!!calls?.call && calls.call.phase !== "ended"} onClick={() => calls?.start(conv.id, conv.orgId, conv.dmUser!, true)}><CameraIcon /></button>
+            </>
+          ))}
+          {/* Talk: calls run in ms_trix's own call screen; Talk's window stays in the ⋯ menu. */}
+          {canCall && (inThisTalkCall ? (
+            <button className="btn primary small call-join" onClick={() => talkCalls?.show()}><CallIcon /> {t("mxcall.show")}</button>
+          ) : conv.callActive ? (
+            <button className="btn primary small call-join" title={t("call.joinTitle")} disabled={talkBusy} onClick={() => talkCalls?.start(conv.id, false)}><CallIcon /> {t("call.join")}</button>
+          ) : (
+            <>
+              <button className="icon-btn" title={t("mxcall.voice")} disabled={talkBusy} onClick={() => talkCalls?.start(conv.id, false)}><CallIcon /></button>
+              <button className="icon-btn" title={t("mxcall.video")} disabled={talkBusy} onClick={() => talkCalls?.start(conv.id, true)}><CameraIcon /></button>
+            </>
+          ))}
           <button className={`icon-btn ${search !== null ? "on" : ""}`} title={t("chatView.search")} onClick={() => { setSearch(search === null ? "" : null); setHit(0); }}><SearchIcon /></button>
           <span className="emoji-anchor">
             <button className={`icon-btn ${headMenu ? "on" : ""}`} title={t("common.moreOptions")} onClick={(e) => { e.stopPropagation(); setHeadMenu(!headMenu); }}><MoreIcon /></button>
@@ -194,6 +357,7 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
               <div className="menu head-menu right" onClick={(e) => e.stopPropagation()}>
                 {conv.dmUser && <button className="menu-item" onClick={(e) => { setHeadMenu(false); openProfile(conv.orgId, conv.dmUser!, { x: e.clientX - 300, y: e.clientY }); }}>{t("chatView.menu.viewProfile")}</button>}
                 <button className="menu-item" onClick={() => { setHeadMenu(false); setThreadId(null); setPanel(true); }}>{conv.kind === "direct" ? t("chatView.menu.people") : t("chatView.menu.info")}</button>
+                {canCall && <button className="menu-item" onClick={() => { setHeadMenu(false); openCall(); }}>{t("talkcall.openInTalk")}</button>}
                 <div className="menu-sep" />
                 <div className="menu-title">{t("chatView.menu.notifications")}</div>
                 {(["all", "mentions", "mute"] as const).map((level) => (
@@ -210,7 +374,7 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
         {search !== null && (
           <div className="chat-search">
             <SearchIcon size={16} />
-            <input autoFocus value={search} placeholder={t("chatView.search")} onChange={(e) => { setSearch(e.target.value); setHit(0); }}
+            <input ref={searchInput} autoFocus value={search} placeholder={t("chatView.search")} onChange={(e) => { setSearch(e.target.value); setHit(0); }}
               onKeyDown={(e) => {
                 if (e.key === "Escape") setSearch(null);
                 if (e.key === "Enter") setHit((h) => (hits.length ? (h + (e.shiftKey ? hits.length - 1 : 1)) % hits.length : 0));
@@ -218,10 +382,21 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
             <span className="muted">{q ? (hits.length ? t("chatView.searchCount", { n: Math.min(hit, hits.length - 1) + 1, total: hits.length }) : t("chatView.noMatches")) : ""}</span>
             <button className="icon-btn" title={t("chatView.previous")} disabled={!hits.length} onClick={() => setHit((h) => (h + hits.length - 1) % hits.length)}>↑</button>
             <button className="icon-btn" title={t("chatView.next")} disabled={!hits.length} onClick={() => setHit((h) => (h + 1) % hits.length)}>↓</button>
-            {hasMore && <button className="btn small" disabled={loadingOlder} onClick={loadOlder}>{loadingOlder ? t("common.loading") : t("chatView.searchOlder")}</button>}
             <button className="icon-btn" title={t("common.closeEsc")} onClick={() => setSearch(null)}>✕</button>
           </div>
         )}
+        {search !== null && olderHits.length > 0 && (
+          <div className="history-hits">
+            <div className="menu-title">{t("chatView.olderMatches", { count: olderHits.length })}</div>
+            {olderHits.map((h) => (
+              <button key={h.message} className="search-hit" onClick={() => (onPreview ? onPreview(h.message) : setJump(h.message))}>
+                <span className="hit-top"><b>{h.senderName || t("search.you")}</b><span className="row-time">{formatTime(h.at)}</span></span>
+                <span className="hit-text"><Highlight text={h.snippet} query={q} /></span>
+              </button>
+            ))}
+          </div>
+        )}
+        {seeking && <div className="seeking">{t("chatView.seeking")}</div>}
 
         {isInvite && (
           <div className="invite-view">
@@ -234,7 +409,10 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
             </div>
           </div>
         )}
-        {!isInvite && <>
+        {!isInvite && tab === "shared" && (
+          <SharedPane account={conv.orgId} conversation={conv.id} media={mediaUi.actions} onJump={(id) => { setTab("chat"); setJump(id); }} />
+        )}
+        {!isInvite && tab === "chat" && <>
         <div className="messages" ref={scroller} onScroll={onScroll}>
           <div className="history-edge">{loadingOlder ? t("chatView.loadingOlder") : hasMore ? "" : t("chatView.beginning")}</div>
           {mainList.map((m, i) => {
@@ -259,21 +437,50 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
               );
             }
             const prev = mainList[i - 1];
-            // Channels show every post as its own card, like Teams.
-            const grouped = !posts && !!prev && !prev.system && prev.sender === m.sender && !m.replyTo;
+            const next = mainList[i + 1];
+            // Like Teams: messages from the same person within a few minutes form one block
+            // with one header; a post that has replies always stands on its own.
+            const grouped = !!prev && follows(prev, m) && !(posts && replies.get(prev.id)?.length);
+            const runContinues = !!next && follows(m, next) && !(posts && replies.get(m.id)?.length);
             return (
-              <MessageItem key={m.id} m={m} account={conv.orgId} grouped={grouped} quoted={m.replyTo ? byId.get(m.replyTo) ?? null : undefined}
+              <Fragment key={m.id}>
+              {newDay(prev, m) && <div className="day-divider"><span>{dayLabel(m.ts!)}</span></div>}
+              <MessageItem m={m} account={conv.orgId} conversation={conv.id} grouped={grouped} lastInRun={!runContinues} quoted={m.replyTo ? byId.get(m.replyTo) ?? null : undefined}
                 thread={replies.get(m.id)} onReply={() => setReplyTo(m)} onThread={() => openThread(m.id)} media={mediaUi.actions} {...messageActions(m)}
                 status={seen && seen.messageId === m.id ? seen : undefined} readBy={readBy.get(m.id)} query={q || undefined} current={currentHit?.id === m.id} postMode={posts} />
+              </Fragment>
             );
           })}
         </div>
+        {/* Outside the scroller (a zero-height strip just below it), so showing it
+            doesn't change the scroll height and make the list jump. */}
+        <div className="jump-latest-anchor">
+          {awayFromLatest && <button className="jump-latest" onClick={toLatest} title={t("chatView.toLatest")}>↓ {t("chatView.toLatest")}</button>}
+        </div>
 
         {!!conv.typing?.length && <div className="typing">{typingLabel(conv.typing)}</div>}
-        <Composer key={conv.id} initial={conv.draft} replyTo={replyTo} placeholder={posts ? t("chatView.newPost") : undefined} onCancelReply={() => setReplyTo(null)} onTyping={(t) => isLive && backend.setTyping(conv.id, t).catch(() => {})}
-          onCommand={onCommand} getMembers={getMembers}
-          attachments={attachments} onPickFiles={onPickFiles} onAddFiles={onAddFiles} onRemoveAttachment={onRemoveAttachment}
-          onSend={(m) => { send({ ...m, replyTo: replyTo?.id }); setReplyTo(null); }} onNotice={onNotice} />
+        {upload && upload.total > 0 && (
+          <div className="upload-progress" title={upload.name}>
+            <span>{t("chatView.uploading", { name: upload.name, percent: Math.round((upload.sent / upload.total) * 100) })}</span>
+            <progress max={upload.total} value={upload.sent} />
+          </div>
+        )}
+        <Composer key={conv.id} initial={conv.draft} replyTo={replyTo} placeholder={posts ? t("chatView.newPost") : undefined} onCancelReply={() => setReplyTo(null)} onTyping={(t) => isLive && currentSettings().shareTyping && backend.setTyping(conv.id, t).catch(() => {})}
+          onCommand={(name, args) => {
+            if (name === "jumptodate") return void jumpToDate(args);
+            if (name === "poll") return setPollDialog(true);
+            // Hold applies to the call in this chat, handled by the call engine here.
+            if (name === "holdcall" || name === "unholdcall") {
+              if (!inThisCall || calls?.call?.phase !== "connected") return onNotice(t("mxcall.noCall"));
+              return calls.setHold(name === "holdcall");
+            }
+            onCommand(name, args);
+          }} getMembers={getMembers}
+          attachments={attachments} onPickFiles={onPickFiles} onPickCloud={cloudAccounts.length && !isInvite ? () => setCloudPicker(true) : undefined} onAddFiles={onAddFiles} onRemoveAttachment={onRemoveAttachment}
+          onSend={(m) => { send({ ...m, replyTo: replyTo?.id }); setReplyTo(null); }} onNotice={onNotice}
+          onVoice={isLive ? (v) => backend.sendVoice(conv.id, v).catch((e) => onNotice(String(e))) : undefined}
+          account={conv.orgId} getPacks={isLive && org.protocol === "matrix" ? () => backend.imagePacks(conv.id) : undefined}
+          onSticker={isLive && org.protocol === "matrix" ? (img) => backend.sendSticker(conv.id, img.url, img.body ?? img.shortcode).catch((e) => onNotice(String(e))) : undefined} />
         </>}
       </main>
 
@@ -285,10 +492,10 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
             <button className="icon-btn" title={t("chatView.closeThread")} onClick={() => setThreadId(null)}>✕</button>
           </header>
           <div className="messages">
-            {threadRoot ? <MessageItem m={threadRoot} account={conv.orgId} grouped={false} media={mediaUi.actions} {...messageActions(threadRoot)} /> : <p className="empty">{t("chatView.threadRootMissing")}</p>}
+            {threadRoot ? <MessageItem m={threadRoot} account={conv.orgId} conversation={conv.id} grouped={false} media={mediaUi.actions} {...messageActions(threadRoot)} /> : <p className="empty">{t("chatView.threadRootMissing")}</p>}
             <div className="thread-divider">{t("chatView.threadReplies", { count: replies.get(threadId)?.length ?? 0 })}</div>
             {(replies.get(threadId) ?? []).map((m, i, all) => (
-              <MessageItem key={m.id} m={m} account={conv.orgId} grouped={i > 0 && all[i - 1]!.sender === m.sender} media={mediaUi.actions} {...messageActions(m)} />
+              <MessageItem key={m.id} m={m} account={conv.orgId} conversation={conv.id} grouped={i > 0 && all[i - 1]!.sender === m.sender} media={mediaUi.actions} {...messageActions(m)} />
             ))}
           </div>
           <Composer key={threadId} placeholder={t("composer.threadPlaceholder")} onSend={(m) => send({ ...m, threadRoot: threadId })} onNotice={onNotice} getMembers={getMembers} />
@@ -296,6 +503,10 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
       )}
 
       {panel && !threadId && <RoomPanel conv={conv} onClose={() => setPanel(false)} onNotice={onNotice} />}
+      {cloudPicker && <CloudFilePicker accounts={cloudAccounts} onPick={attachCloud} onClose={() => setCloudPicker(false)} />}
+      {pollDialog && <PollDialog conversation={conv.id} onClose={() => setPollDialog(false)} onError={onNotice} />}
+      {forwarding && <ForwardDialog message={forwarding} from={conv.id} convs={allConvs} onClose={() => setForwarding(null)}
+        onDone={(name) => { setForwarding(null); onNotice(t("forward.done", { name })); }} />}
       {mediaUi.viewing && <Lightbox media={mediaUi.viewing} account={conv.orgId} onClose={() => mediaUi.setViewing(null)} onNotice={onNotice} />}
       {mediaUi.menu && (
         <MediaMenu {...mediaUi.menu} account={conv.orgId} onView={() => mediaUi.setViewing(mediaUi.menu!.media)} onClose={() => mediaUi.setMenu(null)} onNotice={onNotice} />
@@ -349,12 +560,40 @@ function seenLabel(conv: Conversation, messages: Message[]): Seen | null {
 
 // Messages that are only a few emoji are shown large, like Element does.
 const emojiOnly = /^(?:\p{Extended_Pictographic}|\p{Emoji_Component}|‍|️|\s)+$/u;
+/** A message made of just a few custom emoji (and spaces) shows big, like plain emoji. */
+const onlyCustomEmoji = (html?: string) =>
+  !!html && /data-mx-emoticon/.test(html) && html.replace(/<img[^>]*data-mx-emoticon[^>]*>/g, "").replace(/<\/?p>|&nbsp;|\s/g, "") === "" && (html.match(/data-mx-emoticon/g)?.length ?? 0) <= 5;
 const isJumbo = (body: string) => emojiOnly.test(body) && [...new Intl.Segmenter().segment(body.trim())].length <= 5 && !/^[\d#*\s]+$/.test(body);
 
+/** Messages this close together from the same person share one header, like Teams. */
+const GROUP_GAP = 5 * 60_000;
+
+const sameDay = (a: number, b: number) => new Date(a).toDateString() === new Date(b).toDateString();
+
+/** Whether `m` continues the block `prev` started. */
+const follows = (prev: Message, m: Message) =>
+  !prev.system && !m.system && prev.sender === m.sender && !m.replyTo && !!prev.ts && !!m.ts && m.ts - prev.ts < GROUP_GAP && sameDay(prev.ts, m.ts);
+
+const newDay = (prev: Message | undefined, m: Message) => !!m.ts && (!prev?.ts || !sameDay(prev.ts, m.ts));
+
+const shortTime = (ts: number) => new Date(ts).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
+
+/** "Today", "Yesterday", or the date (with the year when it isn't this year). */
+function dayLabel(ts: number): string {
+  const now = Date.now();
+  if (sameDay(ts, now)) return t("chatView.today");
+  if (sameDay(ts, now - 86_400_000)) return t("chatView.yesterday");
+  const d = new Date(ts);
+  return d.toLocaleDateString(locale(), { weekday: "long", day: "numeric", month: "long", ...(d.getFullYear() !== new Date(now).getFullYear() ? { year: "numeric" } : {}) });
+}
+
 interface ItemProps {
+  conversation?: string;
   m: Message;
   account: string;
   grouped: boolean;
+  /** Last of a block from one sender (channels show "Reply" once per block). */
+  lastInRun?: boolean;
   /** undefined: not a reply; null: reply to a message that isn't loaded. */
   quoted?: Message | null;
   thread?: Message[];
@@ -363,6 +602,7 @@ interface ItemProps {
   onReact?: (emoji: string) => void;
   onEdit?: (text: string) => void;
   onDelete?: () => void;
+  onForward?: () => void;
   media: MediaActions;
   status?: Seen;
   /** People whose read marker is at this message. */
@@ -374,7 +614,8 @@ interface ItemProps {
 
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 
-function MessageItem({ m, account, grouped, quoted, thread, onReply, onThread, onReact, onEdit, onDelete, media, status, readBy, query, current, postMode }: ItemProps) {
+function MessageItem({ m, account, conversation, grouped, lastInRun = true, quoted, thread, onReply, onThread, onReact, onEdit, onDelete, onForward, media, status, readBy, query, current, postMode }: ItemProps) {
+  const keyHelp = useContext(KeyHelpContext)(account);
   const visual = m.media?.kind === "image" || m.media?.kind === "sticker";
   const openProfile = useOpenProfile();
   const [editing, setEditing] = useState(false);
@@ -413,7 +654,7 @@ function MessageItem({ m, account, grouped, quoted, thread, onReply, onThread, o
     <div data-msg={m.id} className={`msg ${m.fromMe ? "mine" : ""} ${grouped ? "grouped" : ""} ${current ? "current-hit" : ""}`}>
       {!m.fromMe && (
         <span className="msg-avatar">
-          {!grouped && (
+          {grouped ? m.ts && <span className="hover-time">{shortTime(m.ts)}</span> : (
             <button className="avatar-btn" onClick={(e) => m.senderId && openProfile(account, m.senderId, { x: e.clientX + 8, y: e.clientY })}>
               <Avatar account={account} media={m.avatar} name={m.sender} className="small" />
             </button>
@@ -423,10 +664,10 @@ function MessageItem({ m, account, grouped, quoted, thread, onReply, onThread, o
       <div className="msg-col">
         {!grouped && (
           <div className="msg-meta">
-            {!m.fromMe && <button className="sender" onClick={(e) => m.senderId && openProfile(account, m.senderId, { x: e.clientX, y: e.clientY + 12 })}>{m.sender}</button>} {m.time}
+            {!m.fromMe && <button className="sender" onClick={(e) => m.senderId && openProfile(account, m.senderId, { x: e.clientX, y: e.clientY + 12 })}>{m.sender}</button>} <span title={m.time}>{m.ts ? shortTime(m.ts) : m.time}</span>
           </div>
         )}
-        <div className="bubble-wrap">
+        <div className="bubble-wrap" title={grouped ? m.time : undefined}>
           {editing ? (
             <div className="bubble editing">
               <textarea autoFocus value={draft} rows={Math.min(8, draft.split("\n").length + 1)} onChange={(e) => setDraft(e.target.value)}
@@ -441,15 +682,20 @@ function MessageItem({ m, account, grouped, quoted, thread, onReply, onThread, o
               </div>
             </div>
           ) : (
-            <div className={`bubble ${m.encrypted ? "deleted" : ""} ${visual ? "media" : ""} ${m.media?.kind === "sticker" ? "sticker" : ""} ${isJumbo(m.body) && !m.media ? "jumbo" : ""} ${m.deleted ? "deleted" : ""}`}>
+            <div className={`bubble ${m.encrypted ? "deleted" : ""} ${visual ? "media" : ""} ${m.media?.kind === "sticker" ? "sticker" : ""} ${(isJumbo(m.body) || onlyCustomEmoji(m.html)) && !m.media ? "jumbo" : ""} ${m.deleted ? "deleted" : ""}`}>
               {quoted !== undefined && !m.deleted && (
                 <div className="quote">
                   {quoted ? <><b>{quoted.sender}</b><span>{quoted.media ? `📎 ${quoted.media.name}` : quoted.deleted ? t("message.deletedShort") : quoted.body}</span></> : <span>{t("message.replyToEarlier")}</span>}
                 </div>
               )}
-              {m.encrypted ? <span className="waiting-key" title={t("message.waitingKeyHint")}>{t("message.waitingKey")}</span>
+              {m.encrypted ? <span className="waiting-key" title={t("message.waitingKeyHint")}>{t("message.waitingKey")}
+                  {keyHelp && <> · <button className="link" onClick={keyHelp.fix}>{keyHelp.label}</button></>}</span>
                 : m.deleted ? <span>{t("message.deleted")}</span>
-                : m.media ? <MediaBody media={m.media} account={account} actions={media} />
+                : m.poll ? <PollCard conversation={conversation ?? ""} poll={m.poll} question={m.body} />
+                : m.media ? <>
+                    <MediaBody media={m.media} account={account} actions={media} />
+                    {m.media.caption && <div className="caption"><RichText body={m.media.caption} account={account} query={query} /></div>}
+                  </>
                 : <RichText body={m.body} html={m.html} account={account} query={query} />}
               {m.edited && !m.deleted && <span className="edited" title={t("message.editedTitle")}>{t("message.edited")}</span>}
             </div>
@@ -469,10 +715,11 @@ function MessageItem({ m, account, grouped, quoted, thread, onReply, onThread, o
               {onReply && <button className="icon-btn" title={t("message.reply")} onClick={onReply}>↩</button>}
               {onThread && <button className="icon-btn" title={t("chatView.replyInThread")} onClick={onThread}>💬</button>}
               <span className="emoji-anchor">
-                <button className={`icon-btn ${popup === "more" ? "on" : ""}`} title={t("common.moreOptions")} onClick={(e) => openPopup("more", e, 130, 160)}>⋯</button>
+                <button className={`icon-btn ${popup === "more" ? "on" : ""}`} title={t("common.moreOptions")} onClick={(e) => openPopup("more", e, 160, 160)}>⋯</button>
                 {popup === "more" && (
                   <div className="menu more-menu" style={popupStyle} onClick={(e) => e.stopPropagation()}>
                     {canEdit && <button className="menu-item" onClick={() => { setDraft(m.body); setEditing(true); setPopup(null); }}>{t("message.edit")}</button>}
+                    {onForward && !m.poll && <button className="menu-item" onClick={() => { setPopup(null); onForward(); }}>{t("forward.action")}</button>}
                     {!m.media && <button className="menu-item" onClick={() => { navigator.clipboard.writeText(m.body).catch(() => {}); setPopup(null); }}>{t("message.copy")}</button>}
                     {canDelete && <button className="menu-item danger" onClick={() => { setPopup(null); onDelete?.(); }}>{t("message.delete")}</button>}
                   </div>
@@ -491,7 +738,7 @@ function MessageItem({ m, account, grouped, quoted, thread, onReply, onThread, o
           </div>
         )}
         {status && <div className="seen">{status.label}</div>}
-        {postMode && !thread?.length && onThread && !m.deleted && <button className="thread-summary" onClick={onThread}>{t("message.replyPost")}</button>}
+        {postMode && lastInRun && !thread?.length && onThread && !m.deleted && <button className="thread-summary" onClick={onThread}>{t("message.replyPost")}</button>}
         {thread && thread.length > 0 && (
           <button className="thread-summary" onClick={onThread}>
             {t("chatView.threadSummary", { count: thread.length, name: thread[thread.length - 1]!.sender })}

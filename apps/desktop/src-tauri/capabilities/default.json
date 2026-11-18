@@ -3,11 +3,19 @@
   "identifier": "default",
   "description": "enables the default permissions",
   "windows": [
-    "main"
+    "main",
+    "share-bar",
+    "share-draw",
+    "talk-call-window",
+    "reminder"
+  ],
+  "webviews": [
+    "talk-call"
   ],
   "permissions": [
     "core:default",
     "core:window:allow-set-badge-count",
-    "notification:default"
+    "notification:default",
+    "core:window:allow-start-dragging"
   ]
 }

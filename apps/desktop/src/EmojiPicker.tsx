@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { searchEmoji } from "./emojiSearch";
+import { mediaUrl, type ImagePack, type PackImage } from "./backend";
 import { t, type Key } from "./i18n";
 
-// Curated per category; a searchable picker with names comes with a proper emoji dataset.
+// Curated per category for browsing; the search box covers every emoji by name (emojiSearch.ts).
 const categories: { icon: string; name: Key; emojis: string }[] = [
   { icon: "😀", name: "emoji.smileys", emojis: "😀 😃 😄 😁 😆 😅 🤣 😂 🙂 🙃 😉 😊 😇 🥰 😍 🤩 😘 😗 😚 😙 😋 😛 😜 🤪 😝 🤑 🤗 🤭 🤫 🤔 🤐 🤨 😐 😑 😶 😏 😒 🙄 😬 🤥 😌 😔 😪 🤤 😴 😷 🤒 🤕 🤢 🤮 🤧 🥵 🥶 🥴 😵 🤯 🤠 🥳 😎 🤓 🧐 😕 😟 🙁 😮 😯 😲 😳 🥺 😦 😧 😨 😰 😥 😢 😭 😱 😖 😣 😞 😓 😩 😫 🥱 😤 😡 😠 🤬 😈 👿 💀 💩 🤡 👻 👽 🤖" },
   { icon: "👍", name: "emoji.people", emojis: "👋 🤚 🖐️ ✋ 🖖 👌 🤌 🤏 ✌️ 🤞 🤟 🤘 🤙 👈 👉 👆 👇 ☝️ 👍 👎 ✊ 👊 🤛 🤜 👏 🙌 👐 🤲 🤝 🙏 ✍️ 💅 💪 🦾 🧠 👀 👁️ 👅 👄 👶 🧒 👦 👧 🧑 👨 👩 🧓 👴 👵 🙍 🙎 🙅 🙆 💁 🙋 🙇 🤦 🤷 🧑‍💻 👨‍💻 👩‍💻 🧑‍🏫 🧑‍🔬 🧑‍🚀 🦸 🦹 🧙 🧚 🧛 🧜 🧝 🚶 🏃 💃 🕺 👯 🧘 🛀 👫 👪" },
@@ -21,10 +23,23 @@ const loadRecent = (): string[] => {
   }
 };
 
-export function EmojiPicker({ onPick, onClose, style }: { onPick: (emoji: string) => void; onClose: () => void; style?: CSSProperties }) {
+export function EmojiPicker({ onPick, onClose, style, packs, account, onPickCustom }: {
+  onPick: (emoji: string) => void; onClose: () => void; style?: CSSProperties;
+  /** Custom emoji (MSC2545 packs), shown under ★. */
+  packs?: ImagePack[]; account?: string; onPickCustom?: (image: PackImage) => void;
+}) {
+  const custom = (packs ?? []).flatMap((p) => p.images.filter((i) => i.emoticon));
   const ref = useRef<HTMLDivElement>(null);
   const [recent, setRecent] = useState(loadRecent);
   const [tab, setTab] = useState(recent.length ? -1 : 0);
+  const [query, setQuery] = useState("");
+  const [hits, setHits] = useState<string[] | null>(null);
+  useEffect(() => {
+    if (!query.trim()) return setHits(null);
+    let live = true;
+    searchEmoji(query).then((h) => live && setHits(h)).catch(() => live && setHits([]));
+    return () => { live = false; };
+  }, [query]);
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
@@ -50,17 +65,27 @@ export function EmojiPicker({ onPick, onClose, style }: { onPick: (emoji: string
     onPick(e);
   };
 
-  const list = tab === -1 ? recent : categories[tab]!.emojis.split(" ");
+  const list = hits ?? (tab === -1 ? recent : tab === -2 ? [] : categories[tab]!.emojis.split(" "));
+  const customHits = hits !== null ? custom.filter((i) => i.shortcode.toLowerCase().includes(query.trim().toLowerCase())) : tab === -2 ? custom : [];
   return (
     <div className="menu emoji-picker" ref={ref} role="dialog" aria-label={t("composer.emoji")} style={style}>
-      <div className="emoji-tabs">
+      <input className="emoji-search" autoFocus value={query} placeholder={t("emoji.search")} onChange={(e) => setQuery(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter" && hits?.[0]) { e.preventDefault(); pick(hits[0]); } }} />
+      {hits === null && <div className="emoji-tabs">
         {recent.length > 0 && <button className={`emoji-tab ${tab === -1 ? "on" : ""}`} title={t("emoji.recent")} onClick={() => setTab(-1)}>🕘</button>}
+        {custom.length > 0 && onPickCustom && <button className={`emoji-tab ${tab === -2 ? "on" : ""}`} title={t("emoji.custom")} onClick={() => setTab(-2)}>★</button>}
         {categories.map((c, i) => (
           <button key={c.name} className={`emoji-tab ${tab === i ? "on" : ""}`} title={t(c.name)} onClick={() => setTab(i)}>{c.icon}</button>
         ))}
-      </div>
+      </div>}
       <div className="emoji-grid">
         {list.map((e) => <button key={e} className="emoji" onClick={() => pick(e)}>{e}</button>)}
+        {onPickCustom && account && customHits.map((img) => (
+          <button key={img.shortcode + img.url} className="emoji custom" title={`:${img.shortcode}:`} onClick={() => onPickCustom(img)}>
+            <img src={mediaUrl(account, img.url, 64)} alt={`:${img.shortcode}:`} />
+          </button>
+        ))}
+        {hits?.length === 0 && customHits.length === 0 && <p className="empty">{t("emoji.noMatch")}</p>}
       </div>
     </div>
   );

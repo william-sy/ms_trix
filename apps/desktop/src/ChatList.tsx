@@ -1,17 +1,20 @@
-import { useEffect, useState } from "react";
-import { ChevronIcon, ComposeIcon, DraftIcon, MoreIcon, MuteIcon, SearchIcon } from "./Icons";
+import { useEffect, useRef, useState } from "react";
+import { ContextMenu } from "./ContextMenu";
+import { CallIcon, ChevronIcon, ComposeIcon, DraftIcon, MoreIcon, MuteIcon, SearchIcon } from "./Icons";
 import { Avatar } from "./Avatar";
 import { OrgAvatar } from "./OrgSwitcher";
+import { matches } from "./shortcuts";
 import { isUnread, useOrg, type Action, type OrgFilter } from "./store";
 import type { Conversation } from "./types";
 import { t } from "./i18n";
 
 // No "meeting chats": Matrix has no meeting rooms yet; it returns with calls.
-type Filter = "unread" | "chats" | "channels";
+type Filter = "unread" | "chats" | "rooms" | "channels";
 
 const filters: { id: Filter; match: (c: Conversation) => boolean }[] = [
   { id: "unread", match: isUnread },
-  { id: "chats", match: (c) => c.kind !== "channel" },
+  { id: "chats", match: (c) => c.kind !== "channel" && c.kind !== "room" },
+  { id: "rooms", match: (c) => c.kind === "room" },
   { id: "channels", match: (c) => c.kind === "channel" },
 ];
 
@@ -21,19 +24,31 @@ interface Props {
   orgFilter: OrgFilter;
   selectedId: string | null;
   dispatch: (a: Action) => void;
-  onNewChat: () => void;
+  onNewChat: (mode?: "chat" | "room") => void;
   onAccept: (id: string) => void;
   onDecline: (id: string) => void;
   onBrowse: () => void;
   onLeave: (conv: Conversation) => void;
+  /** Whether you may delete this conversation for everyone (asked when its menu opens). */
+  canDelete: (conv: Conversation) => Promise<boolean>;
+  onDelete: (conv: Conversation) => void;
 }
 
-export function ChatList({ query, convs, orgFilter, selectedId, dispatch, onNewChat, onAccept, onDecline, onBrowse, onLeave }: Props) {
+export function ChatList({ query, convs, orgFilter, selectedId, dispatch, onNewChat, onAccept, onDecline, onBrowse, onLeave, canDelete, onDelete }: Props) {
   const [listQuery, setListQuery] = useState<string | null>(null);
   const [headMenu, setHeadMenu] = useState(false);
   const [filter, setFilter] = useState<Filter | null>(null);
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ archived: true });
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [deletable, setDeletable] = useState<string | null>(null);
+  useEffect(() => {
+    setDeletable(null);
+    const conv = menu && convs.find((c) => c.id === menu.id);
+    if (!conv) return;
+    let live = true;
+    void canDelete(conv).then((yes) => { if (live && yes) setDeletable(conv.id); }).catch(() => {});
+    return () => { live = false; };
+  }, [menu?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const close = () => { setMenu(null); setHeadMenu(false); };
@@ -53,11 +68,37 @@ export function ChatList({ query, convs, orgFilter, selectedId, dispatch, onNewC
     .sort((a, b) => b.sortKey - a.sortKey);
   const drafts = visible.filter((c) => c.draft);
   const invites = visible.filter((c) => c.invitedBy);
-  const favourites = visible.filter((c) => c.favourite && !c.invitedBy);
-  const rest = visible.filter((c) => !c.favourite && !c.invitedBy);
-  const chats = rest.filter((c) => c.kind !== "channel");
+  // Archived chats come back into view while they have something unread (or are open).
+  const tuckedAway = (c: Conversation) => !!c.archived && !isUnread(c) && c.id !== selectedId;
+  const archived = visible.filter((c) => tuckedAway(c) && !c.invitedBy);
+  const favourites = visible.filter((c) => c.favourite && !c.invitedBy && !tuckedAway(c));
+  const rest = visible.filter((c) => !c.favourite && !c.invitedBy && !tuckedAway(c));
+  const chats = rest.filter((c) => c.kind !== "channel" && c.kind !== "room");
+  const rooms = rest.filter((c) => c.kind === "room");
   const channels = rest.filter((c) => c.kind === "channel");
   const showOrgBadge = orgFilter === "all";
+
+  // ⌥↑/⌥↓ walk the list in on-screen order; with ⇧ only unread chats.
+  const order = [...invites, ...[["fav", favourites], ["chats", chats], ["rooms", rooms], ["channels", channels], ["archived", archived]].flatMap(([key, items]) => (collapsed[key as string] ? [] : (items as Conversation[])))];
+  const orderRef = useRef(order);
+  orderRef.current = order;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const [step, unreadOnly] = matches(e, "prevChat") ? [-1, false] : matches(e, "nextChat") ? [1, false]
+        : matches(e, "prevUnread") ? [-1, true] : matches(e, "nextUnread") ? [1, true] : [0, false];
+      if (!step) return;
+      const list = orderRef.current;
+      const at = list.findIndex((c) => c.id === selectedId);
+      for (let i = at + step; i >= 0 && i < list.length; i += step) {
+        if (unreadOnly && !isUnread(list[i]!)) continue;
+        e.preventDefault();
+        dispatch({ type: "select", id: list[i]!.id });
+        return;
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedId, dispatch]);
 
   const section = (key: string, title: string, items: Conversation[]) =>
     items.length > 0 && (
@@ -87,11 +128,12 @@ export function ChatList({ query, convs, orgFilter, selectedId, dispatch, onNewC
               <div className="menu head-menu" onClick={(e) => e.stopPropagation()}>
                 <button className="menu-item" onClick={() => { setHeadMenu(false); onBrowse(); }}>{t("chat.browse")}</button>
                 <button className="menu-item" onClick={() => { setHeadMenu(false); onNewChat(); }}>{t("chat.newChat")}</button>
+                <button className="menu-item" onClick={() => { setHeadMenu(false); onNewChat("room"); }}>{t("chat.newRoom")}</button>
               </div>
             )}
           </span>
           <button className={`icon-btn ${listQuery !== null ? "on" : ""}`} title={t("chat.filterByName")} onClick={() => setListQuery(listQuery === null ? "" : null)}><SearchIcon /></button>
-          <button className="icon-btn" title={t("chat.newChat")} onClick={onNewChat}><ComposeIcon /></button>
+          <button className="icon-btn" title={t("chat.newChat")} onClick={() => onNewChat()}><ComposeIcon /></button>
         </div>
       </header>
       {listQuery !== null && (
@@ -123,7 +165,7 @@ export function ChatList({ query, convs, orgFilter, selectedId, dispatch, onNewC
                 <Avatar account={c.orgId} media={c.avatar} name={c.name} className={`kind-${c.kind}`} channel={c.kind === "channel"} />
                 <span className="row-text">
                   <span className="row-name">{c.name}</span>
-                  <span className="row-preview">{t("chat.invitedBy", { name: c.invitedBy ?? "" })}</span>
+                  <span className="row-preview">{t(c.kind === "team" ? "chat.invitedToTeam" : "chat.invitedBy", { name: c.invitedBy ?? "" })}</span>
                 </span>
                 <span className="invite-actions">
                   <button className="btn primary small" onClick={(e) => { e.stopPropagation(); onAccept(c.id); }}>{t("common.accept")}</button>
@@ -135,12 +177,14 @@ export function ChatList({ query, convs, orgFilter, selectedId, dispatch, onNewC
         )}
         {section("fav", t("chat.section.favorites"), favourites)}
         {section("chats", t("chat.section.chats"), chats)}
+        {section("rooms", t("chat.section.rooms"), rooms)}
         {section("channels", t("chat.section.channels"), channels)}
+        {section("archived", t("chat.section.archived", { count: archived.length }), archived)}
         {visible.length === 0 && <p className="empty">{q ? t("chat.noMatch", { query: query.trim() }) : t("chat.caughtUp")}</p>}
       </div>
 
       {menu && menuConv && (
-        <div className="menu context" style={{ left: menu.x, top: menu.y }} onClick={(e) => e.stopPropagation()}>
+        <ContextMenu x={menu.x} y={menu.y}>
           {isUnread(menuConv) ? (
             <button className="menu-item" onClick={() => { dispatch({ type: "markRead", id: menu.id }); setMenu(null); }}>{t("chat.markRead")}</button>
           ) : (
@@ -152,9 +196,13 @@ export function ChatList({ query, convs, orgFilter, selectedId, dispatch, onNewC
           <button className="menu-item" onClick={() => { dispatch({ type: "toggleMute", id: menu.id }); setMenu(null); }}>
             {menuConv.muted ? t("chat.unmute") : t("chat.mute")}
           </button>
+          <button className="menu-item" onClick={() => { dispatch({ type: "toggleArchive", id: menu.id }); setMenu(null); }}>
+            {menuConv.archived ? t("chat.unarchive") : t("chat.archive")}
+          </button>
           <div className="menu-sep" />
           <button className="menu-item danger" onClick={() => { setMenu(null); onLeave(menuConv); }}>{t("chat.leave")}</button>
-        </div>
+          {deletable === menuConv.id && <button className="menu-item danger" onClick={() => { setMenu(null); onDelete(menuConv); }}>{t("talk.delete")}</button>}
+        </ContextMenu>
       )}
     </aside>
   );
@@ -180,6 +228,7 @@ function Row({ conv, selected, showOrg, onClick, onMenu }: { conv: Conversation;
       <span className="row-text">
         <span className="row-top">
           <span className="row-name">{title}</span>
+          {conv.callActive && <span className="call-live" title={t("call.active")}><CallIcon /></span>}
           <span className="row-time">{conv.time}</span>
         </span>
         <span className="row-bottom">

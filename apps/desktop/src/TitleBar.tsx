@@ -4,7 +4,8 @@ import { Avatar } from "./Avatar";
 import { useOrgs, type OrgFilter } from "./store";
 import { backend, formatTime, isLive, type SearchHit } from "./backend";
 import type { PresenceState } from "./types";
-import { t } from "./i18n";
+import { locale, t } from "./i18n";
+import { matches } from "./shortcuts";
 
 
 interface Props {
@@ -23,6 +24,10 @@ interface Props {
 export function TitleBar({ orgFilter, query, onQuery, onAddAccount, onSignOut, onSecurity, onSettings, onPresence, onOpenMessage }: Props) {
   const [hits, setHits] = useState<SearchHit[]>([]);
   const [showHits, setShowHits] = useState(false);
+  const [indexed, setIndexed] = useState<number | null>(null);
+  useEffect(() => {
+    if (isLive && showHits) backend.searchStatus().then(setIndexed).catch(() => setIndexed(null));
+  }, [showHits]);
   // Message search across all chats (debounced); the chat list filters on the same query.
   useEffect(() => {
     if (!isLive || query.trim().length < 2) return setHits([]);
@@ -45,7 +50,7 @@ export function TitleBar({ orgFilter, query, onQuery, onAddAccount, onSignOut, o
     };
     // ⌘E / Ctrl+E focuses search, like Teams.
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "e") {
+      if (matches(e, "search")) {
         e.preventDefault();
         search.current?.focus();
         search.current?.select();
@@ -78,7 +83,7 @@ export function TitleBar({ orgFilter, query, onQuery, onAddAccount, onSignOut, o
                 <span className="hit-text">{h.senderName || t("search.you")}: <Highlight text={h.snippet} query={query.trim()} /></span>
               </button>
             ))}
-            <p className="hint small">{t("search.hint")}</p>
+            <p className="hint small">{indexed !== null ? t("search.hintIndexed", { count: indexed, formatted: indexed.toLocaleString(locale()) }) : t("search.hint")}</p>
           </div>
         )}
       </div>
@@ -122,8 +127,15 @@ export function TitleBar({ orgFilter, query, onQuery, onAddAccount, onSignOut, o
   );
 }
 
-function Highlight({ text, query }: { text: string; query: string }) {
-  const i = text.toLowerCase().indexOf(query.toLowerCase());
-  if (i < 0 || !query) return <>{text}</>;
-  return <>{text.slice(0, i)}<mark>{text.slice(i, i + query.length)}</mark>{text.slice(i + query.length)}</>;
+/** Marks the whole query, or else its first word (full-history hits match word by word). */
+export function Highlight({ text, query }: { text: string; query: string }) {
+  const lower = text.toLowerCase();
+  let q = query.toLowerCase();
+  let i = lower.indexOf(q);
+  if (i < 0) {
+    q = q.split(/\s+/)[0] ?? "";
+    i = q ? lower.indexOf(q) : -1;
+  }
+  if (i < 0) return <>{text}</>;
+  return <>{text.slice(0, i)}<mark>{text.slice(i, i + q.length)}</mark>{text.slice(i + q.length)}</>;
 }

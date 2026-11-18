@@ -8,7 +8,7 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::adapter::{AdapterEvent, History, ProtocolAdapter};
 use crate::model::*;
@@ -33,6 +33,21 @@ pub struct Outcome {
     pub notifications: Vec<Notification>,
     pub teams_changed: bool,
     pub activity_changed: bool,
+    /// Emoji verification progress, passed straight through to the UI.
+    pub verifications: Vec<Verification>,
+    pub uploads: Vec<UploadProgress>,
+    pub call_signals: Vec<CallSignal>,
+    /// (conversation key, poll id) of polls with new votes.
+    pub poll_changes: Vec<(String, String)>,
+    /// New session blobs to store (refreshed OAuth tokens).
+    pub sessions: Vec<(AccountId, Vec<u8>)>,
+}
+
+impl Outcome {
+    /// Folds a later outcome into this one (e.g. for a batch of events).
+    pub fn merge(&mut self, out: Outcome) {
+        merge_outcome(self, out);
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -48,18 +63,23 @@ pub struct TeamView {
     /// Remote id, for browsing the channels we haven't joined.
     pub space_id: String,
     pub not_joined: usize,
+    /// Key of the team this one sits in (a space inside a space we're in).
+    pub parent: Option<String>,
+    pub order: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ActivityKind {
     Mention,
     Reply,
     Reaction,
+    /// One of your notification keywords.
+    Keyword,
 }
 
 /// Something that happened to you: the Activity feed.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActivityItem {
     pub id: String,
@@ -90,7 +110,7 @@ pub struct SearchHit {
 }
 
 /// Up to ~40 characters of context around a match (byte offsets into `text`).
-fn snippet(text: &str, at: usize, len: usize) -> String {
+pub fn snippet(text: &str, at: usize, len: usize) -> String {
     // Offsets come from the lowercased text; a few characters change byte length
     // when lowercased, so fall back to the start rather than slicing mid-character.
     let (at, len) = if text.is_char_boundary(at) && text.is_char_boundary((at + len).min(text.len())) && at + len <= text.len() { (at, len) } else { (0, 0) };
@@ -112,7 +132,59 @@ pub struct Notification {
     pub conversation: String,
     pub title: String,
     pub body: String,
+    pub kind: NotificationKind,
 }
+
+/// Lets the host pick a sound per kind.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum NotificationKind {
+    Message,
+    Mention,
+    Call,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum NotifyLevel {
+    All,
+    Mentions,
+    Off,
+}
+
+/// The user's global notification rules; per-chat mute/mentions-only still
+/// apply on top. Keywords count as mentions.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct NotifyPrefs {
+    /// One-to-one and group chats.
+    pub chats: NotifyLevel,
+    /// Team channels; Teams only notifies on mentions there by default.
+    pub channels: NotifyLevel,
+    pub calls: bool,
+    pub keywords: Vec<String>,
+}
+
+impl Default for NotifyPrefs {
+    fn default() -> Self {
+        Self { chats: NotifyLevel::All, channels: NotifyLevel::Mentions, calls: true, keywords: vec![] }
+    }
+}
+
+/// Whole-word, case-insensitive match of any keyword in `text`.
+fn has_keyword(text: &str, keywords: &[String]) -> bool {
+    let text = text.to_lowercase();
+    keywords.iter().map(|k| k.trim().to_lowercase()).filter(|k| !k.is_empty()).any(|k| {
+        text.match_indices(&k).any(|(i, _)| {
+            let before = text[..i].chars().next_back();
+            let after = text[i + k.len()..].chars().next();
+            !before.is_some_and(char::is_alphanumeric) && !after.is_some_and(char::is_alphanumeric)
+        })
+    })
+}
+
+/// Invites arriving this soon after an account connects were already waiting.
+const INVITE_GRACE_MS: u64 = 60_000;
 
 /// Messages older than this when they arrive are history, not news.
 const NOTIFY_MAX_AGE_MS: u64 = 60_000;
@@ -127,6 +199,7 @@ pub struct ConversationView {
     pub team: Option<String>,
     pub name: String,
     pub favourite: bool,
+    pub archived: bool,
     pub muted: bool,
     pub mentions_only: bool,
     pub encrypted: bool,
@@ -146,6 +219,7 @@ pub struct ConversationView {
     pub invited_by: Option<String>,
     /// The other person in a 1:1 chat.
     pub dm_user: Option<String>,
+    pub call_active: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -169,6 +243,8 @@ pub struct MessageView {
     pub body: String,
     pub html: Option<String>,
     pub media: Option<MediaView>,
+    /// Poll id when this message is a poll (`body` holds the question).
+    pub poll: Option<String>,
     pub thread_root: Option<String>,
     pub reply_to: Option<String>,
     pub sender_avatar: Option<String>,
@@ -207,6 +283,8 @@ pub struct MediaView {
     pub kind: FileKind,
     pub name: String,
     pub mime: Option<String>,
+    pub caption: Option<String>,
+    pub voice: Option<VoiceInfo>,
 }
 
 #[derive(Debug, Clone)]
@@ -219,14 +297,24 @@ struct ReactionRecord {
 }
 
 impl MessageView {
+    /// A message outside the timeline (e.g. context around a search result).
+    pub fn standalone(m: &Message) -> Self {
+        Self::build(m, None, false)
+    }
+
     fn build(m: &Message, reactions: Option<&Vec<ReactionRecord>>, edited: bool) -> Self {
         let (body, html, media) = match &m.body {
             MessageBody::Text { plain, html } => (plain.clone(), html.clone(), None),
             MessageBody::Notice { plain } => (plain.clone(), None, None),
-            MessageBody::File { name, media, kind, mime, .. } => {
-                (name.clone(), None, Some(MediaView { id: media.clone(), kind: *kind, name: name.clone(), mime: mime.clone() }))
+            MessageBody::File { name, media, kind, mime, caption, voice, .. } => {
+                (name.clone(), None, Some(MediaView { id: media.clone(), kind: *kind, name: name.clone(), mime: mime.clone(), caption: caption.clone(), voice: voice.clone() }))
             }
+            MessageBody::Poll { question, .. } => (question.clone(), None, None),
             MessageBody::Redacted | MessageBody::Event { .. } | MessageBody::Encrypted => (String::new(), None, None),
+        };
+        let poll = match &m.body {
+            MessageBody::Poll { id, .. } => Some(id.clone()),
+            _ => None,
         };
         let event = match &m.body {
             MessageBody::Event { kind, actor, target, value } => Some(EventView { kind: *kind, actor: actor.clone(), target: target.clone(), value: value.clone() }),
@@ -239,9 +327,16 @@ impl MessageView {
                 Some(g) => {
                     g.count += 1;
                     g.mine |= r.from_me;
-                    g.senders.push(r.sender_name.clone());
+                    if !r.sender_name.is_empty() {
+                        g.senders.push(r.sender_name.clone());
+                    }
                 }
-                None => grouped.push(ReactionView { key: r.key.clone(), count: 1, mine: r.from_me, senders: vec![r.sender_name.clone()] }),
+                None => grouped.push(ReactionView {
+                    key: r.key.clone(),
+                    count: 1,
+                    mine: r.from_me,
+                    senders: if r.sender_name.is_empty() { vec![] } else { vec![r.sender_name.clone()] },
+                }),
             }
         }
         Self {
@@ -254,6 +349,7 @@ impl MessageView {
             body,
             html,
             media,
+            poll,
             thread_root: m.thread_root.as_ref().map(|t| t.0.clone()),
             reply_to: m.reply_to.as_ref().map(|t| t.0.clone()),
             sender_avatar: m.sender_avatar.clone(),
@@ -351,11 +447,28 @@ pub struct Engine {
     teams: HashMap<ConversationId, Team>,
     /// Newest first.
     activity: VecDeque<ActivityItem>,
+    texts: crate::texts::Texts,
+    notify: NotifyPrefs,
+    /// When each account's first event arrived; earlier invites aren't news.
+    first_event: HashMap<AccountId, Timestamp>,
 }
 
 impl Engine {
     pub fn new() -> Self {
         Self { window_focused: true, ..Default::default() }
+    }
+
+    /// Translations for previews and notifications (see [`crate::texts`]).
+    pub fn set_texts(&mut self, texts: HashMap<String, String>) {
+        self.texts.set(texts);
+    }
+
+    pub fn texts(&self) -> &crate::texts::Texts {
+        &self.texts
+    }
+
+    pub fn set_notify_prefs(&mut self, prefs: NotifyPrefs) {
+        self.notify = prefs;
     }
 
     pub fn add_adapter(&mut self, adapter: Arc<dyn ProtocolAdapter>) {
@@ -370,6 +483,10 @@ impl Engine {
         let mut out = Outcome::default();
         out.removed = self.convs.keys().filter(|id| &id.account == account).cloned().collect();
         self.convs.retain(|id, _| &id.account != account);
+        let prefix = format!("{}|", account.0);
+        let before = self.activity.len();
+        self.activity.retain(|a| !a.conversation.starts_with(&prefix));
+        out.activity_changed = self.activity.len() != before;
         if self.focused.as_ref().is_some_and(|f| &f.account == account) {
             self.focused = None;
         }
@@ -385,7 +502,20 @@ impl Engine {
         match event {
             AdapterEvent::ConversationUpserted(conv) => {
                 let id = conv.id.clone();
-                self.convs.entry(id.clone()).or_default().conv = Some(conv);
+                let started = *self.first_event.entry(id.account.clone()).or_insert(now);
+                let entry = self.convs.entry(id.clone()).or_default();
+                // A fresh invite, not one already waiting when we connected.
+                let new_invite = conv.invited_by.is_some() && entry.conv.as_ref().is_none_or(|c| c.invited_by.is_none()) && now.saturating_sub(started) > INVITE_GRACE_MS;
+                if new_invite && self.notify.chats != NotifyLevel::Off {
+                    let by = conv.invited_by.clone().unwrap_or_default();
+                    out.notifications.push(Notification { conversation: id.key(), title: conv.name.clone(), body: self.texts.get("notify.invited", &[("by", by.as_str())]), kind: NotificationKind::Mention });
+                }
+                // A call that just started (not one already running when we connected).
+                let call_started = conv.call_active && entry.conv.as_ref().is_some_and(|c| !c.call_active);
+                if call_started && !conv.muted && self.notify.calls {
+                    out.notifications.push(Notification { conversation: id.key(), title: conv.name.clone(), body: self.texts.get("notify.call", &[]), kind: NotificationKind::Call });
+                }
+                entry.conv = Some(conv);
                 out.changed.push(id);
             }
             AdapterEvent::ConversationRemoved(id) => {
@@ -397,6 +527,10 @@ impl Engine {
                 }
             }
             AdapterEvent::TeamUpserted(team) => {
+                // An accepted team invite: the invite entry gives way to the team.
+                if self.convs.remove(&team.id).is_some() {
+                    out.removed.push(team.id.clone());
+                }
                 self.teams.insert(team.id.clone(), team);
                 out.teams_changed = true;
             }
@@ -504,6 +638,26 @@ impl Engine {
                 }
                 out.changed.push(conversation);
             }
+            AdapterEvent::ReactionsReplaced { conversation, target, reactions } => {
+                let entry = self.convs.entry(conversation.clone()).or_default();
+                // Synthetic records: our own one carries an id the adapter can undo.
+                let mut list = vec![];
+                for r in reactions {
+                    for i in 0..r.count {
+                        let mine = r.mine && i == 0;
+                        list.push(ReactionRecord {
+                            id: MessageId(format!("reaction|{}|{}|{}", target.0, r.key, if mine { "me".to_owned() } else { i.to_string() })),
+                            key: r.key.clone(),
+                            sender: if mine { "me".to_owned() } else { format!("anon{i}") },
+                            sender_name: String::new(),
+                            from_me: mine,
+                        });
+                    }
+                }
+                entry.reactions.insert(target.clone(), list);
+                out.new_messages.extend(entry.view_of(&target));
+                out.changed.push(conversation);
+            }
             AdapterEvent::Edited { conversation, target, sender, body, at } => {
                 let entry = self.convs.entry(conversation.clone()).or_default();
                 if entry.edits.get(&target).is_some_and(|(t, _, _)| *t > at) {
@@ -524,6 +678,11 @@ impl Engine {
                     .collect();
                 self.presence.insert(user_id, (presence, status));
             }
+            AdapterEvent::Verification(v) => out.verifications.push(v),
+            AdapterEvent::UploadProgress(p) => out.uploads.push(p),
+            AdapterEvent::CallSignal(c) => out.call_signals.push(c),
+            AdapterEvent::PollChanged { conversation, poll } => out.poll_changes.push((conversation.key(), poll)),
+            AdapterEvent::SessionChanged { account, session } => out.sessions.push((account, session)),
             AdapterEvent::ConnectionLost { .. } | AdapterEvent::ConnectionRestored => {}
         }
         out
@@ -569,15 +728,24 @@ impl Engine {
                     .filter(|id| self.convs.get(id).is_some_and(|e| e.conv.as_ref().is_some_and(|c| c.invited_by.is_none())))
                     .map(|id| id.key())
                     .collect();
+                // Sub-teams we're in are shown as teams, not as channels to join.
+                let joined_subteams = t.children.iter().filter(|c| self.teams.keys().any(|k| k.account == t.id.account && &k.remote == *c)).count();
+                let parent = self
+                    .teams
+                    .values()
+                    .find(|p| p.id != t.id && p.id.account == t.id.account && p.children.contains(&t.id.remote))
+                    .map(|p| p.id.key());
                 TeamView {
                     key: t.id.key(),
                     account: t.id.account.0.clone(),
                     name: t.name.clone(),
                     topic: t.topic.clone(),
                     avatar: t.avatar_url.clone(),
-                    not_joined: t.children.len().saturating_sub(channels.len()),
+                    not_joined: t.children.len().saturating_sub(channels.len() + joined_subteams),
                     channels,
                     space_id: t.id.remote.clone(),
+                    parent,
+                    order: t.order.clone(),
                 }
             })
             .collect()
@@ -619,6 +787,13 @@ impl Engine {
         self.activity.iter().cloned().collect()
     }
 
+    /// Puts back the feed saved by a previous run; newer items win on conflicts.
+    pub fn restore_activity(&mut self, items: Vec<ActivityItem>) {
+        for item in items {
+            self.push_activity(item);
+        }
+    }
+
     /// Mentions of us and replies to our messages.
     fn record_message_activity(&mut self, conversation: &ConversationId, id: &MessageId) -> bool {
         let Some(entry) = self.convs.get(conversation) else { return false };
@@ -634,6 +809,8 @@ impl Engine {
             ActivityKind::Mention
         } else if replied_to_me {
             ActivityKind::Reply
+        } else if has_keyword(&m.body.plain_text(), &self.notify.keywords) {
+            ActivityKind::Keyword
         } else {
             return false;
         };
@@ -725,9 +902,9 @@ impl Engine {
             Some(m) => {
                 let text = m.body.plain_text().lines().next().unwrap_or_default().to_owned();
                 if matches!(m.body, MessageBody::Redacted) {
-                    "Message deleted".to_owned()
+                    self.texts.get("preview.deleted", &[])
                 } else if m.from_me {
-                    format!("You: {text}")
+                    self.texts.get("preview.you", &[("text", &text)])
                 } else if conv.kind == ConversationKind::Direct {
                     text
                 } else {
@@ -738,6 +915,8 @@ impl Engine {
         let (kind, team) = match &conv.kind {
             ConversationKind::Direct => ("direct", None),
             ConversationKind::Group => ("group", None),
+            ConversationKind::Room => ("room", None),
+            ConversationKind::Team => ("team", None),
             ConversationKind::Channel { team } => ("channel", team.clone()),
             ConversationKind::Meeting => ("meeting", None),
         };
@@ -748,6 +927,7 @@ impl Engine {
             team,
             name: conv.name.clone(),
             favourite: conv.favourite,
+            archived: conv.archived,
             muted: conv.muted,
             mentions_only: conv.mentions_only,
             encrypted: conv.encrypted,
@@ -761,6 +941,7 @@ impl Engine {
             typing: entry.typing.clone(),
             invited_by: conv.invited_by.clone(),
             dm_user: conv.dm_user.clone(),
+            call_active: conv.call_active,
             presence: conv.dm_user.as_ref().and_then(|u| self.presence.get(u)).map(|(p, _)| *p),
             status: conv.dm_user.as_ref().and_then(|u| self.presence.get(u)).and_then(|(_, s)| s.clone()),
         })
@@ -770,7 +951,22 @@ impl Engine {
         self.convs.get(id).map(|e| e.messages.iter().map(|m| e.view(m)).collect()).unwrap_or_default()
     }
 
-    /// Teams-like rules: chats notify, channels only on mention, muted never.
+    /// For /jumptodate: the first loaded message at or after `ts` (not a room event),
+    /// and the time of the oldest loaded message, to tell whether to load further back.
+    pub fn message_at(&self, id: &ConversationId, ts: Timestamp) -> (Option<MessageId>, Option<Timestamp>) {
+        let Some(entry) = self.convs.get(id) else { return (None, None) };
+        let oldest = entry.messages.iter().map(|m| m.sent_at).min();
+        let first = entry
+            .messages
+            .iter()
+            .filter(|m| m.sent_at >= ts && m.thread_root.is_none() && !matches!(m.body, MessageBody::Event { .. }))
+            .min_by_key(|m| m.sent_at)
+            .map(|m| m.id.clone());
+        (first, oldest)
+    }
+
+    /// Teams-like rules by default: chats notify, channels only on mention,
+    /// muted never; the user's NotifyPrefs adjust the first two.
     fn notification_for(&self, m: &Message, now: Timestamp) -> Option<Notification> {
         if m.from_me || matches!(m.body, MessageBody::Redacted | MessageBody::Event { .. }) || now.saturating_sub(m.sent_at) > NOTIFY_MAX_AGE_MS || self.is_visible(&m.conversation) {
             return None;
@@ -780,21 +976,27 @@ impl Engine {
             return None; // already seen
         }
         let conv = entry.conv.as_ref()?;
+        let mention = m.mentions_me || has_keyword(&m.body.plain_text(), &self.notify.keywords);
+        let level = if matches!(conv.kind, ConversationKind::Channel { .. }) { self.notify.channels } else { self.notify.chats };
         let wanted = !conv.muted
-            && (m.mentions_me || (!conv.mentions_only && !matches!(conv.kind, ConversationKind::Channel { .. })));
+            && match level {
+                NotifyLevel::All => mention || !conv.mentions_only,
+                NotifyLevel::Mentions => mention,
+                NotifyLevel::Off => false,
+            };
         if !wanted {
             return None;
         }
         let title = match conv.kind {
             ConversationKind::Direct => m.sender_name.clone(),
-            _ => format!("{} in {}", m.sender_name, conv.name),
+            _ => self.texts.get("notify.inRoom", &[("sender", &m.sender_name), ("room", &conv.name)]),
         };
         let body = match &m.body {
-            MessageBody::File { kind: FileKind::Image, .. } => "sent an image".to_owned(),
-            MessageBody::File { name, .. } => format!("sent {name}"),
+            MessageBody::File { kind: FileKind::Image, .. } => self.texts.get("notify.image", &[]),
+            MessageBody::File { name, .. } => self.texts.get("notify.file", &[("name", name)]),
             other => other.plain_text(),
         };
-        Some(Notification { conversation: m.conversation.key(), title, body })
+        Some(Notification { conversation: m.conversation.key(), title, body, kind: if mention { NotificationKind::Mention } else { NotificationKind::Message } })
     }
 
     fn is_visible(&self, id: &ConversationId) -> bool {
@@ -846,6 +1048,11 @@ fn merge_outcome(into: &mut Outcome, out: Outcome) {
     into.notifications.extend(out.notifications);
     into.teams_changed |= out.teams_changed;
     into.activity_changed |= out.activity_changed;
+    into.verifications.extend(out.verifications);
+    into.uploads.extend(out.uploads);
+    into.call_signals.extend(out.call_signals);
+    into.poll_changes.extend(out.poll_changes);
+    into.sessions.extend(out.sessions);
 }
 
 #[cfg(test)]
@@ -863,11 +1070,13 @@ mod tests {
             name: "Room".into(),
             avatar_url: None,
             favourite: false,
+            archived: false,
             muted: false,
             mentions_only: false,
             dm_user: None,
             invited_by: None,
             team_id: None,
+            call_active: false,
             encrypted: true,
         })
     }
@@ -1042,6 +1251,49 @@ mod tests {
     }
 
     #[test]
+    fn notifies_for_new_invites_only() {
+        let mut e = Engine::new();
+        let invite = |name: &str| {
+            let mut c = match upsert() { AdapterEvent::ConversationUpserted(c) => c, _ => unreachable!() };
+            c.id.remote = name.into();
+            c.invited_by = Some("Ann".into());
+            AdapterEvent::ConversationUpserted(c)
+        };
+        assert!(e.handle(invite("!old:x"), 1_000).notifications.is_empty(), "waiting at startup");
+        let out = e.handle(invite("!new:x"), 120_000);
+        assert_eq!(out.notifications.len(), 1);
+        assert!(e.handle(invite("!new:x"), 130_000).notifications.is_empty(), "same invite again");
+    }
+
+    #[test]
+    fn message_at_finds_first_after() {
+        let mut e = Engine::new();
+        e.handle(upsert(), 0);
+        for i in 1..=3 {
+            e.handle(msg(i, false), 0);
+        }
+        let times: Vec<u64> = e.messages(&conv_id()).iter().map(|m| m.sent_at).collect();
+        let (first, oldest) = e.message_at(&conv_id(), times[1]);
+        assert_eq!(oldest, times.iter().min().copied());
+        assert_eq!(first.map(|m| m.0), Some(e.messages(&conv_id())[1].id.clone()));
+        assert_eq!(e.message_at(&conv_id(), u64::MAX).0, None);
+    }
+
+    #[test]
+    fn notify_prefs_levels_and_keywords() {
+        let mut e = Engine::new();
+        e.handle(upsert(), 0);
+        e.set_notify_prefs(NotifyPrefs { chats: NotifyLevel::Mentions, keywords: vec!["HELL".into()], ..Default::default() });
+        assert!(e.handle(msg(1, false), 40).notifications.is_empty(), "keyword must be a whole word");
+        e.set_notify_prefs(NotifyPrefs { chats: NotifyLevel::Mentions, keywords: vec!["Hello".into()], ..Default::default() });
+        let out = e.handle(msg(2, false), 50);
+        assert_eq!(out.notifications.len(), 1);
+        assert_eq!(out.notifications[0].kind, NotificationKind::Mention);
+        e.set_notify_prefs(NotifyPrefs { chats: NotifyLevel::Off, ..Default::default() });
+        assert!(e.handle(msg(3, false), 60).notifications.is_empty(), "chats off");
+    }
+
+    #[test]
     fn activity_collects_mentions_replies_and_reactions_to_me() {
         let mut e = Engine::new();
         e.handle(upsert(), 0);
@@ -1057,6 +1309,21 @@ mod tests {
         assert!(!e.handle(msg(3, false), 0).activity_changed, "unrelated message");
         let kinds: Vec<_> = e.activity().iter().map(|a| a.kind).collect();
         assert!(kinds.contains(&ActivityKind::Reply) && kinds.contains(&ActivityKind::Reaction));
+    }
+
+    #[test]
+    fn activity_keyword_hits_and_restore() {
+        let mut e = Engine::new();
+        e.handle(upsert(), 0);
+        e.set_notify_prefs(NotifyPrefs { keywords: vec!["hello".into()], ..Default::default() });
+        assert!(e.handle(msg(1, false), 0).activity_changed);
+        assert_eq!(e.activity()[0].kind, ActivityKind::Keyword);
+        let saved = e.activity();
+        let mut fresh = Engine::new();
+        fresh.restore_activity(saved);
+        assert_eq!(fresh.activity().len(), 1);
+        let (_, out) = fresh.remove_account(&conv_id().account);
+        assert!(out.activity_changed && fresh.activity().is_empty());
     }
 
     #[test]
@@ -1103,6 +1370,37 @@ mod tests {
         assert_eq!(hits.len(), 1);
         assert_eq!((hits[0].message.as_str(), hits[0].snippet.as_str()), ("$e2", "hello 2"));
         assert!(e.search("h", 10).is_empty(), "too short");
+    }
+
+    #[test]
+    fn reaction_counts_replace_previous_reactions() {
+        let mut e = Engine::new();
+        e.handle(upsert(), 0);
+        e.handle(msg(1, false), 0);
+        let snapshot = |n: usize, mine: bool| AdapterEvent::ReactionsReplaced {
+            conversation: conv_id(),
+            target: MessageId("$e1".into()),
+            reactions: vec![ReactionCount { key: "👍".into(), count: n, mine }],
+        };
+        e.handle(snapshot(3, true), 0);
+        let r = &e.messages(&conv_id())[0].reactions[0];
+        assert_eq!((r.count, r.mine), (3, true));
+        assert_eq!(e.own_reaction(&conv_id(), &MessageId("$e1".into()), "👍"), Some(MessageId("reaction|$e1|👍|me".into())));
+        e.handle(snapshot(1, false), 0);
+        assert_eq!(e.messages(&conv_id())[0].reactions[0].count, 1);
+    }
+
+    #[test]
+    fn notifies_when_a_call_starts_but_not_for_one_already_running() {
+        let mut e = Engine::new();
+        let with_call = |active: bool| match upsert() {
+            AdapterEvent::ConversationUpserted(c) => AdapterEvent::ConversationUpserted(Conversation { call_active: active, ..c }),
+            _ => unreachable!(),
+        };
+        assert!(e.handle(with_call(true), 0).notifications.is_empty(), "running at startup");
+        e.handle(with_call(false), 0);
+        assert_eq!(e.handle(with_call(true), 0).notifications.len(), 1);
+        assert!(e.view(&conv_id()).unwrap().call_active);
     }
 
     #[test]

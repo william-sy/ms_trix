@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { ContextMenu } from "./ContextMenu";
+import { formatDuration } from "./voice";
 import { backend, isLive, mediaUrl } from "./backend";
 import type { Message } from "./types";
 import { t } from "./i18n";
@@ -24,7 +26,10 @@ export function MediaBody({ media, account, actions }: { media: Media; account: 
     );
   }
   if (media.kind === "video" && src) {
-    return <video className="msg-video" src={mediaUrl(account, media.id, undefined, media.mime)} controls preload="metadata" onContextMenu={onContextMenu} />;
+    return <video className="msg-video" src={`${mediaUrl(account, media.id, undefined, media.mime)}#t=0.1`} controls preload="metadata" onContextMenu={onContextMenu} />;
+  }
+  if (media.kind === "audio" && src && media.voice) {
+    return <VoicePlayer src={mediaUrl(account, media.id, undefined, media.mime)!} voice={media.voice} onContextMenu={onContextMenu} />;
   }
   if (media.kind === "audio" && src) {
     return (
@@ -72,11 +77,11 @@ export function MediaMenu({ media, account, x, y, onView, onClose, onNotice }: {
 
   const isImage = media.kind === "image" || media.kind === "sticker";
   return (
-    <div className="menu context" style={{ left: x, top: y }} onClick={(e) => e.stopPropagation()}>
+    <ContextMenu x={x} y={y}>
       {isImage && <button className="menu-item" onClick={() => { onView(); onClose(); }}>{t("media.view")}</button>}
       <button className="menu-item" onClick={() => { save(account, media, onNotice); onClose(); }}>{t("media.saveAs")}</button>
       <button className="menu-item" onClick={() => { backend.openMedia(account, media.id, media.name).catch((e) => onNotice(String(e))); onClose(); }}>{t("media.openDefault")}</button>
-    </div>
+    </ContextMenu>
   );
 }
 
@@ -92,3 +97,47 @@ export function useMediaUi() {
   const actions: MediaActions = { view: setViewing, menu: (media, x, y) => setMenu({ media, x, y }) };
   return { viewing, setViewing, menu, setMenu, actions };
 }
+
+/** Voice message: play/pause, waveform bars that fill as it plays (click to jump), time. */
+function VoicePlayer({ src, voice, onContextMenu }: { src: string; voice: { durationMs: number; waveform: number[] }; onContextMenu: (e: React.MouseEvent) => void }) {
+  const audio = useRef<HTMLAudioElement>(null);
+  const [playing, setPlaying] = useState(false);
+  const [at, setAt] = useState(0);
+  const duration = voice.durationMs / 1000 || audio.current?.duration || 0;
+  // Older clients send no waveform; draw a flat line of bars then.
+  const bars = voice.waveform.length ? resample(voice.waveform, 48) : Array.from({ length: 48 }, () => 0.3);
+  const progress = duration ? at / duration : 0;
+  const toggle = () => {
+    const el = audio.current;
+    if (!el) return;
+    if (el.paused) void el.play(); else el.pause();
+  };
+  const seek = (e: React.MouseEvent<HTMLSpanElement>) => {
+    const el = audio.current;
+    if (!el || !duration) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    el.currentTime = ((e.clientX - rect.left) / rect.width) * duration;
+    setAt(el.currentTime);
+  };
+  return (
+    <span className="voice-player" onContextMenu={onContextMenu}>
+      <button className="voice-play" title={playing ? t("voice.pause") : t("voice.play")} onClick={toggle}>{playing ? "❚❚" : "▶"}</button>
+      <span className="voice-bars" onClick={seek} role="slider" aria-valuemin={0} aria-valuemax={Math.round(duration)} aria-valuenow={Math.round(at)}>
+        {bars.map((v, i) => <span key={i} className={i / bars.length < progress ? "played" : ""} style={{ height: `${Math.max(12, v * 100)}%` }} />)}
+      </span>
+      <span className="voice-time">{formatDuration((playing || at ? at : duration) * 1000)}</span>
+      <audio ref={audio} src={src} preload="metadata" onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)}
+        onEnded={() => { setPlaying(false); setAt(0); }} onTimeUpdate={(e) => setAt(e.currentTarget.currentTime)} />
+    </span>
+  );
+}
+
+function resample(values: number[], n: number): number[] {
+  return Array.from({ length: n }, (_, i) => {
+    const from = Math.floor((i / n) * values.length);
+    const to = Math.max(from + 1, Math.floor(((i + 1) / n) * values.length));
+    const slice = values.slice(from, to);
+    return slice.reduce((a, b) => Math.max(a, b), 0);
+  });
+}
+

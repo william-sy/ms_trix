@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- ms_trix app icon: two overlapping chat bubbles (back: deeper blue, front: lighter,
+       translucent) with typing dots, on a dark navy rounded tile. Source for `tauri icon`. -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#16233a"/>
+      <stop offset="1" stop-color="#0d1626"/>
+    </linearGradient>
+    <linearGradient id="back" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4b9be6"/>
+      <stop offset="1" stop-color="#2a6fc9"/>
+    </linearGradient>
+    <linearGradient id="front" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5fb4f5"/>
+      <stop offset="1" stop-color="#3f93e0"/>
+    </linearGradient>
+  </defs>
+  <!-- macOS-style margin: the tile is 824 of 1024 px, like other Dock icons. -->
+  <g transform="translate(100 100) scale(0.8046875)">
+  <rect x="0" y="0" width="1024" height="1024" rx="224" fill="url(#tile)"/>
+  <!-- back bubble, tail bottom-left -->
+  <path d="M300 230 H640 a90 90 0 0 1 90 90 V560 a90 90 0 0 1 -90 90 H420 L300 760 L330 650 H300 a90 90 0 0 1 -90 -90 V320 a90 90 0 0 1 90 -90 Z" fill="url(#back)"/>
+  <!-- front bubble, tail bottom-right -->
+  <path d="M410 340 H730 a90 90 0 0 1 90 90 V640 a90 90 0 0 1 -60 85 L800 800 L690 730 H410 a90 90 0 0 1 -90 -90 V430 a90 90 0 0 1 90 -90 Z" fill="url(#front)" fill-opacity="0.92"/>
+  <!-- typing dots -->
+  <g fill="#0f1b2d">
+    <circle cx="470" cy="535" r="34"/>
+    <circle cx="570" cy="535" r="34"/>
+    <circle cx="670" cy="535" r="34"/>
+  </g>
+  </g>
+</svg>

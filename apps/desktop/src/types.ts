@@ -1,7 +1,7 @@
 // Mirrors trix-core's model. Replaced by Tauri commands once the core is wired up.
 import type { RoomEvent } from "./roomEvents";
 
-export type Protocol = "matrix" | "xmpp" | "irc";
+export type Protocol = "matrix" | "talk" | "xmpp" | "irc";
 
 /** Subset of trix-core's Capabilities that drives the UI chrome. */
 export interface Capabilities {
@@ -21,7 +21,7 @@ export interface Org {
   status?: string;
 }
 
-export type ConversationKind = "direct" | "group" | "channel" | "meeting";
+export type ConversationKind = "direct" | "group" | "room" | "channel" | "meeting" | "team";
 
 export interface Conversation {
   id: string;
@@ -33,6 +33,8 @@ export interface Conversation {
   time: string;
   sortKey: number;
   favourite: boolean;
+  /** Put away; shown in the Archived section unless it has something unread. */
+  archived?: boolean;
   muted: boolean;
   mentionsOnly?: boolean;
   encrypted: boolean;
@@ -50,6 +52,8 @@ export interface Conversation {
   invitedBy?: string | null;
   /** The other person in a 1:1 chat. */
   dmUser?: string | null;
+  /** Someone is in a call in this conversation. */
+  callActive?: boolean;
 }
 
 export type PresenceState = "available" | "busy" | "away" | "offline";
@@ -61,6 +65,8 @@ export interface Message {
   /** Protocol user id, for opening the sender's profile. */
   senderId?: string;
   time: string;
+  /** Sent at (ms since the epoch), for day dividers and grouping. */
+  ts?: number;
   body: string;
   /** Sanitized before display; see RichText. */
   html?: string;
@@ -76,7 +82,13 @@ export interface Message {
   avatar?: string;
   replyTo?: string;
   threadRoot?: string;
-  media?: { id: string; kind: "image" | "video" | "audio" | "file" | "sticker"; name: string; mime?: string | null };
+  /** Poll id when this message is a poll (`body` is the question). */
+  poll?: string;
+  media?: {
+    id: string; kind: "image" | "video" | "audio" | "file" | "sticker"; name: string; mime?: string | null; caption?: string | null;
+    /** Voice messages: length and 0..1 waveform. */
+    voice?: { durationMs: number; waveform: number[] } | null;
+  };
 }
 
 export interface Reaction {
@@ -94,6 +106,12 @@ export interface Outgoing {
   threadRoot?: string;
   /** User ids mentioned in the text. */
   mentions?: string[];
+  /** Ready-made HTML (spoiler, /html, /rainbow); `text` is the plain fallback. */
+  html?: string;
+  /** Custom message type (chat effects). */
+  msgtype?: string;
+  /** Custom emoji in `text` (as :shortcode:) with their mxc URLs. */
+  emotes?: [string, string][];
   /** Files sent with `text` as their caption. */
   attachments?: Attachment[];
 }
@@ -107,12 +125,78 @@ export interface Attachment {
   path?: string;
   /** Pasted file (clipboard has no path). */
   file?: File;
-  /** Object URL for image thumbnails. */
+  /** Object URL for image thumbnails (and the still of a video). */
   preview?: string;
+  /** Still of a video, sent along so chats show it before playing. */
+  thumb?: import("./backend").VideoThumb;
 }
 
 export interface Member {
   userId: string;
   name: string;
   avatar?: string | null;
+}
+
+/** A file or folder in Nextcloud Files. */
+export interface CloudFile {
+  name: string;
+  path: string;
+  dir: boolean;
+  size: number;
+  mime?: string;
+  modified?: string;
+  fileId?: string;
+}
+
+export interface Calendar {
+  id: string;
+  name: string;
+  color?: string;
+  writable: boolean;
+}
+
+/** One occurrence; times in iCalendar form: "20261117T090000Z", "20261117T090000" (local) or "20261117" (all day). */
+export interface CalendarEvent {
+  calendar: string;
+  uid: string;
+  summary: string;
+  start: string;
+  end?: string;
+  location?: string;
+  description?: string;
+  organizer?: string;
+  /** The calendar object, for editing and deleting. */
+  href: string;
+  etag?: string;
+  /** Part of a repeating series. */
+  recurring: boolean;
+  /** Which occurrence of a repeating meeting this is. */
+  recurrenceId?: string | null;
+  attendees: Attendee[];
+  /** You organise it, so you may change it. */
+  mine: boolean;
+  /** Your reply when you're invited: NEEDS-ACTION, ACCEPTED, DECLINED, TENTATIVE. */
+  myStatus?: string;
+}
+
+export interface Attendee {
+  name?: string;
+  email: string;
+  /** NEEDS-ACTION, ACCEPTED, DECLINED, TENTATIVE */
+  status?: string;
+  /** User id on the same Nextcloud (for the picture). */
+  user?: string;
+}
+
+export interface NewEvent {
+  calendar: string;
+  summary: string;
+  start: string;
+  end: string;
+  location?: string;
+  description?: string;
+  attendees: Attendee[];
+  /** Repeating meetings: the occurrence changed, and whether the whole series changes. */
+  occurrence?: string;
+  series?: boolean;
 }

@@ -3,6 +3,8 @@ import type { Capabilities, Conversation, Message, Org, Protocol } from "./types
 // Calls flip on once the MatrixRTC integration lands.
 export const capabilities: Record<Protocol, Capabilities> = {
   matrix: { teams: true, calls: false },
+  // Talk has no spaces; calls open Talk's own call screen in a window.
+  talk: { teams: false, calls: true },
   xmpp: { teams: false, calls: false },
   irc: { teams: false, calls: false },
 };

@@ -1,0 +1,25 @@
+[package]
+name = "trix-talk"
+description = "Nextcloud Talk protocol adapter for ms_trix"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+trix-core.workspace = true
+async-trait.workspace = true
+futures.workspace = true
+serde.workspace = true
+serde_json = "1"
+tokio = { version = "1", features = ["rt", "sync", "macros", "time"] }
+tracing = "0.1"
+rand = "0.9"
+# Same version matrix-sdk already pulls in.
+reqwest = { version = "0.13", default-features = false, features = ["json", "form", "query", "multipart", "rustls", "cookies"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp"] }
+percent-encoding = "2"
+# Same version the workspace already has; WebDAV/CalDAV replies.
+quick-xml = "0.42"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

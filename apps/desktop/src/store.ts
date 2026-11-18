@@ -25,6 +25,7 @@ export type Action =
   | { type: "markUnread"; id: string }
   | { type: "markRead"; id: string }
   | { type: "toggleFavourite"; id: string }
+  | { type: "toggleArchive"; id: string }
   | { type: "toggleMute"; id: string }
   | { type: "send"; id: string; message: Outgoing }
   | { type: "react"; id: string; target: string; emoji: string }
@@ -69,6 +70,8 @@ export function reducer(state: State, action: Action): State {
       return { ...state, convs: update(state.convs, action.id, () => ({ marked: false, unread: 0, mentions: 0 })) };
     case "toggleFavourite":
       return { ...state, convs: update(state.convs, action.id, (c) => ({ favourite: !c.favourite })) };
+    case "toggleArchive":
+      return { ...state, convs: update(state.convs, action.id, (c) => ({ archived: !c.archived })) };
     case "toggleMute":
       return { ...state, convs: update(state.convs, action.id, (c) => ({ muted: !c.muted })) };
     case "send": {

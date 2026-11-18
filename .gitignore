@@ -7,3 +7,8 @@ apps/desktop/src-tauri/gen/
 *.tsbuildinfo
 # Screenshots contain real chats and colleagues names; kept local on purpose.
 Reference+pictures/
+/Screenshot*.png
+# Originals of README images; the smaller copies are in the repo.
+/images/Talk week calendar.png
+/images/Talk Month calendar.png
+/images/screen sharing with drawing.png

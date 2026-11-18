@@ -3,9 +3,12 @@ import { commandList, runCommand } from "./commands";
 import { EmojiPicker } from "./EmojiPicker";
 import { autoReplace } from "./emoticons";
 import { applyFormat, type Format } from "./format";
-import { AttachIcon, EmojiIcon, FormatIcon, PlusIcon, SendIcon } from "./Icons";
+import { AttachIcon, EmojiIcon, FormatIcon, MicIcon, PlusIcon, SendIcon } from "./Icons";
+import { formatDuration, useVoiceRecorder, type Voice } from "./voice";
+import { mediaUrl, type ImagePack, type PackImage } from "./backend";
 import type { Attachment, Member, Message, Outgoing } from "./types";
 import { t, type Key } from "./i18n";
+import { currentSettings } from "./settings";
 
 // Markdown the format buttons insert; the adapter sends it as rich text.
 // `label` is a symbol shown as-is; `labelKey` is translated.
@@ -44,6 +47,12 @@ interface Props {
   replyTo?: Message | null;
   onCancelReply?: () => void;
   onSend: (m: Outgoing) => void;
+  /** Record and send voice messages (main chat only). */
+  onVoice?: (v: Voice) => void;
+  /** Custom emoji and sticker packs for this chat, and sending a sticker. */
+  getPacks?: () => Promise<ImagePack[]>;
+  onSticker?: (image: PackImage) => void;
+  account?: string;
   onNotice: (message: string) => void;
   onTyping?: (typing: boolean) => void;
   onCommand?: (name: string, args: string) => void;
@@ -51,6 +60,8 @@ interface Props {
   /** Staged files; omit to disable attachments (e.g. in threads). */
   attachments?: Attachment[];
   onPickFiles?: () => void;
+  /** Attach from Nextcloud Files (shows a small menu on the attach button). */
+  onPickCloud?: () => void;
   onAddFiles?: (files: File[]) => void;
   onRemoveAttachment?: (id: string) => void;
 }
@@ -65,6 +76,20 @@ export function Composer(p: Props) {
   const [mentioned, setMentioned] = useState<Record<string, string>>({});
   const [rich, setRichState] = useState(loadRich);
   const [emoji, setEmoji] = useState(false);
+  const [stickers, setStickers] = useState(false);
+  const [attachMenu, setAttachMenu] = useState(false);
+  useEffect(() => {
+    if (!attachMenu) return;
+    const close = () => setAttachMenu(false);
+    window.addEventListener("mousedown", close);
+    return () => window.removeEventListener("mousedown", close);
+  }, [attachMenu]);
+  const [packs, setPacks] = useState<ImagePack[]>([]);
+  // Custom emoji typed as :shortcode: -> image URL, sent along so they show as images.
+  const [emotes, setEmotes] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if ((emoji || stickers) && p.getPacks) p.getPacks().then(setPacks).catch(() => setPacks([]));
+  }, [emoji, stickers]); // eslint-disable-line react-hooks/exhaustive-deps
   const input = useRef<HTMLTextAreaElement>(null);
   const mirrorRef = useRef<HTMLDivElement>(null);
   const typingSince = useRef(0);
@@ -78,8 +103,11 @@ export function Composer(p: Props) {
   const mentionHits = mentionQuery === undefined || !members ? [] : members
     .filter((m) => `${m.name} ${m.userId}`.toLowerCase().includes(mentionQuery.toLowerCase()))
     .slice(0, 8);
-  const suggestions = /^\/\S*$/.test(text) ? commandList.filter((c) => c.name.startsWith(text.slice(1).toLowerCase())) : [];
+  // /help opens the full list; typing "/" filters it as you go.
+  const [showHelp, setShowHelp] = useState(false);
+  const suggestions = /^\/\S*$/.test(text) ? commandList.filter((c) => c.name.startsWith(text.slice(1).toLowerCase())) : showHelp && !text ? commandList : [];
   const canSend = !!text.trim() || attachments.length > 0;
+  const voice = useVoiceRecorder((v) => p.onVoice?.(v), (message) => onNotice(t("composer.micError", { error: message })), () => onNotice(t("composer.micSilent")));
 
   useEffect(() => {
     if (replyTo) input.current?.focus();
@@ -149,6 +177,10 @@ export function Composer(p: Props) {
     // With files staged, the text is their caption, never a command.
     const result = attachments.length ? { kind: "send" as const, text: raw, emote: false } : runCommand(raw);
     if (result.kind === "info") return onNotice(result.message);
+    if (result.kind === "help") {
+      setText("");
+      return setShowHelp(true);
+    }
     if (result.kind === "remote") {
       if (!onCommand) return onNotice(t("composer.notAvailable", { name: result.name }));
       onCommand(result.name, result.args);
@@ -164,7 +196,8 @@ export function Composer(p: Props) {
       out = out.split(`@${name}`).join(`[${escapeMarkdown(name)}](https://matrix.to/#/${userId})`);
       mentions.push(userId);
     }
-    onSend({ text: out, emote: result.emote, mentions, attachments: attachments.length ? attachments : undefined });
+    const usedEmotes = Object.entries(emotes).filter(([code]) => out.includes(`:${code}:`));
+    onSend({ text: out, emotes: usedEmotes.length ? usedEmotes : undefined, emote: result.emote, html: "html" in result ? result.html : undefined, msgtype: "msgtype" in result ? result.msgtype : undefined, mentions, attachments: attachments.length ? attachments : undefined });
     setText("");
     setMentioned({});
     typing("");
@@ -188,9 +221,12 @@ export function Composer(p: Props) {
         </div>
       )}
       {suggestions.length > 0 && (
-        <div className="menu suggestions">
+        <div className="menu suggestions" onMouseDown={(e) => e.preventDefault()}>
+          {showHelp && !text && (
+            <div className="menu-title suggestions-head">{t("composer.commands")}<button className="icon-btn" title={t("common.closeEsc")} onClick={() => setShowHelp(false)}>✕</button></div>
+          )}
           {suggestions.map((c) => (
-            <button key={c.name} className="menu-item" onClick={() => update(`/${c.name} `, c.name.length + 2)}>
+            <button key={c.name} className="menu-item" onClick={() => { setShowHelp(false); update(`/${c.name} `, c.name.length + 2); }}>
               <b>/{c.name}</b> <span>{c.usage ? `${c.usage} — ` : ""}{t(c.help)}</span>
             </button>
           ))}
@@ -222,11 +258,26 @@ export function Composer(p: Props) {
           ))}
         </div>
       )}
-      <div className="composer-row">
+      {voice.recording && (
+        <div className="composer-row recording">
+          <span className="rec-dot" />
+          <span className="rec-label">{t("composer.recording")}</span>
+          <span className="rec-time">{formatDuration(voice.elapsed)}</span>
+          {/* Live input level: if this stays flat, the microphone isn't reaching ms_trix. */}
+          <span className="vu" aria-hidden>
+            {Array.from({ length: 12 }, (_, i) => <span key={i} className={voice.level * 12 > i ? "on" : ""} />)}
+          </span>
+          <span className="spacer" />
+          <button className="btn small" onClick={() => voice.finish(false)}>{t("common.cancel")}</button>
+          <button className="btn primary small" onClick={() => voice.finish(true)}>{t("composer.sendVoice")}</button>
+        </div>
+      )}
+      <div className="composer-row" hidden={voice.recording}>
         <div className="input-wrap">
           <div className="input-mirror" ref={mirrorRef} aria-hidden>{mirror(text, Object.keys(mentioned))}{"​"}</div>
           <textarea
             ref={input}
+            spellCheck={currentSettings().spellCheck}
             rows={rich ? 3 : 1}
             placeholder={attachments.length ? t("composer.captionPlaceholder") : placeholder}
             value={text}
@@ -256,8 +307,8 @@ export function Composer(p: Props) {
                 e.preventDefault();
                 return;
               }
-              // In format mode Enter adds a line (like Teams); ⌘/Ctrl+Enter always sends.
-              if (e.key === "Enter" && ((!e.shiftKey && !rich) || e.metaKey || e.ctrlKey)) {
+              // In format mode (or with "Enter sends" off) Enter adds a line; ⌘/Ctrl+Enter always sends.
+              if (e.key === "Enter" && ((!e.shiftKey && !rich && currentSettings().enterSends) || e.metaKey || e.ctrlKey)) {
                 e.preventDefault();
                 send();
               }
@@ -265,6 +316,7 @@ export function Composer(p: Props) {
                 e.preventDefault();
                 update(`/${suggestions[0].name} `, suggestions[0].name.length + 2);
               }
+              if (e.key === "Escape" && showHelp) { setShowHelp(false); return; }
               if (e.key === "Escape" && replyTo) onCancelReply?.();
             }}
           />
@@ -272,12 +324,46 @@ export function Composer(p: Props) {
         <button className={`icon-btn ${rich ? "on" : ""}`} title={t("composer.format")} onClick={() => setRich(!rich)}><FormatIcon /></button>
         <span className="emoji-anchor">
           <button className={`icon-btn ${emoji ? "on" : ""}`} title={t("composer.emoji")} onClick={() => setEmoji(!emoji)}><EmojiIcon /></button>
-          {emoji && <EmojiPicker onPick={insertAtCursor} onClose={() => setEmoji(false)} />}
+          {emoji && <EmojiPicker onPick={insertAtCursor} onClose={() => setEmoji(false)} packs={packs} account={p.account}
+            onPickCustom={(img) => { setEmotes((m) => ({ ...m, [img.shortcode]: img.url })); insertAtCursor(`:${img.shortcode}:`); setEmoji(false); }} />}
         </span>
-        <button className="icon-btn" title={t("composer.attach")} disabled={!p.onPickFiles} onClick={p.onPickFiles}><AttachIcon /></button>
-        <button className="icon-btn" disabled title={t("composer.stickersSoon")}><PlusIcon /></button>
+        <span className="emoji-anchor">
+          <button className={`icon-btn ${attachMenu ? "on" : ""}`} title={t("composer.attach")} disabled={!p.onPickFiles} onMouseDown={(e) => e.stopPropagation()}
+            onClick={() => (p.onPickCloud ? setAttachMenu(!attachMenu) : p.onPickFiles?.())}><AttachIcon /></button>
+          {attachMenu && (
+            <div className="menu attach-menu" onMouseDown={(e) => e.stopPropagation()}>
+              <button className="menu-item" onClick={() => { setAttachMenu(false); p.onPickFiles?.(); }}>💻 {t("composer.attachComputer")}</button>
+              <button className="menu-item" onClick={() => { setAttachMenu(false); p.onPickCloud?.(); }}>☁️ {t("composer.attachCloud")}</button>
+            </div>
+          )}
+        </span>
+        <span className="emoji-anchor">
+          <button className={`icon-btn ${stickers ? "on" : ""}`} disabled={!p.onSticker} title={t("composer.stickers")} onClick={() => setStickers(!stickers)}><PlusIcon /></button>
+          {stickers && (
+            <div className="menu emoji-picker sticker-picker" onMouseDown={(e) => e.stopPropagation()}>
+              {packs.filter((pk) => pk.images.some((i) => i.sticker)).length === 0 && <p className="empty">{t("composer.noStickers")}</p>}
+              {packs.filter((pk) => pk.images.some((i) => i.sticker)).map((pk) => (
+                <div key={pk.name}>
+                  <div className="menu-title">{pk.name}</div>
+                  <div className="sticker-grid">
+                    {pk.images.filter((i) => i.sticker).map((img) => (
+                      <button key={img.shortcode + img.url} title={img.body ?? img.shortcode} onClick={() => { p.onSticker?.(img); setStickers(false); }}>
+                        <img src={mediaUrl(p.account ?? "", img.url, 128)} alt={img.body ?? img.shortcode} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </span>
         <span className="sep" />
-        <button className="icon-btn send" title={t("composer.send")} onClick={send} disabled={!canSend}><SendIcon /></button>
+        {/* Nothing typed: the send button becomes "record a voice message", like Teams. */}
+        {!canSend && p.onVoice ? (
+          <button className="icon-btn send" title={t("composer.recordVoice")} onClick={() => void voice.start()}><MicIcon /></button>
+        ) : (
+          <button className="icon-btn send" title={t("composer.send")} onClick={send} disabled={!canSend}><SendIcon /></button>
+        )}
       </div>
     </div>
   );

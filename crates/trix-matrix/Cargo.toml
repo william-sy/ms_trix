@@ -6,17 +6,25 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+# Same version matrix-sdk uses; OAuth redirect addresses.
+url = "2"
 trix-core.workspace = true
 async-trait.workspace = true
 futures.workspace = true
 serde.workspace = true
 serde_json = "1"
-tokio = { version = "1", features = ["rt", "sync", "macros", "time"] }
+tokio = { version = "1", features = ["rt", "sync", "macros", "time", "net", "io-util"] }
 tracing = "0.1"
-matrix-sdk = { version = "0.19", features = ["sso-login", "markdown"] }
+matrix-sdk = { version = "0.19", features = ["sso-login", "markdown", "qrcode"] }
+# Same version matrix-sdk-qrcode uses; renders the verification QR code as SVG.
+qrcode = { version = "0.14.1", default-features = false, features = ["svg"] }
+# Same version matrix-sdk uses; for watching upload progress.
+eyeball = "0.8.8"
 rand = "0.9"
 mime = "0.3"
 mime_guess = "2"
+# Same version matrix-sdk-sqlite uses; clears a stale sync token in the crypto store.
+rusqlite = "0.40"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

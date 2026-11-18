@@ -3,29 +3,29 @@ import { Avatar } from "./Avatar";
 import { formatTime, type ActivityItem } from "./backend";
 import { t } from "./i18n";
 
-type Filter = "all" | "mention" | "reply" | "reaction" | "unread";
+type Filter = "all" | "mention" | "reply" | "reaction" | "keyword" | "unread";
 
-const filters: Filter[] = ["all", "unread", "mention", "reply", "reaction"];
+const filters: Filter[] = ["all", "unread", "mention", "reply", "reaction", "keyword"];
 
 const describe = (a: ActivityItem) =>
   a.kind === "mention" ? t("activity.mentioned", { room: a.conversationName })
     : a.kind === "reply" ? t("activity.replied", { room: a.conversationName })
+    : a.kind === "keyword" ? t("activity.keyword", { room: a.conversationName })
     : t("activity.reacted", { emoji: a.reaction ?? "", room: a.conversationName });
+
+const badge = (a: ActivityItem) => (a.kind === "mention" ? "@" : a.kind === "reply" ? "↩" : a.kind === "keyword" ? "#" : a.reaction);
 
 interface Props {
   items: ActivityItem[];
-  /** Items newer than this were unseen when the feed was opened. */
-  seenAt: number;
-  /** Items opened individually since. */
-  readIds: Set<string>;
+  isUnread: (item: ActivityItem) => boolean;
   selected: string | null;
   onOpen: (item: ActivityItem) => void;
+  onSetRead: (item: ActivityItem, read: boolean) => void;
   onMarkAllRead: () => void;
 }
 
-/** Teams-style Activity feed: mentions, replies and reactions aimed at you. */
-export function ActivityPane({ items, seenAt, readIds, selected, onOpen, onMarkAllRead }: Props) {
-  const unseen = (a: ActivityItem) => a.at > seenAt && !readIds.has(a.id);
+/** Teams-style Activity feed: mentions, replies, reactions and keywords aimed at you. */
+export function ActivityPane({ items, isUnread: unseen, selected, onOpen, onSetRead, onMarkAllRead }: Props) {
   const [filter, setFilter] = useState<Filter>("all");
   const shown = items.filter((a) => filter === "all" || (filter === "unread" ? unseen(a) : a.kind === filter));
   const anyUnseen = items.some(unseen);
@@ -49,7 +49,7 @@ export function ActivityPane({ items, seenAt, readIds, selected, onOpen, onMarkA
           <button key={a.id} className={`activity ${a.id === selected ? "selected" : ""} ${unseen(a) ? "unseen" : ""}`} onClick={() => onOpen(a)}>
             <span className="avatar-wrap">
               <Avatar account={a.conversation.split("|")[0]!} media={a.senderAvatar ?? undefined} name={a.senderName} />
-              <span className={`activity-kind k-${a.kind}`}>{a.kind === "mention" ? "@" : a.kind === "reply" ? "↩" : a.reaction}</span>
+              <span className={`activity-kind k-${a.kind}`}>{badge(a)}</span>
             </span>
             <span className="row-text">
               <span className="row-top">
@@ -58,6 +58,8 @@ export function ActivityPane({ items, seenAt, readIds, selected, onOpen, onMarkA
               </span>
               <span className="row-preview">{a.preview}</span>
             </span>
+            <span className="activity-toggle" role="button" title={unseen(a) ? t("activity.markRead") : t("activity.markUnread")}
+              onClick={(e) => { e.stopPropagation(); onSetRead(a, unseen(a)); }} />
           </button>
         ))}
       </div>

@@ -3,7 +3,9 @@ import { t } from "./i18n";
 
 export type RoomEventKind =
   | "joined" | "left" | "invited" | "inviteDeclined" | "inviteRevoked" | "kicked" | "banned" | "unbanned"
-  | "displayName" | "avatar" | "roomName" | "topic" | "roomAvatar" | "encrypted";
+  | "displayName" | "avatar" | "roomName" | "topic" | "roomAvatar" | "encrypted" | "verificationRequest" | "call"
+  // Protocol-rendered system text (Talk's "You started a call", ...), shown as is.
+  | "other";
 
 export interface RoomEvent {
   kind: RoomEventKind;
@@ -15,6 +17,16 @@ export interface RoomEvent {
 export function describeEvent(e: RoomEvent): string {
   const vars = { actor: e.actor, target: e.target ?? "", value: e.value ?? "" };
   switch (e.kind) {
+    case "other":
+      return e.value ?? "";
+    case "verificationRequest":
+      return t("event.verificationRequest", vars);
+    case "call":
+      return e.value === "invite_video" ? t("event.call.video", vars)
+        : e.value === "invite_voice" ? t("event.call.voice", vars)
+        : e.value === "missed" ? t("event.call.missed", vars)
+        : e.value === "declined" ? t("event.call.declined", vars)
+        : t("event.call.ended", vars);
     case "topic":
       return e.value ? t("event.topic", vars) : t("event.topicRemoved", vars);
     case "roomName":

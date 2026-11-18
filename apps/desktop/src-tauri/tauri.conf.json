@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "ms_trix",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "identifier": "nl.mstrix.app",
   "build": {
     "frontendDist": "../dist",
@@ -10,6 +10,7 @@
     "beforeBuildCommand": "npm run build"
   },
   "app": {
+    "macOSPrivateApi": true,
     "windows": [
       {
         "title": "ms_trix",

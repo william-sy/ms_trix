@@ -72,6 +72,14 @@ pub struct History {
     pub has_more: bool,
 }
 
+/// One page of older history for the search index; doesn't touch the timeline.
+#[derive(Debug, Clone, Default)]
+pub struct CrawlPage {
+    pub events: Vec<AdapterEvent>,
+    /// Where the next (older) page starts; None at the start of the conversation.
+    pub next: Option<String>,
+}
+
 /// Everything an adapter pushes to the core.
 #[derive(Debug, Clone)]
 pub enum AdapterEvent {
@@ -83,6 +91,8 @@ pub enum AdapterEvent {
     MessageRedacted { conversation: ConversationId, id: MessageId },
     /// An emoji reaction (`id` is the reaction itself, `target` the message).
     Reaction { conversation: ConversationId, target: MessageId, id: MessageId, key: String, sender: String, sender_name: String, from_me: bool, at: Timestamp },
+    /// Replaces all reactions on `target` with these counts.
+    ReactionsReplaced { conversation: ConversationId, target: MessageId, reactions: Vec<ReactionCount> },
     /// A new version of `target`'s content. Only valid from the original sender.
     Edited { conversation: ConversationId, target: MessageId, sender: String, body: MessageBody, at: Timestamp },
     /// Our own read receipt arrived from another device/session.
@@ -97,6 +107,14 @@ pub enum AdapterEvent {
     PresenceChanged { user_id: String, presence: Presence, status: Option<String> },
     ConnectionLost { reason: String },
     ConnectionRestored,
+    /// An emoji verification started, moved on, or ended.
+    Verification(Verification),
+    UploadProgress(UploadProgress),
+    CallSignal(CallSignal),
+    /// Someone voted in (or ended) a poll; the UI refetches it.
+    PollChanged { conversation: ConversationId, poll: String },
+    /// The stored session changed (refreshed tokens); the host replaces what it keeps.
+    SessionChanged { account: AccountId, session: Vec<u8> },
 }
 
 /// One instance per signed-in account.
@@ -112,6 +130,13 @@ pub trait ProtocolAdapter: Send + Sync {
     /// Starts syncing. The stream ends when the adapter shuts down.
     async fn start(&self) -> Result<BoxStream<'static, AdapterEvent>>;
     async fn stop(&self) -> Result<()>;
+    /// The conversation on screen (None: none of this account's), so polling
+    /// protocols can watch it closely for new messages.
+    fn set_focus(&self, _conversation: Option<&ConversationId>) {}
+    /// Revokes this device's credentials on the server (sign out).
+    async fn logout(&self) -> Result<()> {
+        Ok(())
+    }
 
     async fn send(&self, conversation: &ConversationId, message: Outgoing) -> Result<MessageId>;
     /// The page of messages before the oldest one loaded so far.
@@ -119,6 +144,25 @@ pub trait ProtocolAdapter: Send + Sync {
         Ok(History::default())
     }
     /// A thread's root message and all its replies.
+    /// The messages around `message` (about `size` before and after), for a quick
+    /// preview of an old search result without loading everything in between.
+    async fn context(&self, _conversation: &ConversationId, _message: &MessageId, _size: u32) -> Result<Vec<Message>> {
+        Err(AdapterError::Unsupported("message context"))
+    }
+    /// Pages backwards through history from `from` (None = newest) for the search
+    /// index. None when the protocol doesn't support it.
+    async fn crawl(&self, _conversation: &ConversationId, _from: Option<String>, _limit: u32) -> Result<Option<CrawlPage>> {
+        Ok(None)
+    }
+    /// Fetches these messages again (e.g. ones that couldn't be decrypted before).
+    async fn refetch(&self, _conversation: &ConversationId, _ids: &[MessageId]) -> Result<Vec<AdapterEvent>> {
+        Ok(vec![])
+    }
+    /// Makes sure `media` of this message can be fetched (e.g. learn its decryption
+    /// key) when it comes from the search index rather than the loaded timeline.
+    async fn prepare_media(&self, _conversation: &ConversationId, _message: &MessageId, _media: &str) -> Result<()> {
+        Ok(())
+    }
     async fn load_thread(&self, _conversation: &ConversationId, _root: &MessageId) -> Result<History> {
         Ok(History::default())
     }
@@ -135,6 +179,47 @@ pub trait ProtocolAdapter: Send + Sync {
     /// `caption` (markdown) is shown with the file, like a message text.
     async fn send_file(&self, _conversation: &ConversationId, _name: &str, _mime: Option<&str>, _data: Vec<u8>, _caption: Option<&str>) -> Result<()> {
         Err(AdapterError::Unsupported("sending files"))
+    }
+    /// A video with a still to show before it plays; without support it's sent as a plain file.
+    async fn send_video(&self, conversation: &ConversationId, name: &str, mime: Option<&str>, data: Vec<u8>, caption: Option<&str>, _thumb: VideoThumb) -> Result<()> {
+        self.send_file(conversation, name, mime, data, caption).await
+    }
+    /// A recorded voice message; `waveform` holds 0..1 levels for drawing it.
+    /// Protocols without voice messages get it as an ordinary audio file.
+    async fn send_voice(&self, conversation: &ConversationId, mime: &str, data: Vec<u8>, _duration_ms: u64, _waveform: Vec<f32>) -> Result<()> {
+        let ext = if mime.contains("ogg") { "ogg" } else if mime.contains("webm") { "webm" } else { "m4a" };
+        self.send_file(conversation, &format!("Voice message.{ext}"), Some(mime), data, None).await
+    }
+    /// Custom emoji and sticker packs: the user's own, from linked rooms, and this room's.
+    async fn image_packs(&self, _conversation: Option<&ConversationId>) -> Result<Vec<ImagePack>> {
+        Ok(vec![])
+    }
+    /// The user's own pack (editable), empty when there is none yet.
+    async fn own_pack(&self) -> Result<ImagePack> {
+        Err(AdapterError::Unsupported("custom emoji"))
+    }
+    /// Replaces the user's own pack (shared with Element and other clients).
+    async fn save_own_pack(&self, _pack: &ImagePack) -> Result<()> {
+        Err(AdapterError::Unsupported("custom emoji"))
+    }
+    /// Uploads a picture for a pack; returns its URL.
+    async fn upload_image(&self, _mime: &str, _data: Vec<u8>) -> Result<String> {
+        Err(AdapterError::Unsupported("uploads"))
+    }
+    async fn poll(&self, _conversation: &ConversationId, _poll: &str) -> Result<PollView> {
+        Err(AdapterError::Unsupported("polls"))
+    }
+    async fn vote(&self, _conversation: &ConversationId, _poll: &str, _answers: &[String]) -> Result<()> {
+        Err(AdapterError::Unsupported("polls"))
+    }
+    async fn end_poll(&self, _conversation: &ConversationId, _poll: &str) -> Result<()> {
+        Err(AdapterError::Unsupported("polls"))
+    }
+    async fn create_poll(&self, _conversation: &ConversationId, _question: &str, _answers: &[String], _max_selections: u32, _disclosed: bool) -> Result<()> {
+        Err(AdapterError::Unsupported("polls"))
+    }
+    async fn send_sticker(&self, _conversation: &ConversationId, _url: &str, _body: &str) -> Result<()> {
+        Err(AdapterError::Unsupported("stickers"))
     }
     async fn members(&self, _conversation: &ConversationId) -> Result<Vec<Member>> {
         Ok(vec![])
@@ -158,6 +243,10 @@ pub trait ProtocolAdapter: Send + Sync {
     async fn create_chat(&self, _users: &[String], _name: Option<&str>) -> Result<CommandOutput> {
         Err(AdapterError::Unsupported("creating chats"))
     }
+    /// Creates a named room (not a chat).
+    async fn create_room(&self, _room: &NewRoom) -> Result<CommandOutput> {
+        Err(AdapterError::Unsupported("creating rooms"))
+    }
     /// Public rooms (or spaces) on `server` (None = our own server).
     async fn directory(&self, _server: Option<&str>, _term: &str, _spaces: bool) -> Result<Vec<DirectoryRoom>> {
         Ok(vec![])
@@ -169,6 +258,14 @@ pub trait ProtocolAdapter: Send + Sync {
     /// Joins by id or address; `via` helps the server find rooms by id.
     async fn join_room(&self, _address: &str, _via: Option<&str>) -> Result<CommandOutput> {
         Err(AdapterError::Unsupported("joining rooms"))
+    }
+    /// What a room link points at, for "open or join"; `joined` is set when we're in it.
+    async fn room_preview(&self, _address: &str, _via: &[String]) -> Result<DirectoryRoom> {
+        Err(AdapterError::Unsupported("room links"))
+    }
+    /// Asks to be let into a room that requires approval.
+    async fn knock(&self, _address: &str, _via: Option<&str>) -> Result<()> {
+        Err(AdapterError::Unsupported("asking to join"))
     }
     /// Our own server, the default for directory searches.
     fn home_server(&self) -> Option<String> {
@@ -189,6 +286,75 @@ pub trait ProtocolAdapter: Send + Sync {
     async fn set_room_avatar(&self, _conversation: &ConversationId, _mime: Option<&str>, _data: Vec<u8>) -> Result<()> {
         Err(AdapterError::Unsupported("room pictures"))
     }
+    /// Our own picture in this room only (Matrix per-room member avatar).
+    async fn set_room_member_avatar(&self, _conversation: &ConversationId, _mime: Option<&str>, _data: Vec<u8>) -> Result<()> {
+        Err(AdapterError::Unsupported("per-room pictures"))
+    }
+    /// Own display name and picture.
+    async fn set_display_name(&self, _name: &str) -> Result<()> {
+        Err(AdapterError::Unsupported("changing your name"))
+    }
+    async fn set_avatar(&self, _mime: Option<&str>, _data: Vec<u8>) -> Result<()> {
+        Err(AdapterError::Unsupported("changing your picture"))
+    }
+    /// Signed-in sessions of this account.
+    async fn devices(&self) -> Result<Vec<DeviceInfo>> {
+        Err(AdapterError::Unsupported("sessions"))
+    }
+    /// Someone else's sessions as our crypto layer knows them (no IPs or times).
+    async fn user_devices(&self, _user_id: &str) -> Result<Vec<DeviceInfo>> {
+        Err(AdapterError::Unsupported("sessions"))
+    }
+    /// Email addresses and phone numbers linked to the account.
+    async fn contact_infos(&self) -> Result<Vec<ContactInfo>> {
+        Err(AdapterError::Unsupported("linked email addresses"))
+    }
+    async fn remove_contact_info(&self, _medium: &str, _address: &str) -> Result<()> {
+        Err(AdapterError::Unsupported("linked email addresses"))
+    }
+    /// Sends a confirmation mail; returns a token for [`Self::add_email_finish`].
+    async fn add_email_start(&self, _email: &str) -> Result<String> {
+        Err(AdapterError::Unsupported("linked email addresses"))
+    }
+    /// After the link in the mail was clicked; may need the password or a browser step.
+    async fn add_email_finish(&self, _token: &str, _auth: DeviceAuth) -> Result<SignOutDevice> {
+        Err(AdapterError::Unsupported("linked email addresses"))
+    }
+    async fn rename_device(&self, _device_id: &str, _name: &str) -> Result<()> {
+        Err(AdapterError::Unsupported("sessions"))
+    }
+    async fn sign_out_device(&self, _device_id: &str, _auth: DeviceAuth) -> Result<SignOutDevice> {
+        Err(AdapterError::Unsupported("sessions"))
+    }
+    /// Hides (or shows again) everything from this user.
+    async fn set_ignored(&self, _user_id: &str, _ignored: bool) -> Result<()> {
+        Err(AdapterError::Unsupported("ignoring users"))
+    }
+    /// Starts emoji verification with someone, or (`device_id`) with one of our own sessions.
+    /// Progress arrives as [`AdapterEvent::Verification`].
+    async fn start_verification(&self, _user_id: &str, _device_id: Option<&str>) -> Result<()> {
+        Err(AdapterError::Unsupported("verification"))
+    }
+    async fn verification_action(&self, _user_id: &str, _flow_id: &str, _action: VerificationAction) -> Result<()> {
+        Err(AdapterError::Unsupported("verification"))
+    }
+    /// The other device's QR code, scanned with the camera (its raw bytes).
+    async fn scan_verification_qr(&self, _user_id: &str, _flow_id: &str, _data: Vec<u8>) -> Result<()> {
+        Err(AdapterError::Unsupported("verification"))
+    }
+    /// Privacy: whether others see our read receipts and typing. Protocols
+    /// without a server-side switch just stop sending them.
+    async fn set_privacy(&self, _share_receipts: bool, _share_typing: bool) -> Result<()> {
+        Ok(())
+    }
+    /// Notification keywords stored on the server (Matrix push rules), if the protocol has them.
+    async fn keywords(&self) -> Result<Vec<String>> {
+        Ok(vec![])
+    }
+    /// Makes the server's keywords exactly `keywords`.
+    async fn set_keywords(&self, _keywords: &[String]) -> Result<()> {
+        Ok(())
+    }
     /// "all", "mentions" or "mute".
     async fn set_notification_level(&self, _conversation: &ConversationId, _level: &str) -> Result<()> {
         Err(AdapterError::Unsupported("notification settings"))
@@ -196,8 +362,82 @@ pub trait ProtocolAdapter: Send + Sync {
     async fn invite(&self, _conversation: &ConversationId, _user_id: &str) -> Result<()> {
         Err(AdapterError::Unsupported("invites"))
     }
+    /// Web address of the protocol's own call screen for this conversation.
+    async fn call_link(&self, _conversation: &ConversationId) -> Result<String> {
+        Err(AdapterError::Unsupported("calls"))
+    }
+    /// Sends a 1:1 call event (`content` is JSON); encrypted like messages in encrypted rooms.
+    async fn send_call_event(&self, _conversation: &ConversationId, _event_type: &str, _content: &str) -> Result<()> {
+        Err(AdapterError::Unsupported("calls in ms_trix"))
+    }
+    /// The homeserver's TURN relays, if it offers them.
+    async fn turn_servers(&self) -> Result<Option<TurnServers>> {
+        Ok(None)
+    }
+    /// A call API request for clients that run the call in the UI (Talk). Only the
+    /// protocol's own call/signalling endpoints are allowed. Returns the JSON reply data
+    /// and the server address (for signalling auth).
+    async fn call_api(&self, _method: &str, _path: &str, _form: &[(String, String)], _timeout_secs: u64) -> Result<(String, String)> {
+        Err(AdapterError::Unsupported("calls in ms_trix"))
+    }
+    /// Uploads a file to one of the endpoints `call_api` serves (a conversation picture, an
+    /// email list), as multipart field `field`; returns the response data as JSON.
+    async fn call_api_upload(&self, _path: &str, _field: &str, _file_name: &str, _mime: &str, _data: Vec<u8>) -> Result<String> {
+        Err(AdapterError::Unsupported("uploads"))
+    }
+    /// Whether this account is currently in the conversation's call, so the
+    /// host can close the call window once the user has left the call.
+    async fn in_call(&self, _conversation: &ConversationId) -> Result<bool> {
+        Err(AdapterError::Unsupported("calls"))
+    }
     async fn set_typing(&self, _conversation: &ConversationId, _typing: bool) -> Result<()> {
         Ok(())
+    }
+    /// Lists a folder of the account's cloud storage ("/" is the root).
+    async fn cloud_files(&self, _path: &str) -> Result<Vec<CloudFile>> {
+        Err(AdapterError::Unsupported("files"))
+    }
+    /// Shares a stored file into one of this account's conversations, as a file message.
+    async fn share_cloud_file(&self, _conversation: &ConversationId, _path: &str, _caption: Option<&str>) -> Result<()> {
+        Err(AdapterError::Unsupported("files"))
+    }
+    /// The contents of a stored file (e.g. a picture chosen from Files).
+    async fn cloud_file_bytes(&self, _path: &str) -> Result<Vec<u8>> {
+        Err(AdapterError::Unsupported("files"))
+    }
+    /// A public link to a stored file, for chats on other accounts.
+    async fn cloud_link(&self, _path: &str) -> Result<String> {
+        Err(AdapterError::Unsupported("files"))
+    }
+    async fn calendars(&self) -> Result<Vec<Calendar>> {
+        Err(AdapterError::Unsupported("calendar"))
+    }
+    /// Event occurrences between two UTC times (iCalendar form).
+    async fn calendar_events(&self, _from: &str, _to: &str) -> Result<Vec<CalendarEvent>> {
+        Err(AdapterError::Unsupported("calendar"))
+    }
+    async fn create_event(&self, _event: &NewEvent) -> Result<()> {
+        Err(AdapterError::Unsupported("calendar"))
+    }
+    /// Changes a (non-repeating) event in place; `href`/`etag` from [`CalendarEvent`].
+    async fn update_event(&self, _href: &str, _etag: Option<&str>, _event: &NewEvent) -> Result<()> {
+        Err(AdapterError::Unsupported("calendar"))
+    }
+    /// Deletes a meeting; with `occurrence`, only that occurrence of a repeating one.
+    async fn delete_event(&self, _href: &str, _etag: Option<&str>, _occurrence: Option<&str>) -> Result<()> {
+        Err(AdapterError::Unsupported("calendar"))
+    }
+    /// Answers an invitation: ACCEPTED, TENTATIVE or DECLINED (the organizer is told).
+    async fn respond_event(&self, _href: &str, _etag: Option<&str>, _status: &str) -> Result<()> {
+        Err(AdapterError::Unsupported("calendar"))
+    }
+    /// People to invite: (name, email address) matching `term`.
+    async fn calendar_people(&self, _term: &str) -> Result<Vec<Attendee>> {
+        Ok(vec![])
+    }
+    /// A web address people can use to join a conversation (Talk meeting link).
+    async fn conversation_link(&self, _conversation: &ConversationId) -> Result<String> {
+        Err(AdapterError::Unsupported("links"))
     }
     async fn send_read_receipt(&self, conversation: &ConversationId, thread_root: Option<&MessageId>, up_to: &MessageId) -> Result<()>;
 
@@ -206,6 +446,41 @@ pub trait ProtocolAdapter: Send + Sync {
     }
     async fn set_favourite(&self, _conversation: &ConversationId, _value: bool) -> Result<()> {
         Err(AdapterError::Unsupported("favourites"))
+    }
+    /// "shared", "invited", "joined" or "world_readable".
+    async fn set_history_visibility(&self, _conversation: &ConversationId, _visibility: &str) -> Result<()> {
+        Err(AdapterError::Unsupported("history settings"))
+    }
+    /// Level needed for one action (keys as in [`RoomDetails::permissions`]).
+    async fn set_permission(&self, _conversation: &ConversationId, _key: &str, _level: i64) -> Result<()> {
+        Err(AdapterError::Unsupported("permissions"))
+    }
+    /// Servers allowed / denied (wildcards like *.example.org).
+    async fn set_server_acl(&self, _conversation: &ConversationId, _allow: Vec<String>, _deny: Vec<String>) -> Result<()> {
+        Err(AdapterError::Unsupported("server access lists"))
+    }
+    /// Adds a room to a team (Matrix: an m.space.child event in the space) or takes it out.
+    async fn set_team_room(&self, _team: &ConversationId, _room: &str, _add: bool) -> Result<()> {
+        Err(AdapterError::Unsupported("editing teams"))
+    }
+    /// Our sort key for a top-level team (None clears it), synced with other clients.
+    async fn set_team_order(&self, _team: &ConversationId, _order: Option<&str>) -> Result<()> {
+        Err(AdapterError::Unsupported("team order"))
+    }
+    /// Turns on end-to-end encryption (can't be turned off again).
+    async fn enable_encryption(&self, _conversation: &ConversationId) -> Result<()> {
+        Err(AdapterError::Unsupported("encryption settings"))
+    }
+    /// "public" or "invite".
+    async fn set_join_rule(&self, _conversation: &ConversationId, _rule: &str) -> Result<()> {
+        Err(AdapterError::Unsupported("join rules"))
+    }
+    /// Gives the room an address on our own server (`name` without # and :server).
+    async fn set_room_alias(&self, _conversation: &ConversationId, _name: &str) -> Result<String> {
+        Err(AdapterError::Unsupported("room addresses"))
+    }
+    async fn set_archived(&self, _conversation: &ConversationId, _value: bool) -> Result<()> {
+        Err(AdapterError::Unsupported("archiving"))
     }
     async fn set_presence(&self, _presence: Presence, _status_message: Option<String>) -> Result<()> {
         Err(AdapterError::Unsupported("presence"))

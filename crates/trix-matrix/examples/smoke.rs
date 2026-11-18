@@ -47,6 +47,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             AdapterEvent::Message(m) => {
                 let text = match &m.body {
                     MessageBody::Text { plain, .. } | MessageBody::Notice { plain } => plain.clone(),
+                    MessageBody::Poll { question, .. } => format!("[poll: {question}]"),
                     MessageBody::File { name, .. } => format!("📎 {name}"),
                     MessageBody::Redacted => "(deleted)".to_owned(),
                     MessageBody::Encrypted => "(waiting for key)".to_owned(),

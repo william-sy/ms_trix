@@ -38,10 +38,30 @@ pub fn update_profile(data_dir: &Path, account: &Account) -> Result<(), String> 
     save(data_dir, &accounts)
 }
 
+/// Replaces the stored session (e.g. after a token refresh).
+pub fn update_session(account: &AccountId, session: &[u8]) -> Result<(), String> {
+    keyring::Entry::new(KEYCHAIN_SERVICE, &account.0)
+        .and_then(|e| e.set_secret(session))
+        .map_err(|e| format!("could not store session in keychain: {e}"))
+}
+
 pub fn session(account: &AccountId) -> Result<Vec<u8>, String> {
     keyring::Entry::new(KEYCHAIN_SERVICE, &account.0)
         .and_then(|e| e.get_secret())
         .map_err(|e| format!("could not read session from keychain: {e}"))
+}
+
+/// Key of the local search index, made on first use. Losing it only means re-indexing.
+pub fn search_key() -> Result<Vec<u8>, String> {
+    let entry = keyring::Entry::new(KEYCHAIN_SERVICE, "search-index").map_err(|e| e.to_string())?;
+    match entry.get_secret() {
+        Ok(key) if key.len() == 32 => Ok(key),
+        _ => {
+            let key: [u8; 32] = rand::random();
+            entry.set_secret(&key).map_err(|e| format!("could not store search key in keychain: {e}"))?;
+            Ok(key.to_vec())
+        }
+    }
 }
 
 pub fn remove(data_dir: &Path, account: &AccountId) -> Result<(), String> {

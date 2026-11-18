@@ -1,0 +1,82 @@
+# One build per desktop OS. Each job tests, builds the installer and uploads it
+# as a workflow artifact. Signing/notarization and releases come later.
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS
+            os: macos-latest
+            # One app for Apple Silicon and Intel.
+            args: --target universal-apple-darwin
+            targets: aarch64-apple-darwin,x86_64-apple-darwin
+            bundle: target/universal-apple-darwin/release/bundle
+          - name: Windows
+            os: windows-latest
+            args: ""
+            targets: ""
+            bundle: target/release/bundle
+          - name: Linux
+            os: ubuntu-22.04
+            args: ""
+            targets: ""
+            bundle: target/release/bundle
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Linux system libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          # webkit for Tauri, dbus for the keychain (Secret Service).
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev libdbus-1-dev
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.targets }}
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install frontend dependencies
+        working-directory: apps/desktop
+        run: npm ci
+
+      - name: Test core and Matrix adapter
+        run: cargo test --workspace
+
+      - name: Check translations and build installer
+        working-directory: apps/desktop
+        run: npm run tauri build -- ${{ matrix.args }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ms_trix-${{ matrix.name }}
+          path: |
+            ${{ matrix.bundle }}/dmg/*.dmg
+            ${{ matrix.bundle }}/macos/*.app
+            ${{ matrix.bundle }}/msi/*.msi
+            ${{ matrix.bundle }}/nsis/*.exe
+            ${{ matrix.bundle }}/deb/*.deb
+            ${{ matrix.bundle }}/appimage/*.AppImage
+          if-no-files-found: error

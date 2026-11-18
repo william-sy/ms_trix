@@ -8,6 +8,8 @@ import { t } from "./i18n";
 interface Props {
   /** Preselected account (the org in view), else the first one. */
   orgId?: string;
+  /** Start with the chat or the room form. */
+  initialMode?: "chat" | "room";
   onClose: () => void;
   /** Called with the conversation to open once it has synced. */
   onOpen: (key: string) => void;
@@ -16,9 +18,17 @@ interface Props {
 const ROOM_ADDRESS = /^[#!][^\s:]+:\S+$/;
 const USER_ID = /^@[^\s:]+:\S+$/;
 
-export function NewChatDialog({ orgId, onClose, onOpen }: Props) {
+export function NewChatDialog({ orgId, initialMode = "chat", onClose, onOpen }: Props) {
   const orgs = useOrgs();
+  const [mode, setMode] = useState(initialMode);
+  // Room form; people picked below are invited.
+  const [roomName, setRoomName] = useState("");
+  const [topic, setTopic] = useState("");
+  const [isPublic, setPublic] = useState(false);
+  const [encrypted, setEncrypted] = useState(true);
+  const [alias, setAlias] = useState("");
   const [account, setAccount] = useState(orgId ?? orgs[0]?.id ?? "");
+  const isMatrix = orgs.find((o) => o.id === account)?.protocol === "matrix";
   const [term, setTerm] = useState("");
   const [results, setResults] = useState<Member[]>([]);
   const [picked, setPicked] = useState<Member[]>([]);
@@ -65,6 +75,9 @@ export function NewChatDialog({ orgId, onClose, onOpen }: Props) {
     }
   };
 
+  const createRoom = () => run(() => backend.createRoom(account, {
+    name: roomName.trim(), topic: topic.trim() || null, public: isPublic, encrypted: encrypted && isMatrix, alias: isPublic && isMatrix ? alias.trim() || null : null, invite: picked.map((p) => p.userId),
+  }));
   const start = () => run(() => backend.createChat(account, picked.map((p) => p.userId), picked.length > 1 ? name : null));
   const join = () => run(() => backend.joinRoom(account, query));
 
@@ -72,7 +85,12 @@ export function NewChatDialog({ orgId, onClose, onOpen }: Props) {
     <div className="login-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="login-card new-chat">
         <button className="icon-btn close" onClick={onClose} title={t("common.closeEsc")}>✕</button>
-        <h1>{t("newChat.title")}</h1>
+        <h1>{mode === "room" ? t("newRoom.title") : t("newChat.title")}</h1>
+        <div className="segmented" role="radiogroup">
+          {(["chat", "room"] as const).map((m) => (
+            <button key={m} role="radio" aria-checked={mode === m} className={mode === m ? "on" : ""} onClick={() => setMode(m)}>{t(`newChat.mode.${m}`)}</button>
+          ))}
+        </div>
 
         {orgs.length > 1 && (
           <label>
@@ -83,8 +101,43 @@ export function NewChatDialog({ orgId, onClose, onOpen }: Props) {
           </label>
         )}
 
+        {mode === "room" && (
+          <>
+            <label>
+              {t("newRoom.name")}
+              <input autoFocus value={roomName} onChange={(e) => setRoomName(e.target.value)} placeholder={t("newRoom.namePlaceholder")} />
+            </label>
+            <label>
+              {t("newRoom.topic")}
+              <input value={topic} onChange={(e) => setTopic(e.target.value)} placeholder={t("newRoom.topicPlaceholder")} />
+            </label>
+            <div className="field-row">
+              <span>{t("room.whoCanJoin")}</span>
+              <div className="segmented small" role="radiogroup">
+                {([false, true] as const).map((p) => (
+                  <button key={String(p)} role="radio" aria-checked={isPublic === p} className={isPublic === p ? "on" : ""}
+                    onClick={() => { setPublic(p); setEncrypted(!p); }}>{t(p ? "room.join.public" : "room.join.invite")}</button>
+                ))}
+              </div>
+            </div>
+            {isMatrix && isPublic && (
+              <label>
+                {t("room.address")}
+                <span className="alias-edit">#<input value={alias} onChange={(e) => setAlias(e.target.value.replace(/[\s#:]/g, ""))} placeholder={t("newRoom.aliasPlaceholder")} /></span>
+              </label>
+            )}
+            {isMatrix && (
+              <label className="toggle-row">
+                <input type="checkbox" checked={encrypted} onChange={(e) => setEncrypted(e.target.checked)} />
+                <span>{t("newRoom.encrypted")}</span>
+              </label>
+            )}
+            {isMatrix && isPublic && encrypted && <p className="hint">{t("newRoom.publicEncryptedHint")}</p>}
+          </>
+        )}
+
         <label>
-          {t("newChat.to")}
+          {mode === "room" ? t("newRoom.invite") : t("newChat.to")}
           <div className="to-field">
             {picked.map((p) => (
               <span key={p.userId} className="chip" title={p.userId}>
@@ -92,7 +145,7 @@ export function NewChatDialog({ orgId, onClose, onOpen }: Props) {
                 <button onClick={() => setPicked(picked.filter((x) => x.userId !== p.userId))} title={t("common.remove")}>✕</button>
               </span>
             ))}
-            <input autoFocus value={term} onChange={(e) => setTerm(e.target.value)} placeholder={picked.length ? t("newChat.addMore") : t("newChat.toPlaceholder")}
+            <input autoFocus={mode === "chat"} value={term} onChange={(e) => setTerm(e.target.value)} placeholder={picked.length ? t("newChat.addMore") : t("newChat.toPlaceholder")}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && shown[0]) { e.preventDefault(); pick(shown[0]); }
                 if (e.key === "Backspace" && !term && picked.length) setPicked(picked.slice(0, -1));
@@ -100,7 +153,7 @@ export function NewChatDialog({ orgId, onClose, onOpen }: Props) {
           </div>
         </label>
 
-        {ROOM_ADDRESS.test(query) ? (
+        {mode === "chat" && ROOM_ADDRESS.test(query) ? (
           <button className="result join" onClick={join} disabled={busy}>
             <span className="avatar kind-channel">#</span>
             <span><b>{t("newChat.join", { address: query })}</b><small>{t("newChat.joinHint")}</small></span>
@@ -118,19 +171,24 @@ export function NewChatDialog({ orgId, onClose, onOpen }: Props) {
           )
         )}
 
-        {picked.length > 1 && (
+        {mode === "chat" && picked.length > 1 && (
           <label>
             {t("newChat.groupName")}
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("newChat.groupPlaceholder")} />
           </label>
         )}
 
-        {!ROOM_ADDRESS.test(query) && (
+        {mode === "room" && (
+          <button className="btn primary wide" disabled={busy || !roomName.trim()} onClick={createRoom}>
+            {busy ? t("newChat.starting") : t("newRoom.create")}
+          </button>
+        )}
+        {mode === "chat" && !ROOM_ADDRESS.test(query) && (
           <button className="btn primary wide" disabled={busy || picked.length === 0} onClick={start}>
             {busy ? t("newChat.starting") : picked.length > 1 ? t("newChat.startGroup", { count: picked.length + 1 }) : t("newChat.start")}
           </button>
         )}
-        <p className="hint">{t("newChat.hint")}</p>
+        {mode === "chat" && <p className="hint">{t("newChat.hint")}</p>}
         {error && <p className="error">{error}</p>}
       </div>
     </div>

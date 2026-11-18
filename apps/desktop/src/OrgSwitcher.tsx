@@ -32,7 +32,7 @@ export function OrgSwitcher({ current, unread, onSelect, onAddAccount }: Props) 
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!(isMac ? e.metaKey : e.ctrlKey)) return;
+      if (!(isMac ? e.metaKey : e.ctrlKey) || e.shiftKey || e.altKey) return;
       const n = Number(e.key);
       if (Number.isNaN(n) || e.key === " ") return;
       if (n === 0) onSelect("all");
