@@ -19,9 +19,11 @@
       reminders still show, silently; you show as busy, with when it ends as your status
 - [x] #hashtags highlighted and clickable: every message with that tag, in this chat or all chats;
       searching "#tag" only finds that tag (not the word elsewhere)
-- [ ] Link previews (fetched by the app itself, not the homeserver; setting to turn them off),
-      with a phishing check on this computer only: link text vs. destination, lookalike and
-      mixed-script domains, URL tricks (user@host, IP addresses), where redirects really lead
+- [x] Link previews (fetched by the app itself, not the homeserver; Settings → Privacy to turn
+      them off; nothing on the local network, no cookies, size/time limits), with a phishing check
+      on this computer only: link text vs. destination, look-alike letters (punycode, Cyrillic/Greek),
+      names close to your own and well-known domains, user@host and IP addresses, where redirects
+      really lead. Suspicious links are marked and ask before they open
 - [ ] Repeating meetings in the calendar (RRULE, as Nextcloud Calendar supports)
 - [ ] Send later: write now, sent at a chosen time by this app (Matrix has no server-side
       scheduling yet; a message whose time passed while the app was closed goes out at start)

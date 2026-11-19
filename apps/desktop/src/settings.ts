@@ -44,6 +44,8 @@ export interface Settings {
   spellCheck: boolean;
   /** Minutes without input before "available" shows as away; 0 = never. */
   awayAfter: number;
+  /** Previews under messages with a link, fetched by the app itself. */
+  linkPreviews: boolean;
   /** Do not disturb until this time (ms; DND_FOREVER: until switched off), or off. */
   dndUntil: number | null;
   /** Changed keyboard shortcuts (id -> combo); missing ids use the defaults. */
@@ -101,6 +103,7 @@ const defaults: Settings = {
   spellCheck: true,
   awayAfter: 5,
   dndUntil: null,
+  linkPreviews: true,
   shortcuts: {},
   orgColors: {},
   micId: null,

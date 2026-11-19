@@ -1,4 +1,5 @@
 mod audio_out;
+mod links;
 mod spell;
 mod accounts;
 mod search;
@@ -1862,6 +1863,12 @@ fn set_notify_prefs(state: State<'_, AppState>, prefs: NotifyPrefs, sounds: Soun
     *state.sounds.lock().unwrap() = sounds;
 }
 
+/// A link's preview (title, description, picture), fetched by this app; None when it has none.
+#[tauri::command]
+async fn link_preview(url: String) -> Option<links::LinkPreview> {
+    links::preview(&url).await
+}
+
 /// Do not disturb until `until` (ms since 1970), or off.
 #[tauri::command]
 fn set_dnd(state: State<'_, AppState>, until: Option<u64>) {
@@ -2211,6 +2218,7 @@ pub fn run() {
             pick_image_file,
             set_notify_prefs,
             set_dnd,
+            link_preview,
             set_close_to_tray,
             set_tray_unread,
             set_texts,

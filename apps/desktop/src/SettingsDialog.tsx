@@ -634,6 +634,13 @@ function Privacy({ settings, set }: Section) {
         </label>
         <p className="hint">{t("settings.privacy.typingHint")}</p>
       </section>
+      <section>
+        <label className="toggle-row">
+          <input type="checkbox" checked={settings.linkPreviews} onChange={(e) => set({ linkPreviews: e.target.checked })} />
+          <span>{t("settings.privacy.linkPreviews")}</span>
+        </label>
+        <p className="hint">{t("settings.privacy.linkPreviewsHint")}</p>
+      </section>
     </>
   );
 }

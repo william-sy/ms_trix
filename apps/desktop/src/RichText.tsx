@@ -2,6 +2,8 @@ import DOMPurify from "dompurify";
 import { useMemo, type MouseEvent, type ReactNode } from "react";
 import { backend, isLive, mediaUrl } from "./backend";
 import { useOpenHashtag } from "./Hashtags";
+import { checkLink } from "./linkCheck";
+import { confirmLink, mainWarning, useOwnDomains, warningText } from "./LinkPreview";
 import { useOpenProfile } from "./Profile";
 import { parseRoomLink, useOpenRoomLink } from "./roomLinks";
 import { t } from "./i18n";
@@ -28,7 +30,7 @@ const SAFE_URI = /^(?:(?:https?|mailto|mxc|matrix):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-
 
 const MENTION = /^https:\/\/matrix\.to\/#\/[@!#]/;
 
-function sanitize(html: string, account: string): string {
+function sanitize(html: string, account: string, own: string[]): string {
   // DOMPurify drops URL schemes it doesn't know; Matrix images use mxc:// (turned into
   // our own media URLs below), so allow that next to the usual web/mail links.
   const clean = DOMPurify.sanitize(html, { ALLOWED_TAGS, ALLOWED_ATTR, ALLOW_DATA_ATTR: false, ALLOWED_URI_REGEXP: SAFE_URI });
@@ -38,6 +40,12 @@ function sanitize(html: string, account: string): string {
     const href = a.getAttribute("href") ?? "";
     if (MENTION.test(href)) a.classList.add("mention");
     a.removeAttribute("target");
+    // Links that look like phishing are marked (and asked about before they open).
+    const warning = /^https?:/i.test(href) ? mainWarning(checkLink(href, a.textContent ?? "", own)) : undefined;
+    if (warning) {
+      a.classList.add("link-warn");
+      a.setAttribute("title", warningText(warning));
+    }
   }
   // Spoilers stay blurred until clicked; the attribute's value is the optional reason.
   for (const el of root.querySelectorAll("[data-mx-spoiler]")) {
@@ -109,7 +117,7 @@ function highlight(text: string, query: string | undefined, key: string): ReactN
 }
 
 /** Plain text with clickable links and optional search highlighting. */
-function PlainText({ text, query }: { text: string; query?: string }) {
+function PlainText({ text, query, own }: { text: string; query?: string; own: string[] }) {
   // split() puts the capture groups after each text part: [text, url, room, tag, text, …].
   const parts = text.split(URL_RE);
   const out: ReactNode[] = [];
@@ -118,7 +126,8 @@ function PlainText({ text, query }: { text: string; query?: string }) {
     const url = parts[i + 1];
     const room = parts[i + 2];
     const tag = parts[i + 3];
-    if (url) out.push(<a key={`l${i}`} href={url}>{highlight(url, query, `l${i}`)}</a>);
+    const warning = url ? mainWarning(checkLink(url, url, own)) : undefined;
+    if (url) out.push(<a key={`l${i}`} href={url} className={warning ? "link-warn" : undefined} title={warning && warningText(warning)}>{highlight(url, query, `l${i}`)}</a>);
     if (room) out.push(<a key={`r${i}`} className="mention" href={`https://matrix.to/#/${encodeURIComponent(room)}`}>{highlight(room, query, `r${i}`)}</a>);
     if (tag) out.push(<a key={`h${i}`} className="hashtag" href="#" data-tag={tag.toLowerCase()}>{highlight(`#${tag}`, query, `h${i}`)}</a>);
   }
@@ -127,7 +136,8 @@ function PlainText({ text, query }: { text: string; query?: string }) {
 
 
 export function RichText({ body, html, account, query }: { body: string; html?: string; account: string; query?: string }) {
-  const safe = useMemo(() => (html ? sanitize(html, account) : null), [html, account]);
+  const own = useOwnDomains();
+  const safe = useMemo(() => (html ? sanitize(html, account, own) : null), [html, account, own]);
   const openProfile = useOpenProfile();
   const openRoomLink = useOpenRoomLink();
   const openHashtag = useOpenHashtag();
@@ -157,9 +167,10 @@ export function RichText({ body, html, account, query }: { body: string; html?: 
     const room = parseRoomLink(href);
     if (room) return openRoomLink(account, room);
     if (MENTION.test(href) || !isLive) return;
+    if (!confirmLink(/^https?:/i.test(href) ? mainWarning(checkLink(href, a.textContent ?? "", own)) : undefined)) return;
     backend.openUrl(href).catch(() => {});
   };
   // Search highlights only work on plain text; formatted messages still match, they just aren't marked.
   if (safe && !query) return <div className="rich" onClick={onLinkClick} dangerouslySetInnerHTML={{ __html: safe }} />;
-  return <span className="plain" onClick={onLinkClick}><PlainText text={body} query={query} /></span>;
+  return <span className="plain" onClick={onLinkClick}><PlainText text={body} query={query} own={own} /></span>;
 }

@@ -25,6 +25,7 @@ import { SharedPane } from "./SharedPane";
 import { PollCard, PollDialog } from "./Poll";
 import { effectFor, type EffectName } from "./effects";
 import { RoomPanel } from "./RoomPanel";
+import { LinkPreview, previewLink } from "./LinkPreview";
 import { useOpenProfile } from "./Profile";
 import { summarize } from "./roomEvents";
 import { capabilities } from "./mock";
@@ -648,6 +649,7 @@ const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 function MessageItem({ m, account, conversation, grouped, lastInRun = true, quoted, thread, onReply, onThread, onReact, onEdit, onDelete, onForward, media, onStatus, query, current, postMode, tick, onRetry, onDiscard }: ItemProps) {
   const keyHelp = useContext(KeyHelpContext)(account);
   const visual = m.media?.kind === "image" || m.media?.kind === "sticker";
+  const previewUrl = useMemo(() => (m.deleted || m.media || m.poll ? undefined : previewLink(m.body, m.html)), [m.deleted, m.media, m.poll, m.body, m.html]);
   const openProfile = useOpenProfile();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -739,7 +741,10 @@ function MessageItem({ m, account, conversation, grouped, lastInRun = true, quot
                     <MediaBody media={m.media} account={account} actions={media} />
                     {m.media.caption && <div className="caption"><RichText body={m.media.caption} account={account} query={query} /></div>}
                   </>
-                : <RichText body={m.body} html={m.html} account={account} query={query} />}
+                : <>
+                    <RichText body={m.body} html={m.html} account={account} query={query} />
+                    {previewUrl && <LinkPreview url={previewUrl} />}
+                  </>}
               {m.edited && !m.deleted && <span className="edited" title={t("message.editedTitle")}>{t("message.edited")}</span>}
               {tick && tick !== "failed" && <span className={`msg-tick ${tick}`} title={t(`message.tick.${tick}`)}>{tick === "sending" ? "⏱" : tick === "seen" ? "✓✓" : "✓"}</span>}
             </div>

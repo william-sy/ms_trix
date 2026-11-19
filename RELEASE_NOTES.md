@@ -8,6 +8,13 @@
   reminders still show, silently. You show as busy, with when it ends as your status.
 - **#hashtags:** tags in messages are highlighted; click one to see every message with that tag,
   in this chat or in all chats. Searching for "#tag" finds only that tag.
+- **Link previews:** a card with the page's title, description and picture under messages with
+  a link. This app fetches them itself, so your server never sees links from encrypted chats;
+  turn them off in Settings → Privacy.
+- **Phishing check:** links whose text shows another address than where they go, look-alike
+  letters, names that imitate your own or well-known domains (surf-nl.com, paypa1.com), and
+  address tricks are marked with ⚠ and ask before they open. The preview also shows where a short
+  link really leads. All checked on this computer.
 
 ## 1.1 (2026-11-18)
 

@@ -3705,6 +3705,7 @@ dependencies = [
  "objc2-foundation",
  "percent-encoding",
  "rand 0.9.5",
+ "reqwest",
  "serde",
  "serde_json",
  "tauri",

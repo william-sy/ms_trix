@@ -283,6 +283,17 @@ const toOrg = (a: AccountWire): Org => ({
   presence: "available",
 });
 
+/** A web page's title, description and picture, for a link's preview card. */
+export interface LinkPreviewData {
+  /** Where the link ended up after redirects. */
+  finalUrl: string;
+  siteName?: string;
+  title?: string;
+  description?: string;
+  /** A data: URL. */
+  image?: string;
+}
+
 export function formatTime(ts: number): string {
   if (!ts) return "";
   const d = new Date(ts);
@@ -426,6 +437,8 @@ export const backend = {
   notify: (title: string, body: string) => invoke<void>("notify", { title, body }),
   /** Do not disturb until this time (ms), or off: the core then shows no system notifications. */
   setDnd: (until: number | null) => invoke<void>("set_dnd", { until }),
+  /** A link's preview, fetched by the app itself (not via the homeserver); null when there's none. */
+  linkPreview: (url: string) => invoke<LinkPreviewData | null>("link_preview", { url }),
   /** Your own ringtone: saved in the app's data folder / read back. */
   saveRingtone: (data: Uint8Array) => invoke<void>("save_ringtone", data),
   ringtone: () => invoke<ArrayBuffer>("ringtone"),
