@@ -210,3 +210,25 @@ export interface NewEvent {
   tzid?: string;
   vtimezone?: string;
 }
+
+/** A note in Nextcloud Notes. */
+export interface Note {
+  id: number;
+  title: string;
+  /** Its folder ("" for none). */
+  category: string;
+  /** Seconds since 1970. */
+  modified: number;
+  favorite: boolean;
+  readonly: boolean;
+  etag: string;
+  /** The Markdown text; only when one note was asked for. */
+  content?: string;
+}
+
+export interface NoteChange {
+  title: string;
+  content: string;
+  category: string;
+  favorite: boolean;
+}

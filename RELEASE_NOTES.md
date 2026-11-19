@@ -8,6 +8,9 @@
   always, and never during do not disturb. By default just who and where ("New message"); the
   message text only if you turn that on. Works with ntfy.sh or your own server (access token
   kept in the keychain).
+- **Notes:** your Nextcloud Notes in the app (Notes in the left rail, when your Nextcloud has the
+  Notes app): by category, favourites first, searchable; write in Markdown with a preview, saved
+  as you type. If a note was changed elsewhere meanwhile, you choose which version to keep.
 
 ## 1.2 (2026-11-19)
 

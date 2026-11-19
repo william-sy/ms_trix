@@ -29,6 +29,21 @@ use trix_core::*;
 mod dav;
 
 pub const PROTOCOL: &str = "talk";
+/// Nextcloud Notes' REST API.
+const NOTES: &str = "/index.php/apps/notes/api/v1/notes";
+
+fn note_from(v: &Value) -> Option<Note> {
+    Some(Note {
+        id: v["id"].as_u64()?,
+        title: v["title"].as_str().unwrap_or_default().to_owned(),
+        category: v["category"].as_str().unwrap_or_default().to_owned(),
+        modified: v["modified"].as_u64().unwrap_or(0),
+        favorite: v["favorite"].as_bool().unwrap_or(false),
+        readonly: v["readonly"].as_bool().unwrap_or(false),
+        etag: v["etag"].as_str().unwrap_or_default().to_owned(),
+        content: v["content"].as_str().map(ToOwned::to_owned),
+    })
+}
 
 const CHAT: &str = "/ocs/v2.php/apps/spreed/api/v1/chat";
 const ROOM: &str = "/ocs/v2.php/apps/spreed/api/v4/room";
@@ -1331,6 +1346,54 @@ impl ProtocolAdapter for TalkAdapter {
         data["url"].as_str().map(ToOwned::to_owned).ok_or_else(|| err("Nextcloud returned no link"))
     }
 
+    async fn notes(&self) -> Result<Vec<Note>> {
+        let response = self.request(Method::GET, &format!("{NOTES}?exclude=content")).send().await.map_err(|e| AdapterError::Network(e.to_string()))?;
+        // No Notes app on this server.
+        if matches!(response.status(), StatusCode::NOT_FOUND | StatusCode::METHOD_NOT_ALLOWED) {
+            return Err(AdapterError::Unsupported("notes"));
+        }
+        if !response.status().is_success() {
+            return Err(err(response.status()));
+        }
+        let list: Vec<Value> = response.json().await.map_err(err)?;
+        Ok(list.iter().filter_map(note_from).collect())
+    }
+
+    async fn note(&self, id: u64) -> Result<Note> {
+        let response = self.request(Method::GET, &format!("{NOTES}/{id}")).send().await.map_err(|e| AdapterError::Network(e.to_string()))?;
+        if !response.status().is_success() {
+            return Err(err(response.status()));
+        }
+        note_from(&response.json::<Value>().await.map_err(err)?).ok_or_else(|| err("unreadable note"))
+    }
+
+    async fn save_note(&self, id: Option<u64>, etag: Option<&str>, change: &NoteChange) -> Result<Note> {
+        let body = serde_json::json!({ "title": change.title, "content": change.content, "category": change.category, "favorite": change.favorite });
+        let mut builder = match id {
+            Some(id) => self.request(Method::PUT, &format!("{NOTES}/{id}")),
+            None => self.request(Method::POST, NOTES),
+        };
+        if let (Some(_), Some(etag)) = (id, etag.filter(|e| !e.is_empty())) {
+            builder = builder.header("If-Match", format!("\"{}\"", etag.trim_matches('"')));
+        }
+        let response = builder.json(&body).send().await.map_err(|e| AdapterError::Network(e.to_string()))?;
+        if response.status() == StatusCode::PRECONDITION_FAILED {
+            return Err(err("changed elsewhere"));
+        }
+        if !response.status().is_success() {
+            return Err(err(response.status()));
+        }
+        note_from(&response.json::<Value>().await.map_err(err)?).ok_or_else(|| err("unreadable note"))
+    }
+
+    async fn delete_note(&self, id: u64) -> Result<()> {
+        let response = self.request(Method::DELETE, &format!("{NOTES}/{id}")).send().await.map_err(|e| AdapterError::Network(e.to_string()))?;
+        if !response.status().is_success() && response.status() != StatusCode::NOT_FOUND {
+            return Err(err(response.status()));
+        }
+        Ok(())
+    }
+
     async fn calendars(&self) -> Result<Vec<Calendar>> {
         let xml = self.dav("PROPFIND", &self.calendars_root().await, "1", dav::PROPFIND_CALENDARS.into()).await?;
         Ok(dav::multistatus(&xml)
@@ -1511,6 +1574,16 @@ impl<T> futures::Stream for ReceiverStream<T> {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn reads_a_note_as_the_notes_api_sends_it() {
+        let v: Value = serde_json::from_str(r##"{"id":76,"etag":"be284e0e2ca2b9a3b0b6bd2b3a2b1a0c","readonly":false,"modified":1795080000,"title":"Shopping","category":"Home/Lists","content":"# Shopping\n- milk","favorite":true}"##).unwrap();
+        let note = note_from(&v).unwrap();
+        assert_eq!((note.id, note.title.as_str(), note.category.as_str(), note.favorite, note.readonly), (76, "Shopping", "Home/Lists", true, false));
+        assert_eq!(note.content.as_deref(), Some("# Shopping\n- milk"));
+        assert!(note_from(&serde_json::json!({"title": "no id"})).is_none());
+    }
+
     use super::*;
 
     #[test]

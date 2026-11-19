@@ -2,7 +2,7 @@
 // and the app falls back to mock data.
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import type { Attendee, Calendar, CalendarEvent, CloudFile, Conversation, ConversationKind, Member, Message, NewEvent, Org, Outgoing, Protocol } from "./types";
+import type { Attendee, Calendar, CalendarEvent, CloudFile, Conversation, ConversationKind, Member, Message, NewEvent, Note, NoteChange, Org, Outgoing, Protocol } from "./types";
 import { locale, t } from "./i18n";
 import { describeEvent, type RoomEvent } from "./roomEvents";
 import type { NotifyPrefs, Sounds } from "./settings";
@@ -439,6 +439,14 @@ export const backend = {
     invoke<string | null>("attach_cloud_file", { account, path, key, caption }),
   calendars: (account: string) => invoke<Calendar[]>("calendars", { account }),
   calendarEvents: (account: string, from: string, to: string) => invoke<CalendarEvent[]>("calendar_events", { account, from, to }),
+  /** Nextcloud Notes (fails where the server has no Notes app). */
+  notes: (account: string) => invoke<Note[]>("notes", { account }),
+  note: (account: string, id: number) => invoke<Note>("note", { account, id }),
+  /** Creates (no id) or saves a note; with the etag, a change made elsewhere isn't overwritten. */
+  saveNote: (account: string, id: number | null, etag: string | null, change: NoteChange) => invoke<Note>("save_note", { account, id, etag, change }),
+  deleteNote: (account: string, id: number) => invoke<void>("delete_note", { account, id }),
+  /** Markdown as HTML, rendered as messages are (null for plain text). */
+  renderMarkdown: (text: string) => invoke<string | null>("render_markdown", { text }),
   createEvent: (account: string, event: NewEvent) => calendarChanged(invoke<void>("create_event", { account, event })),
   updateEvent: (account: string, href: string, etag: string | null, event: NewEvent) => calendarChanged(invoke<void>("update_event", { account, href, etag, event })),
   deleteEvent: (account: string, href: string, etag: string | null, occurrence: string | null = null) => calendarChanged(invoke<void>("delete_event", { account, href, etag, occurrence })),

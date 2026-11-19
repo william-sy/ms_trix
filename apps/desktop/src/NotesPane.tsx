@@ -1,0 +1,189 @@
+import { useEffect, useRef, useState } from "react";
+import { backend, formatTime } from "./backend";
+import { t } from "./i18n";
+import { RichText } from "./RichText";
+import type { Note, Org } from "./types";
+
+// Nextcloud Notes: the notes of every Nextcloud account in view that has the Notes app, and an
+// editor that saves as you type (a second after you stop, and when you leave the note).
+
+/** A note's title: its first line, without Markdown heading or list marks. */
+function titleOf(text: string): string {
+  const line = text.split("\n").map((l) => l.replace(/^[#>*\-+\s]+/, "").trim()).find(Boolean) ?? "";
+  // The title is also its file name in Notes.
+  return line.replace(/[/\\]/g, "-").slice(0, 100) || t("notes.untitled");
+}
+
+type Listed = Note & { account: string };
+
+export function NotesPane({ orgs }: { orgs: Org[] }) {
+  const [notes, setNotes] = useState<Record<string, Note[]>>({});
+  const [selected, setSelected] = useState<{ account: string; id: number } | null>(null);
+  const [query, setQuery] = useState("");
+  const [target, setTarget] = useState(orgs[0]?.id ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const ids = orgs.map((o) => o.id).join("|");
+
+  const load = () => {
+    for (const o of orgs) backend.notes(o.id).then((list) => setNotes((n) => ({ ...n, [o.id]: list })), (e) => setError(String(e)));
+  };
+  useEffect(load, [ids]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!orgs.some((o) => o.id === target)) setTarget(orgs[0]?.id ?? ""); }, [ids]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const put = (account: string, note: Note) => setNotes((n) => ({ ...n, [account]: [note, ...(n[account] ?? []).filter((x) => x.id !== note.id)] }));
+  const create = async () => {
+    if (!target) return;
+    try {
+      const note = await backend.saveNote(target, null, null, { title: t("notes.untitled"), content: "", category: "", favorite: false });
+      put(target, note);
+      setSelected({ account: target, id: note.id });
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
+  const q = query.trim().toLowerCase();
+  const all: Listed[] = orgs.flatMap((o) => (notes[o.id] ?? []).map((n) => ({ ...n, account: o.id })))
+    .filter((n) => !q || n.title.toLowerCase().includes(q) || n.category.toLowerCase().includes(q));
+  // By category (none first), favourites on top, then the latest changed.
+  const groups = new Map<string, Listed[]>();
+  for (const n of all) {
+    const key = `${orgs.length > 1 ? `${orgs.find((o) => o.id === n.account)?.name} · ` : ""}${n.category}`;
+    groups.set(key, [...(groups.get(key) ?? []), n]);
+  }
+  const sorted = [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
+  const categories = [...new Set(all.map((n) => n.category).filter(Boolean))].sort();
+
+  return (
+    <div className="notes-pane">
+      <div className="notes-list">
+        <div className="notes-head">
+          <input value={query} placeholder={t("notes.search")} onChange={(e) => setQuery(e.target.value)} />
+          <button className="icon-btn" title={t("notes.reload")} onClick={load}>↻</button>
+          <button className="btn primary small" disabled={!target} onClick={() => void create()}>{t("notes.new")}</button>
+        </div>
+        {orgs.length > 1 && (
+          <select className="notes-account" value={target} onChange={(e) => setTarget(e.target.value)} title={t("notes.newIn")}>
+            {orgs.map((o) => <option key={o.id} value={o.id}>{t("notes.newInAccount", { account: o.name })}</option>)}
+          </select>
+        )}
+        {error && <p className="error small">{error}</p>}
+        {all.length === 0 && <p className="empty small">{q ? t("notes.noneFound") : t("notes.none")}</p>}
+        {sorted.map(([key, list]) => (
+          <div key={key}>
+            <div className="notes-group">{key.endsWith(" · ") || !key ? `${key}${t("notes.noCategory")}` : key}</div>
+            {[...list].sort((a, b) => Number(b.favorite) - Number(a.favorite) || b.modified - a.modified).map((n) => (
+              <button key={`${n.account}/${n.id}`} className={`note-row ${selected?.account === n.account && selected.id === n.id ? "selected" : ""}`}
+                onClick={() => setSelected({ account: n.account, id: n.id })}>
+                <span className="note-title">{n.favorite && "★ "}{n.title || t("notes.untitled")}</span>
+                <span className="note-time">{formatTime(n.modified * 1000)}</span>
+              </button>
+            ))}
+          </div>
+        ))}
+      </div>
+      {selected ? (
+        <NoteEditor key={`${selected.account}/${selected.id}`} account={selected.account} id={selected.id} categories={categories}
+          onSaved={(note) => put(selected.account, note)}
+          onDeleted={() => { setNotes((n) => ({ ...n, [selected.account]: (n[selected.account] ?? []).filter((x) => x.id !== selected.id) })); setSelected(null); }} />
+      ) : (
+        <div className="notes-empty">{t("notes.pick")}</div>
+      )}
+    </div>
+  );
+}
+
+type SaveState = "saved" | "unsaved" | "saving" | "conflict" | "error";
+
+function NoteEditor({ account, id, categories, onSaved, onDeleted }: {
+  account: string; id: number; categories: string[]; onSaved: (note: Note) => void; onDeleted: () => void;
+}) {
+  const [note, setNote] = useState<Note | null>(null);
+  const [text, setText] = useState("");
+  const [category, setCategory] = useState("");
+  const [favorite, setFavorite] = useState(false);
+  const [preview, setPreview] = useState(false);
+  const [html, setHtml] = useState<string | null>(null);
+  const [state, setState] = useState<SaveState>("saved");
+  const [error, setError] = useState<string | null>(null);
+  // Saving reads these, so a save started from an old render still sends the newest text.
+  const etag = useRef("");
+  const dirty = useRef(false);
+  const latest = useRef({ text, category, favorite });
+  latest.current = { text, category, favorite };
+
+  const open = () => backend.note(account, id).then((n) => {
+    setNote(n);
+    setText(n.content ?? "");
+    setCategory(n.category);
+    setFavorite(n.favorite);
+    etag.current = n.etag;
+    dirty.current = false;
+    setState("saved");
+  }, (e) => setError(String(e)));
+  useEffect(() => void open(), []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const save = async (overwrite = false) => {
+    if (!dirty.current || note?.readonly) return;
+    dirty.current = false;
+    setState("saving");
+    const now = latest.current;
+    try {
+      const saved = await backend.saveNote(account, id, overwrite ? null : etag.current, { title: titleOf(now.text), content: now.text, category: now.category, favorite: now.favorite });
+      etag.current = saved.etag;
+      onSaved(saved);
+      setState(dirty.current ? "unsaved" : "saved");
+    } catch (e) {
+      dirty.current = true;
+      setState(String(e).includes("changed elsewhere") ? "conflict" : "error");
+      setError(String(e));
+    }
+  };
+  const change = (apply: () => void) => { dirty.current = true; apply(); };
+  // A second after the last change; and whatever is left when the note is closed.
+  useEffect(() => {
+    if (!dirty.current || state === "conflict") return;
+    setState("unsaved");
+    const timer = window.setTimeout(() => void save(), 1000);
+    return () => window.clearTimeout(timer);
+  }, [text, category, favorite]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => void save(), []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (preview) void backend.renderMarkdown(text).then(setHtml).catch(() => setHtml(null));
+  }, [preview, text]);
+
+  if (!note) return <div className="notes-empty">{error ?? t("common.loading")}</div>;
+  return (
+    <div className="note-editor">
+      <div className="note-toolbar">
+        <button className={`icon-btn ${favorite ? "on" : ""}`} title={t("notes.favorite")} disabled={note.readonly} onClick={() => change(() => setFavorite(!favorite))}>{favorite ? "★" : "☆"}</button>
+        <input className="note-category" list="note-categories" value={category} placeholder={t("notes.noCategory")} disabled={note.readonly}
+          onChange={(e) => change(() => setCategory(e.target.value))} />
+        <datalist id="note-categories">{categories.map((c) => <option key={c} value={c} />)}</datalist>
+        <span className="spacer" />
+        <span className={`note-state ${state}`}>{note.readonly ? t("notes.readonly") : t(`notes.state.${state}`)}</span>
+        <div className="segmented">
+          <button className={preview ? "" : "on"} onClick={() => setPreview(false)}>{t("notes.edit")}</button>
+          <button className={preview ? "on" : ""} onClick={() => setPreview(true)}>{t("notes.preview")}</button>
+        </div>
+        {!note.readonly && (
+          <button className="icon-btn" title={t("notes.delete")}
+            onClick={() => { if (confirm(t("notes.deleteConfirm", { title: titleOf(text) }))) backend.deleteNote(account, id).then(onDeleted, (e) => setError(String(e))); }}>🗑</button>
+        )}
+      </div>
+      {state === "conflict" && (
+        <div className="notice" role="alert">
+          {t("notes.conflict")} <button className="link" onClick={() => void save(true)}>{t("notes.keepMine")}</button> · <button className="link" onClick={() => void open()}>{t("notes.loadTheirs")}</button>
+        </div>
+      )}
+      {state === "error" && error && <div className="notice" role="alert">{error} <button className="link" onClick={() => void save()}>{t("notes.retry")}</button></div>}
+      {preview ? (
+        <div className="note-preview"><RichText body={text} html={html ?? undefined} account={account} /></div>
+      ) : (
+        <textarea className="note-text" autoFocus={!text} value={text} readOnly={note.readonly} placeholder={t("notes.placeholder")}
+          onChange={(e) => change(() => setText(e.target.value))} />
+      )}
+    </div>
+  );
+}

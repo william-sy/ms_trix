@@ -3,7 +3,8 @@ import { isTalkModerator, talkRoom } from "./TalkSettings";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { backend, isLive, pickedUrl, subscribe, videoThumb, type ActivityItem, type PickedFile, type DirectoryRoom, type SecurityStatus, type TeamView, type UploadProgress, type Verification } from "./backend";
-import { BellIcon, CalendarIcon, CallIcon, ChatIcon, MoreIcon, TeamsIcon } from "./Icons";
+import { BellIcon, CalendarIcon, CallIcon, ChatIcon, MoreIcon, NotesIcon, TeamsIcon } from "./Icons";
+import { NotesPane } from "./NotesPane";
 import { capabilities } from "./mock";
 import { ChatList } from "./ChatList";
 import { ChatView } from "./ChatView";
@@ -121,7 +122,8 @@ export function App() {
   const [teamInfo, setTeamInfo] = useState<TeamView | null>(null);
   const [cropFor, setCropFor] = useState<{ kind: "me"; account: string } | { kind: "room" | "memberRoom"; key: string } | null>(null);
   const [joinPreview, setJoinPreview] = useState<{ account: string; room: DirectoryRoom; via: string[] } | null>(null);
-  const [view, setView] = useState<"activity" | "chat" | "teams" | "calls" | "calendar">("chat");
+  const [view, setView] = useState<"activity" | "chat" | "teams" | "calls" | "calendar" | "notes">("chat");
+  const [notesAccounts, setNotesAccounts] = useState<string[]>([]);
   const [teams, setTeams] = useState<TeamView[]>([]);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [activitySelected, setActivitySelected] = useState<string | null>(null);
@@ -567,6 +569,17 @@ export function App() {
     backend.signOut(orgId).catch((e) => setNotice(String(e)));
   };
 
+  // Which Nextcloud accounts have the Notes app: asked once per account.
+  const notesAsked = useRef(new Set<string>());
+  const talkIds = isLive ? state.orgs.filter((o) => o.protocol === "talk").map((o) => o.id) : [];
+  useEffect(() => {
+    for (const id of talkIds) {
+      if (notesAsked.current.has(id)) continue;
+      notesAsked.current.add(id);
+      backend.notes(id).then(() => setNotesAccounts((ids) => [...new Set([...ids, id])]), () => {});
+    }
+  }, [talkIds.join("|")]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (booting) return <div className="login-screen"><div className="spinner" aria-label={t("common.connecting")} /></div>;
   if (isLive && state.orgs.length === 0) return <Login onDone={() => {}} />;
 
@@ -580,6 +593,7 @@ export function App() {
   // Reminders cover every Nextcloud account, whatever organization is in view.
   const cloudOrgsAll = isLive ? state.orgs.filter((o) => o.protocol === "talk") : [];
   const cloudOrgs = isLive ? state.orgs.filter((o) => o.protocol === "talk" && (state.orgFilter === "all" || o.id === state.orgFilter)) : [];
+  const notesOrgs = cloudOrgs.filter((o) => notesAccounts.includes(o.id));
   const inOrg = (key: string) => state.orgFilter === "all" || key.startsWith(`${state.orgFilter}|`);
   const teamChannels = new Set(teams.filter((t) => inOrg(t.key)).flatMap((t) => t.channels));
   const teamsBadge = state.convs.filter((c) => teamChannels.has(c.id) && isUnread(c) && !c.muted).length;
@@ -614,6 +628,8 @@ export function App() {
           )}
           {/* Nextcloud Calendar (CalDAV) for the Nextcloud accounts in view. */}
           {cloudOrgs.length > 0 && <RailItem icon={<CalendarIcon />} label={t("rail.calendar")} active={view === "calendar"} onClick={() => openView("calendar")} />}
+          {/* Nextcloud Notes, for the Nextcloud accounts that have the Notes app. */}
+          {notesOrgs.length > 0 && <RailItem icon={<NotesIcon />} label={t("rail.notes")} active={view === "notes"} onClick={() => openView("notes")} />}
           <RailItem icon={<MoreIcon />} label="" soon />
         </nav>
         <div className="main">
@@ -641,6 +657,7 @@ export function App() {
               <CalendarPane orgs={cloudOrgs} convs={state.convs} onOpenChat={(id) => { setView("chat"); act({ type: "select", id }); }}
                 onJoinCall={(id) => { setView("chat"); act({ type: "select", id }); talkCalls.start(id, lastCameraOn()); }} />
             )}
+            {view === "notes" && <NotesPane orgs={notesOrgs} />}
             {view === "calls" && <CallsPane convs={state.convs} onOpen={(id) => { setView("chat"); act({ type: "select", id }); }} />}
             {view === "activity" && (
               <ActivityPane items={activity.filter((a) => inOrg(a.conversation))} isUnread={activityUnread} selected={activitySelected}
@@ -652,7 +669,7 @@ export function App() {
                 conv={{ id: teamInfo.key, orgId: teamInfo.account, kind: "team", name: teamInfo.name, preview: "", time: "", sortKey: 0, favourite: false, muted: false, encrypted: false, unread: 0, mentions: 0, marked: false, avatar: teamInfo.avatar ?? undefined }} />
             )}
             {/* The calendar fills the whole width, like Teams; the other views are a list beside the chat. */}
-            {view === "calendar" ? null : selected ? (
+            {view === "calendar" || view === "notes" ? null : selected ? (
               <ChatView conv={selected} messages={timeline(state, selected)} dispatch={act} onNotice={setNotice} focusMessage={focusMessage?.conversation === selected.id ? focusMessage.message : null}
                 onLoadOlder={(limit) => loadOlder(selected.id, limit)} onLoadThread={(root) => loadThread(selected.id, root)}
                 onCommand={(name, args) => runCommand(selected.id, name, args)} attachments={staged[selected.id] ?? []} upload={uploads[selected.id]} onPreview={(m) => setPreview({ conversation: selected.id, message: m })}

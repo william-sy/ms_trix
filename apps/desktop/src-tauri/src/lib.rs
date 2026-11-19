@@ -1073,6 +1073,33 @@ async fn attach_cloud_file(state: State<'_, AppState>, account: String, path: St
 }
 
 #[tauri::command]
+async fn notes(state: State<'_, AppState>, account: String) -> CmdResult<Vec<trix_core::Note>> {
+    adapter_for(&state, &account)?.notes().await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn note(state: State<'_, AppState>, account: String, id: u64) -> CmdResult<trix_core::Note> {
+    adapter_for(&state, &account)?.note(id).await.map_err(|e| e.to_string())
+}
+
+/// Creates (no id) or saves a note; `etag` keeps a change made elsewhere from being overwritten.
+#[tauri::command]
+async fn save_note(state: State<'_, AppState>, account: String, id: Option<u64>, etag: Option<String>, change: trix_core::NoteChange) -> CmdResult<trix_core::Note> {
+    adapter_for(&state, &account)?.save_note(id, etag.as_deref(), &change).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn delete_note(state: State<'_, AppState>, account: String, id: u64) -> CmdResult<()> {
+    adapter_for(&state, &account)?.delete_note(id).await.map_err(|e| e.to_string())
+}
+
+/// Markdown as HTML (as messages render it), for the notes preview.
+#[tauri::command]
+fn render_markdown(text: String) -> Option<String> {
+    trix_matrix::markdown_html(&text)
+}
+
+#[tauri::command]
 async fn calendars(state: State<'_, AppState>, account: String) -> CmdResult<Vec<trix_core::Calendar>> {
     adapter_for(&state, &account)?.calendars().await.map_err(|e| e.to_string())
 }
@@ -2354,6 +2381,11 @@ pub fn run() {
             cloud_files,
             attach_cloud_file,
             calendars,
+            notes,
+            note,
+            save_note,
+            delete_note,
+            render_markdown,
             calendar_events,
             create_event,
             update_event,

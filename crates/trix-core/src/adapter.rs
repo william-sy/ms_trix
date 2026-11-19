@@ -412,6 +412,21 @@ pub trait ProtocolAdapter: Send + Sync {
     async fn calendars(&self) -> Result<Vec<Calendar>> {
         Err(AdapterError::Unsupported("calendar"))
     }
+    /// Notes (Nextcloud Notes), without their text; Unsupported where the server has no Notes app.
+    async fn notes(&self) -> Result<Vec<Note>> {
+        Err(AdapterError::Unsupported("notes"))
+    }
+    async fn note(&self, _id: u64) -> Result<Note> {
+        Err(AdapterError::Unsupported("notes"))
+    }
+    /// Creates a note (no id) or saves one; with `etag`, a change made elsewhere since isn't
+    /// overwritten (the error then says "changed elsewhere").
+    async fn save_note(&self, _id: Option<u64>, _etag: Option<&str>, _change: &NoteChange) -> Result<Note> {
+        Err(AdapterError::Unsupported("notes"))
+    }
+    async fn delete_note(&self, _id: u64) -> Result<()> {
+        Err(AdapterError::Unsupported("notes"))
+    }
     /// Event occurrences between two UTC times (iCalendar form).
     async fn calendar_events(&self, _from: &str, _to: &str) -> Result<Vec<CalendarEvent>> {
         Err(AdapterError::Unsupported("calendar"))

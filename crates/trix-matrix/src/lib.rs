@@ -69,6 +69,11 @@ mod oauth;
 
 pub const PROTOCOL: &str = "matrix";
 
+/// Markdown as HTML, rendered as messages are (None when it's plain text); e.g. a note's preview.
+pub fn markdown_html(text: &str) -> Option<String> {
+    matrix_sdk::ruma::events::room::message::FormattedBody::markdown(text).map(|f| f.body)
+}
+
 /// Everything needed to bring an account back after a restart. The host must
 /// keep this in the OS keychain: it contains the access token and the
 /// passphrase of the encrypted local store.

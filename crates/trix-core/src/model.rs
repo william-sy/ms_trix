@@ -685,6 +685,34 @@ pub struct NewEvent {
     pub vtimezone: Option<String>,
 }
 
+/// A note in Nextcloud Notes.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Note {
+    pub id: u64,
+    pub title: String,
+    /// Its folder in Notes ("" for none; "Work/Projects" for a subfolder).
+    pub category: String,
+    /// Seconds since 1970.
+    pub modified: u64,
+    pub favorite: bool,
+    pub readonly: bool,
+    /// Saving with it doesn't overwrite a change made elsewhere in between.
+    pub etag: String,
+    /// The text (Markdown); only when one note was asked for.
+    pub content: Option<String>,
+}
+
+/// A note's new state, from the notes editor.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NoteChange {
+    pub title: String,
+    pub content: String,
+    pub category: String,
+    pub favorite: bool,
+}
+
 /// A still from a video being sent (made in the UI), with the video's own size and length.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
