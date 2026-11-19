@@ -26,7 +26,7 @@ const SPACE_ORDER: &str = "org.matrix.msc3230.space_order";
 /// Our room tag for archived chats ("u." = user-defined, per the spec).
 const ARCHIVED_TAG: &str = "u.archived";
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -197,6 +197,8 @@ pub struct MatrixAdapter {
     session_out: Arc<Mutex<SessionOut>>,
     /// The running sliding sync, for subscribing to the chat on screen.
     sliding: Arc<Mutex<Option<matrix_sdk::sliding_sync::SlidingSync>>>,
+    /// The rooms sliding sync follows closely (see `RoomSubscriptions`).
+    rooms: Arc<RoomSubscriptions>,
     session_task: Mutex<Option<JoinHandle<()>>>,
     /// The account's store folder (see `store_dir`).
     store: PathBuf,
@@ -332,6 +334,7 @@ impl MatrixAdapter {
 
     fn new(account: Account, client: Client, store_passphrase: String, store: PathBuf) -> Self {
         let session_out: Arc<Mutex<SessionOut>> = Default::default();
+        let sliding: Arc<Mutex<Option<matrix_sdk::sliding_sync::SlidingSync>>> = Default::default();
         // Refreshed tokens must be stored right away: the old refresh token stops working.
         // Before the host listens (during start-up) the newest one waits in `pending`.
         let mut changes = client.subscribe_to_session_changes();
@@ -364,7 +367,8 @@ impl MatrixAdapter {
             pending_emails: Default::default(),
             session_out,
             session_task: Mutex::new(Some(session_task)),
-            sliding: Default::default(),
+            rooms: Arc::new(RoomSubscriptions { sliding: sliding.clone(), focus: Mutex::default(), verifying: Mutex::default() }),
+            sliding,
             store,
         }
     }
@@ -1350,7 +1354,7 @@ impl ProtocolAdapter for MatrixAdapter {
 
     async fn start_verification(&self, user_id: &str, device_id: Option<&str>) -> Result<()> {
         let tx = self.events.lock().unwrap().clone().ok_or_else(|| AdapterError::Other("not connected".into()))?;
-        verification::start(&self.client, tx, self.account().id.0, user_id, device_id).await
+        verification::start(&self.client, tx, self.account().id.0, self.rooms.clone(), user_id, device_id).await
     }
 
     async fn verification_action(&self, user_id: &str, flow_id: &str, action: VerificationAction) -> Result<()> {
@@ -1928,7 +1932,7 @@ impl ProtocolAdapter for MatrixAdapter {
             out.tx = Some(tx.clone());
         }
         self.register_handlers(tx.clone());
-        verification::register(&self.client, tx.clone(), self.account().id.0);
+        verification::register(&self.client, tx.clone(), self.account().id.0, self.rooms.clone());
         register_call_events(&self.client, tx.clone(), self.account().id, self.index.clone());
 
         let client = self.client.clone();
@@ -1970,20 +1974,8 @@ impl ProtocolAdapter for MatrixAdapter {
 
     /// With sliding sync the chat on screen gets its own subscription with more history.
     fn set_focus(&self, conversation: Option<&ConversationId>) {
-        use matrix_sdk::ruma::api::client::sync::sync_events::v5::request::RoomSubscription;
-
-        let Some(sync) = self.sliding.lock().unwrap().clone() else { return };
-        let room = conversation.and_then(|c| RoomId::parse(&c.remote).ok());
-        match room {
-            Some(room) => {
-                let mut settings = RoomSubscription::default();
-                settings.timeline_limit = matrix_sdk::ruma::UInt::from(FOCUS_TIMELINE);
-                // Members stay lazy (big rooms); the member list loads them when opened.
-                settings.required_state = list_required_state();
-                sync.set_room_subscriptions(&[room.as_ref()], Some(settings), true);
-            }
-            None => sync.set_room_subscriptions(&[], None, false),
-        }
+        *self.rooms.focus.lock().unwrap() = conversation.and_then(|c| RoomId::parse(&c.remote).ok());
+        self.rooms.apply();
     }
 
     async fn logout(&self) -> Result<()> {
@@ -2771,6 +2763,44 @@ async fn classic_sync(client: Client, tx: mpsc::UnboundedSender<AdapterEvent>, a
 /// Sliding sync (MSC4186). Errors before the first successful response so the
 /// caller can fall back to classic sync; afterwards it reconnects by itself.
 /// Events per room in the full list: enough for the preview and unread state.
+/// The rooms sliding sync follows closely (more history per sync): the chat on screen, and rooms
+/// where a verification is going on, whose events come in quick succession and mustn't be cut
+/// short by the list's small timeline.
+pub(crate) struct RoomSubscriptions {
+    sliding: Arc<Mutex<Option<matrix_sdk::sliding_sync::SlidingSync>>>,
+    focus: Mutex<Option<OwnedRoomId>>,
+    verifying: Mutex<HashSet<OwnedRoomId>>,
+}
+
+impl RoomSubscriptions {
+    fn apply(&self) {
+        use matrix_sdk::ruma::api::client::sync::sync_events::v5::request::RoomSubscription;
+
+        let Some(sync) = self.sliding.lock().unwrap().clone() else { return };
+        let mut rooms: Vec<OwnedRoomId> = self.verifying.lock().unwrap().iter().cloned().collect();
+        rooms.extend(self.focus.lock().unwrap().clone());
+        rooms.sort();
+        rooms.dedup();
+        if rooms.is_empty() {
+            return sync.set_room_subscriptions(&[], None, false);
+        }
+        let mut settings = RoomSubscription::default();
+        settings.timeline_limit = matrix_sdk::ruma::UInt::from(FOCUS_TIMELINE);
+        // Members stay lazy (big rooms); the member list loads them when opened.
+        settings.required_state = list_required_state();
+        let ids: Vec<&RoomId> = rooms.iter().map(|r| r.as_ref()).collect();
+        sync.set_room_subscriptions(&ids, Some(settings), true);
+    }
+
+    /// A verification in `room` started (`on`) or ended.
+    pub(crate) fn verifying(&self, room: &RoomId, on: bool) {
+        let changed = if on { self.verifying.lock().unwrap().insert(room.to_owned()) } else { self.verifying.lock().unwrap().remove(room) };
+        if changed {
+            self.apply();
+        }
+    }
+}
+
 const LIST_TIMELINE: u32 = 5;
 /// Rooms per batch while the list grows: the first chats show sooner on big accounts.
 const LIST_BATCH: u32 = 50;

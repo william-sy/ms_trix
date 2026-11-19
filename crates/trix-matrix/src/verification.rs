@@ -2,14 +2,20 @@
 //! we send and requests we receive are both followed to the end and reported
 //! as `AdapterEvent::Verification`, so the UI only has to show the state.
 
+use std::sync::Arc;
+
 use futures::StreamExt;
 use matrix_sdk::encryption::verification::{QrVerification, QrVerificationState, SasState, SasVerification, Verification as Flow, VerificationRequest, VerificationRequestState};
+use matrix_sdk::ruma::events::key::verification::accept::KeyVerificationAcceptEventContent;
+use matrix_sdk::ruma::events::key::verification::key::KeyVerificationKeyEventContent;
 use matrix_sdk::ruma::events::key::verification::request::ToDeviceKeyVerificationRequestEvent;
 use matrix_sdk::ruma::events::key::verification::VerificationMethod;
 use matrix_sdk::ruma::events::room::message::{MessageType, OriginalSyncRoomMessageEvent};
-use matrix_sdk::ruma::{OwnedDeviceId, UserId};
-use matrix_sdk::Client;
+use matrix_sdk::ruma::events::OriginalSyncMessageLikeEvent;
+use matrix_sdk::ruma::{OwnedDeviceId, OwnedRoomId, UserId};
+use matrix_sdk::{Client, Room};
 use tokio::sync::mpsc;
+use crate::RoomSubscriptions;
 use trix_core::adapter::{AdapterError, Result};
 use trix_core::{AdapterEvent, Verification, VerificationAction, VerificationState};
 
@@ -28,20 +34,27 @@ fn qr_svg(qr: &QrVerification) -> Option<String> {
 }
 
 /// Picks up verification requests from others (in a DM) and from our own other sessions.
-pub(crate) fn register(client: &Client, tx: Tx, account: String) {
+pub(crate) fn register(client: &Client, tx: Tx, account: String, rooms: Arc<RoomSubscriptions>) {
     client.add_event_handler({
-        let (tx, account) = (tx.clone(), account.clone());
+        let (tx, account, rooms) = (tx.clone(), account.clone(), rooms.clone());
         move |ev: ToDeviceKeyVerificationRequestEvent, client: Client| {
-            let (tx, account) = (tx.clone(), account.clone());
+            let (tx, account, rooms) = (tx.clone(), account.clone(), rooms.clone());
             async move {
                 if let Some(request) = client.encryption().get_verification_request(&ev.sender, &ev.content.transaction_id).await {
-                    tokio::spawn(follow_request(request, tx, account));
+                    tokio::spawn(follow_request(request, tx, account, rooms));
                 }
             }
         }
     });
+    // In the log, for "stuck at waiting": whether the other side's answers arrive at all.
+    client.add_event_handler(|ev: OriginalSyncMessageLikeEvent<KeyVerificationAcceptEventContent>, room: Room| async move {
+        tracing::info!(room = %room.room_id(), sender = %ev.sender, "verification: their accept arrived");
+    });
+    client.add_event_handler(|ev: OriginalSyncMessageLikeEvent<KeyVerificationKeyEventContent>, room: Room| async move {
+        tracing::info!(room = %room.room_id(), sender = %ev.sender, "verification: their key arrived");
+    });
     client.add_event_handler(move |ev: OriginalSyncRoomMessageEvent, client: Client| {
-        let (tx, account) = (tx.clone(), account.clone());
+        let (tx, account, rooms) = (tx.clone(), account.clone(), rooms.clone());
         async move {
             // Our own requests are already being followed by whoever sent them.
             if !matches!(ev.content.msgtype, MessageType::VerificationRequest(_)) || client.user_id() == Some(&*ev.sender) {
@@ -49,14 +62,14 @@ pub(crate) fn register(client: &Client, tx: Tx, account: String) {
             }
             // Old requests from history come back as None: the SDK drops expired ones.
             if let Some(request) = client.encryption().get_verification_request(&ev.sender, &ev.event_id).await {
-                tokio::spawn(follow_request(request, tx, account));
+                tokio::spawn(follow_request(request, tx, account, rooms));
             }
         }
     });
 }
 
 /// Asks `user_id` (or one of our own sessions, `device_id`) to verify by emoji.
-pub(crate) async fn start(client: &Client, tx: Tx, account: String, user_id: &str, device_id: Option<&str>) -> Result<()> {
+pub(crate) async fn start(client: &Client, tx: Tx, account: String, rooms: Arc<RoomSubscriptions>, user_id: &str, device_id: Option<&str>) -> Result<()> {
     let user = UserId::parse(user_id).map_err(err)?;
     let methods = methods();
     let request = match device_id {
@@ -75,7 +88,7 @@ pub(crate) async fn start(client: &Client, tx: Tx, account: String, user_id: &st
             identity.request_verification_with_methods(methods).await.map_err(err)?
         }
     };
-    tokio::spawn(follow_request(request, tx, account));
+    tokio::spawn(follow_request(request, tx, account, rooms));
     Ok(())
 }
 
@@ -159,7 +172,24 @@ impl Reporter {
     }
 }
 
-async fn follow_request(request: VerificationRequest, tx: Tx, account: String) {
+/// While a verification runs in a room, sliding sync follows that room closely (see
+/// `RoomSubscriptions`); it lets go when the flow ends, however it ends.
+struct Following(Arc<RoomSubscriptions>, Option<OwnedRoomId>);
+
+impl Drop for Following {
+    fn drop(&mut self) {
+        if let Some(room) = &self.1 {
+            self.0.verifying(room, false);
+        }
+    }
+}
+
+async fn follow_request(request: VerificationRequest, tx: Tx, account: String, rooms: Arc<RoomSubscriptions>) {
+    let room = request.room_id().map(ToOwned::to_owned);
+    if let Some(room) = &room {
+        rooms.verifying(room, true);
+    }
+    let _following = Following(rooms, room);
     let mut r = Reporter {
         tx,
         account,
@@ -231,6 +261,16 @@ async fn follow_sas(sas: SasVerification, mut r: Reporter) {
     let mut state = sas.state();
     let mut accepted = false;
     loop {
+        let step = match &state {
+            SasState::Created { .. } => "created",
+            SasState::Started { .. } => "started",
+            SasState::Accepted { .. } => "accepted",
+            SasState::KeysExchanged { .. } => "keys exchanged",
+            SasState::Confirmed => "confirmed",
+            SasState::Done { .. } => "done",
+            SasState::Cancelled(_) => "cancelled",
+        };
+        tracing::info!(flow = %r.flow_id, step, we_started = sas.we_started(), "verification: emoji step");
         match state {
             SasState::Started { .. } if !sas.we_started() && !accepted => {
                 accepted = true;

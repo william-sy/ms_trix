@@ -4,6 +4,9 @@
 
 ### Fixed
 - The buttons in someone's profile card no longer break over two lines ("Copy user ID").
+- Verifying someone by emoji could stay at "Waiting for … to accept" until it timed out: the
+  room the verification runs in is now followed closely, so the other side's answers aren't
+  cut short by sliding sync.
 
 ## 1.3 (2026-11-19)
 
