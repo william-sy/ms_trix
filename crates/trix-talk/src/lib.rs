@@ -1376,7 +1376,7 @@ impl ProtocolAdapter for TalkAdapter {
     }
 
     async fn create_event(&self, event: &NewEvent) -> Result<()> {
-        if !dav::valid_time(&event.start) || !dav::valid_time(&event.end) {
+        if !dav::valid_times(event) {
             return Err(err("bad time"));
         }
         let href = self.calendar_href(&event.calendar).await?;

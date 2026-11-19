@@ -205,4 +205,8 @@ export interface NewEvent {
   /** Repeating meetings: the occurrence changed, and whether the whole series changes. */
   occurrence?: string;
   series?: boolean;
+  /** A new repeating meeting: its RRULE, and the time zone its local start and end are in. */
+  rrule?: string;
+  tzid?: string;
+  vtimezone?: string;
 }

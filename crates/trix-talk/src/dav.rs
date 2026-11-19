@@ -295,7 +295,13 @@ pub fn parse_events(calendar: &str, href: &str, etag: Option<&str>, me: &[String
 
 /// The properties ms_trix writes for an event (a new one, or replacing these in an edited one).
 fn event_props(stamp: &str, event: &NewEvent, organizer: Option<&Attendee>) -> Vec<String> {
-    let date = |v: &str| if v.len() == 8 { format!(";VALUE=DATE:{v}") } else { format!(":{v}") };
+    let zone = event.tzid.as_deref().filter(|z| valid_tzid(z));
+    let date = |v: &str| match (v.len(), zone) {
+        (8, _) => format!(";VALUE=DATE:{v}"),
+        // A local time in the meeting's own time zone.
+        (15, Some(zone)) => format!(";TZID={zone}:{v}"),
+        _ => format!(":{v}"),
+    };
     let mut lines = vec![
         format!("DTSTAMP:{stamp}"),
         format!("LAST-MODIFIED:{stamp}"),
@@ -324,10 +330,42 @@ fn event_props(stamp: &str, event: &NewEvent, organizer: Option<&Attendee>) -> V
 }
 
 pub fn event_ics(uid: &str, stamp: &str, event: &NewEvent, organizer: Option<&Attendee>) -> String {
-    let mut lines = vec!["BEGIN:VCALENDAR".to_owned(), "VERSION:2.0".to_owned(), "PRODID:-//ms_trix//EN".to_owned(), "BEGIN:VEVENT".to_owned(), format!("UID:{uid}")];
+    let mut lines = vec!["BEGIN:VCALENDAR".to_owned(), "VERSION:2.0".to_owned(), "PRODID:-//ms_trix//EN".to_owned()];
+    if let Some(zone) = event.vtimezone.as_deref().filter(|_| event.tzid.as_deref().is_some_and(valid_tzid)).filter(|z| valid_vtimezone(z)) {
+        lines.extend(zone.lines().map(|l| l.trim_end().to_owned()));
+    }
+    lines.extend(["BEGIN:VEVENT".to_owned(), format!("UID:{uid}")]);
     lines.extend(event_props(stamp, event, organizer));
+    if let Some(rule) = event.rrule.as_deref().filter(|r| valid_rrule(r)) {
+        lines.push(format!("RRULE:{rule}"));
+    }
     lines.extend(["END:VEVENT".to_owned(), "END:VCALENDAR".to_owned()]);
     lines.iter().map(|l| fold(l)).collect::<Vec<_>>().join("\r\n") + "\r\n"
+}
+
+fn valid_rrule(rule: &str) -> bool {
+    rule.starts_with("FREQ=") && rule.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || matches!(c, '=' | ';' | ',' | '-'))
+}
+
+/// An IANA time zone name ("Europe/Amsterdam", "America/Argentina/Buenos_Aires", "Etc/GMT+1").
+fn valid_tzid(zone: &str) -> bool {
+    !zone.is_empty() && zone.len() < 64 && zone.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '/' | '_' | '-' | '+'))
+}
+
+/// A VTIMEZONE block as the meeting dialog makes it: nothing but time zone lines.
+fn valid_vtimezone(block: &str) -> bool {
+    let lines: Vec<&str> = block.lines().map(str::trim_end).collect();
+    lines.first() == Some(&"BEGIN:VTIMEZONE")
+        && lines.last() == Some(&"END:VTIMEZONE")
+        && lines.iter().all(|l| {
+            let (name, value) = l.split_once(':').unwrap_or((l, ""));
+            match name {
+                "BEGIN" | "END" => matches!(value, "VTIMEZONE" | "STANDARD" | "DAYLIGHT"),
+                "TZID" => valid_tzid(value),
+                "TZOFFSETFROM" | "TZOFFSETTO" | "DTSTART" | "RRULE" | "TZNAME" => !value.is_empty() && value.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '-' | '=' | ';' | ',')),
+                _ => false,
+            }
+        })
 }
 
 /// An edited event: the original object with ms_trix's properties replaced, and the rest
@@ -574,6 +612,13 @@ pub fn valid_time(v: &str) -> bool {
     matches!(v.len(), 8 | 16) && v.chars().all(|c| c.is_ascii_digit() || c == 'T' || c == 'Z')
 }
 
+/// An event's start and end: dates, UTC times, or local times in a time zone it names.
+pub fn valid_times(event: &NewEvent) -> bool {
+    let local = |v: &str| v.len() == 15 && v.as_bytes()[8] == b'T' && v.chars().enumerate().all(|(i, c)| i == 8 || c.is_ascii_digit());
+    let zoned = event.tzid.as_deref().is_some_and(valid_tzid);
+    [&event.start, &event.end].iter().all(|v| valid_time(v) || (zoned && local(v)))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -614,10 +659,30 @@ mod tests {
         assert!(events[0].mine && !events[0].recurring);
     }
 
+    #[test]
+    fn new_repeating_meeting_keeps_its_local_time() {
+        let zone = "BEGIN:VTIMEZONE\r\nTZID:Europe/Amsterdam\r\nBEGIN:STANDARD\r\nTZOFFSETFROM:+0200\r\nTZOFFSETTO:+0100\r\nDTSTART:19701025T030000\r\nRRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU\r\nEND:STANDARD\r\nEND:VTIMEZONE";
+        let event = NewEvent {
+            calendar: "c".into(), summary: "Stand-up".into(), start: "20261117T090000".into(), end: "20261117T091500".into(),
+            location: None, description: None, attendees: vec![], occurrence: None, series: false,
+            rrule: Some("FREQ=WEEKLY;BYDAY=MO,TU".into()), tzid: Some("Europe/Amsterdam".into()), vtimezone: Some(zone.into()),
+        };
+        assert!(valid_times(&event));
+        assert!(!valid_times(&NewEvent { tzid: None, ..event.clone() }), "a local time needs its zone");
+        let ics = event_ics("u1", "20261119T100000Z", &event, None);
+        assert!(ics.contains("PRODID:-//ms_trix//EN\r\nBEGIN:VTIMEZONE\r\nTZID:Europe/Amsterdam"), "{ics}");
+        assert!(ics.contains("DTSTART;TZID=Europe/Amsterdam:20261117T090000\r\nDTEND;TZID=Europe/Amsterdam:20261117T091500"), "{ics}");
+        assert!(ics.contains("RRULE:FREQ=WEEKLY;BYDAY=MO,TU\r\nEND:VEVENT"), "{ics}");
+        // Anything else in the rule or the zone is refused.
+        let sneaky = NewEvent { rrule: Some("FREQ=DAILY\r\nATTENDEE:mailto:x@y".into()), vtimezone: Some(format!("{zone}\r\nBEGIN:VEVENT")), ..event };
+        let ics = event_ics("u2", "20261119T100000Z", &sneaky, None);
+        assert!(!ics.contains("RRULE") && !ics.contains("VTIMEZONE"), "{ics}");
+    }
+
     const WEEKLY: &str = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:w1\r\nSEQUENCE:1\r\nSUMMARY:Standup\r\nDTSTART;TZID=Europe/Amsterdam:20261116T090000\r\nDTEND;TZID=Europe/Amsterdam:20261116T093000\r\nRRULE:FREQ=WEEKLY\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
 
     fn moved(start: &str, end: &str) -> NewEvent {
-        NewEvent { calendar: String::new(), summary: "Standup 2".into(), start: start.into(), end: end.into(), location: None, description: None, attendees: vec![], occurrence: None, series: false }
+        NewEvent { calendar: String::new(), summary: "Standup 2".into(), start: start.into(), end: end.into(), location: None, description: None, attendees: vec![], occurrence: None, series: false, rrule: None, tzid: None, vtimezone: None }
     }
 
     #[test]
@@ -660,6 +725,9 @@ mod tests {
             attendees: vec![Attendee { name: Some("Bo \"B\"".into()), email: "bo@example.org".into(), status: None, user: None }],
             occurrence: None,
             series: false,
+            rrule: None,
+            tzid: None,
+            vtimezone: None,
         };
         let out = rewrite_event(original, "20261117T000000Z", &event, Some(&me)).unwrap();
         assert!(out.contains("SUMMARY:New") && !out.contains("Old") && !out.contains("TZID"));

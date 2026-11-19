@@ -3,6 +3,7 @@ import { MeetNow } from "./MeetNow";
 import { Avatar } from "./Avatar";
 import { backend } from "./backend";
 import { locale, t } from "./i18n";
+import { icalLocal, localZone, rrule, vtimezone, weekOfMonth, type Repeat, type RepeatEnd } from "./recurrence";
 import type { Attendee, Calendar, CalendarEvent, Conversation, Org } from "./types";
 
 interface Props {
@@ -429,6 +430,63 @@ const pad = (n: number) => String(n).padStart(2, "0");
 const dateField = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const timeField = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 
+/** How a new meeting repeats: the choice (worded for its start date), weekdays, and when it ends. */
+function RepeatPicker({ date, repeat, onRepeat, days, onDays, endKind, onEndKind, until, onUntil, count, onCount }: {
+  date: string; repeat: Repeat; onRepeat: (r: Repeat) => void; days: number[]; onDays: (d: number[]) => void;
+  endKind: RepeatEnd["kind"]; onEndKind: (k: RepeatEnd["kind"]) => void; until: string; onUntil: (d: string) => void; count: number; onCount: (n: number) => void;
+}) {
+  const [y, m, d] = date.split("-").map(Number) as [number, number, number];
+  const day = new Date(y, (m || 1) - 1, d || 1);
+  const dayName = day.toLocaleDateString(locale(), { weekday: "long" });
+  const week = weekOfMonth(day);
+  const labels: Record<Repeat, string> = {
+    none: t("calendar.repeat.none"),
+    daily: t("calendar.repeat.daily"),
+    weekdays: t("calendar.repeat.weekdays"),
+    weekly: t("calendar.repeat.weekly"),
+    biweekly: t("calendar.repeat.biweekly", { day: dayName }),
+    monthlyDate: t("calendar.repeat.monthlyDate", { day: day.getDate() }),
+    monthlyWeekday: t("calendar.repeat.monthlyWeekday", { nth: t(week >= 5 ? "calendar.nth.last" : (`calendar.nth.${week}` as "calendar.nth.1")), day: dayName }),
+    yearly: t("calendar.repeat.yearly", { date: day.toLocaleDateString(locale(), { day: "numeric", month: "long" }) }),
+  };
+  // Monday first; the start's own day is always on.
+  const weekDays = [1, 2, 3, 4, 5, 6, 0];
+  const short = (n: number) => new Date(2024, 0, n === 0 ? 7 : n).toLocaleDateString(locale(), { weekday: "short" });
+  return (
+    <>
+      <label>{t("calendar.repeat")}
+        <select value={repeat} onChange={(e) => onRepeat(e.target.value as Repeat)}>
+          {(Object.keys(labels) as Repeat[]).map((r) => <option key={r} value={r}>{labels[r]}</option>)}
+        </select>
+      </label>
+      {repeat === "weekly" && (
+        <div className="repeat-days" role="group" aria-label={t("calendar.repeat.weekly")}>
+          {weekDays.map((n) => {
+            const on = n === day.getDay() || days.includes(n);
+            return (
+              <button key={n} type="button" className={on ? "on" : ""} aria-pressed={on} disabled={n === day.getDay()}
+                onClick={() => onDays(days.includes(n) ? days.filter((x) => x !== n) : [...days, n])}>{short(n)}</button>
+            );
+          })}
+        </div>
+      )}
+      {repeat !== "none" && (
+        <div className="new-meeting-row repeat-end">
+          <label>{t("calendar.repeatEnds")}
+            <select value={endKind} onChange={(e) => onEndKind(e.target.value as RepeatEnd["kind"])}>
+              <option value="never">{t("calendar.repeatEnds.never")}</option>
+              <option value="until">{t("calendar.repeatEnds.until")}</option>
+              <option value="count">{t("calendar.repeatEnds.count")}</option>
+            </select>
+          </label>
+          {endKind === "until" && <label>{t("calendar.date")}<input type="date" value={until} min={date} onChange={(e) => onUntil(e.target.value)} /></label>}
+          {endKind === "count" && <label>{t("calendar.repeatEnds.times")}<input type="number" min={1} max={999} value={count} onChange={(e) => onCount(Number(e.target.value) || 1)} /></label>}
+        </div>
+      )}
+    </>
+  );
+}
+
 /** A new event (optionally with a Talk conversation as its online meeting, like Teams' "New meeting"), or an edit of one. */
 function MeetingDialog({ orgs, calendars, editing, series = false, onClose, onSaved }: {
   orgs: Org[]; calendars: Record<string, Calendar[]>; editing?: Item; series?: boolean; onClose: () => void; onSaved: (start: Date) => void;
@@ -450,6 +508,12 @@ function MeetingDialog({ orgs, calendars, editing, series = false, onClose, onSa
   const [location, setLocation] = useState(editing?.event.location ?? "");
   const [description, setDescription] = useState(editing?.event.description ?? "");
   const [attendees, setAttendees] = useState<Attendee[]>(editing?.event.attendees ?? []);
+  // Repeating (new meetings only; a series being edited keeps its rule).
+  const [repeat, setRepeat] = useState<Repeat>("none");
+  const [days, setDays] = useState<number[]>([]);
+  const [endKind, setEndKind] = useState<RepeatEnd["kind"]>("never");
+  const [until, setUntil] = useState(dateField(addDays(startAt, 91)));
+  const [count, setCount] = useState(10);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const target = writable.find((w) => w.calendar.id === calendar);
@@ -461,6 +525,11 @@ function MeetingDialog({ orgs, calendars, editing, series = false, onClose, onSa
     const start = allDay ? new Date(y, m - 1, d) : at(from);
     let end = allDay ? addDays(start, 1) : at(to);
     if (end <= start) end = new Date(start.getTime() + 30 * 60_000);
+    const repeatEnd: RepeatEnd = endKind === "until" ? { kind: "until", date: until } : endKind === "count" ? { kind: "count", count } : { kind: "never" };
+    const rule = editing ? null : rrule(repeat, start, days, repeatEnd, allDay);
+    // A repeating meeting is kept in local time with this computer's time zone, not UTC.
+    const zone = rule && !allDay ? localZone() : null;
+    const when = (time: Date) => (allDay ? icalDate(time) : zone ? icalLocal(time) : toIcalUtc(time));
     setBusy(true);
     setError(null);
     try {
@@ -474,12 +543,14 @@ function MeetingDialog({ orgs, calendars, editing, series = false, onClose, onSa
       const event = {
         calendar,
         summary: title.trim(),
-        start: allDay ? icalDate(start) : toIcalUtc(start),
-        end: allDay ? icalDate(end) : toIcalUtc(end),
+        start: when(start),
+        end: when(end),
         location: place || undefined,
         description: description.trim() || undefined,
         attendees,
         ...(editing?.event.recurrenceId ? { occurrence: editing.event.recurrenceId, series } : {}),
+        ...(rule ? { rrule: rule } : {}),
+        ...(zone ? { tzid: zone, vtimezone: vtimezone(zone) } : {}),
       };
       if (editing) await backend.updateEvent(editing.account, editing.event.href, editing.event.etag ?? null, event);
       else await backend.createEvent(target.account, event);
@@ -504,6 +575,8 @@ function MeetingDialog({ orgs, calendars, editing, series = false, onClose, onSa
             {!allDay && <label>{t("calendar.to")}<input type="time" value={to} onChange={(e) => setTo(e.target.value)} /></label>}
           </div>
           <label className="toggle-row"><input type="checkbox" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} /><span>{t("calendar.allDay")}</span></label>
+          {!editing && <RepeatPicker date={date} repeat={repeat} onRepeat={setRepeat} days={days} onDays={setDays}
+            endKind={endKind} onEndKind={setEndKind} until={until} onUntil={setUntil} count={count} onCount={setCount} />}
           {!editing && writable.length > 1 && (
             <label>{t("calendar.calendar")}
               <select value={calendar} onChange={(e) => setCalendar(e.target.value)}>

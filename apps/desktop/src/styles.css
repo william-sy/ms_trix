@@ -968,6 +968,10 @@ mark { background: rgba(255, 196, 0, 0.45); color: inherit; border-radius: 2px; 
 .login-card.new-meeting { width: min(480px, 100%); }
 .new-meeting-row { display: flex; gap: 8px; }
 .new-meeting-row label { flex: 1; }
+.repeat-days { display: flex; gap: 4px; flex-wrap: wrap; }
+.repeat-days button { min-width: 40px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 14px; font-size: 12px; }
+.repeat-days button.on { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.repeat-days button:disabled { opacity: 1; cursor: default; }
 .new-meeting label.toggle-row { flex-direction: row; align-items: center; gap: 8px; color: var(--text); }
 .new-meeting label.toggle-row input { height: auto; width: auto; flex: none; margin: 0; padding: 0; }
 .new-meeting label.toggle-row span { flex: 1; }

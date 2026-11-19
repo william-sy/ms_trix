@@ -24,7 +24,9 @@
       on this computer only: link text vs. destination, look-alike letters (punycode, Cyrillic/Greek),
       names close to your own and well-known domains, user@host and IP addresses, where redirects
       really lead. Suspicious links are marked and ask before they open
-- [ ] Repeating meetings in the calendar (RRULE, as Nextcloud Calendar supports)
+- [x] Repeating meetings in the calendar: daily, weekdays, weekly on chosen days, every two weeks,
+      monthly (date or "3rd Tuesday"), yearly; ends never, on a date or after N times. Stored in
+      local time with the computer's time zone (VTIMEZONE), so they keep their time through summer time
 - [ ] Send later: write now, sent at a chosen time by this app (Matrix has no server-side
       scheduling yet; a message whose time passed while the app was closed goes out at start)
 

@@ -674,6 +674,15 @@ pub struct NewEvent {
     /// With `occurrence`: change the whole series instead of just that occurrence.
     #[serde(default)]
     pub series: bool,
+    /// A new repeating meeting: its RRULE ("FREQ=WEEKLY;BYDAY=MO").
+    #[serde(default)]
+    pub rrule: Option<String>,
+    /// The time zone `start` and `end` are in (local times, without Z), so a repeating meeting
+    /// keeps its local time through summer time; with its VTIMEZONE block.
+    #[serde(default)]
+    pub tzid: Option<String>,
+    #[serde(default)]
+    pub vtimezone: Option<String>,
 }
 
 /// A still from a video being sent (made in the UI), with the video's own size and length.

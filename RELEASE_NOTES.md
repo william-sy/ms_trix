@@ -15,6 +15,9 @@
   letters, names that imitate your own or well-known domains (surf-nl.com, paypa1.com), and
   address tricks are marked with ⚠ and ask before they open. The preview also shows where a short
   link really leads. All checked on this computer.
+- **Repeating meetings:** every day, every weekday, every week on the days you pick, every two
+  weeks, every month (on a date or e.g. the third Tuesday) or every year, ending never, on a
+  date or after a number of times. They keep their local time when summer time starts or ends.
 
 ## 1.1 (2026-11-18)
 
