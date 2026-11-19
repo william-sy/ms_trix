@@ -569,16 +569,22 @@ export function App() {
     backend.signOut(orgId).catch((e) => setNotice(String(e)));
   };
 
-  // Which Nextcloud accounts have the Notes app: asked once per account.
+  // Which Nextcloud accounts have the Notes app. Asked until the account answers (it may still be
+  // connecting at start); a server without Notes isn't asked again.
   const notesAsked = useRef(new Set<string>());
+  const [notesRetry, setNotesRetry] = useState(0);
   const talkIds = isLive ? state.orgs.filter((o) => o.protocol === "talk").map((o) => o.id) : [];
   useEffect(() => {
     for (const id of talkIds) {
       if (notesAsked.current.has(id)) continue;
       notesAsked.current.add(id);
-      backend.notes(id).then(() => setNotesAccounts((ids) => [...new Set([...ids, id])]), () => {});
+      backend.notes(id).then(() => setNotesAccounts((ids) => [...new Set([...ids, id])]), (e) => {
+        if (String(e).includes("not supported")) return;
+        notesAsked.current.delete(id);
+        window.setTimeout(() => setNotesRetry((n) => n + 1), 20_000);
+      });
     }
-  }, [talkIds.join("|")]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [talkIds.join("|"), notesRetry]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (booting) return <div className="login-screen"><div className="spinner" aria-label={t("common.connecting")} /></div>;
   if (isLive && state.orgs.length === 0) return <Login onDone={() => {}} />;
