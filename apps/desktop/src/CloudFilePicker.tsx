@@ -60,7 +60,7 @@ export function CloudFilePicker({ accounts, onPick, onClose, single }: Props) {
 
   return (
     <div className="login-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="login-card cloud-picker">
+      <div className={`login-card cloud-picker ${single ? "single" : ""}`}>
         <button className="icon-btn close" onClick={onClose} title={t("common.closeEsc")}>✕</button>
         <h1>{t("cloud.title")}</h1>
         <div className="cloud-bar">
