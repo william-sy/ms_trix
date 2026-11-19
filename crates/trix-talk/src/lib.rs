@@ -197,6 +197,37 @@ impl TalkAdapter {
         Ok(Arc::new(Self::new(account, session)))
     }
 
+    /// Uploads to our "Talk" folder, then shares it into the conversation (with its caption, and
+    /// the message it replies to).
+    async fn upload_and_share(&self, conversation: &ConversationId, name: &str, mime: Option<&str>, data: Vec<u8>, caption: Option<&str>, reply_to: Option<&MessageId>) -> Result<()> {
+        // Our files root has our user id, not necessarily the login name.
+        let folder = format!("{}/Talk", self.files_root().await);
+        let _ = self.request(Method::from_bytes(b"MKCOL").unwrap(), &folder).send().await;
+        let unique = format!("{}-{name}", now());
+        let encoded = percent_encoding::utf8_percent_encode(&unique, percent_encoding::NON_ALPHANUMERIC).to_string();
+        let mut put = self.request(Method::PUT, &format!("{folder}/{encoded}")).body(data);
+        if let Some(mime) = mime {
+            put = put.header("Content-Type", mime);
+        }
+        let status = put.send().await.map_err(|e| AdapterError::Network(e.to_string()))?.status();
+        if !status.is_success() {
+            return Err(err(format!("upload failed: {status}")));
+        }
+        let mut meta = serde_json::json!({ "caption": caption.unwrap_or_default() });
+        if let Some(parent) = reply_to {
+            meta["replyTo"] = parent.0.parse::<u64>().map(Into::into).unwrap_or_else(|_| parent.0.clone().into());
+        }
+        let meta = meta.to_string();
+        let share = self.request(Method::POST, "/ocs/v2.php/apps/files_sharing/api/v1/shares").form(&[
+            ("shareType", "10"),
+            ("shareWith", Self::token(conversation)),
+            ("path", &format!("/Talk/{unique}")),
+            ("talkMetaData", &meta),
+        ]);
+        self.ocs(share).await?;
+        Ok(())
+    }
+
     fn request(&self, method: Method, path: &str) -> reqwest::RequestBuilder {
         self.http
             .request(method, format!("{}{path}", self.session.server))
@@ -1020,28 +1051,12 @@ impl ProtocolAdapter for TalkAdapter {
     }
 
     async fn send_file(&self, conversation: &ConversationId, name: &str, mime: Option<&str>, data: Vec<u8>, caption: Option<&str>) -> Result<()> {
-        // Upload to the user's "Talk" folder, then share it into the conversation.
-        let folder = format!("/remote.php/dav/files/{}/Talk", self.session.login);
-        let _ = self.request(Method::from_bytes(b"MKCOL").unwrap(), &folder).send().await;
-        let unique = format!("{}-{name}", now());
-        let encoded = percent_encoding::utf8_percent_encode(&unique, percent_encoding::NON_ALPHANUMERIC).to_string();
-        let mut put = self.request(Method::PUT, &format!("{folder}/{encoded}")).body(data);
-        if let Some(mime) = mime {
-            put = put.header("Content-Type", mime);
-        }
-        let status = put.send().await.map_err(|e| AdapterError::Network(e.to_string()))?.status();
-        if !status.is_success() {
-            return Err(err(format!("upload failed: {status}")));
-        }
-        let meta = serde_json::json!({ "caption": caption.unwrap_or_default() }).to_string();
-        let share = self.request(Method::POST, "/ocs/v2.php/apps/files_sharing/api/v1/shares").form(&[
-            ("shareType", "10"),
-            ("shareWith", Self::token(conversation)),
-            ("path", &format!("/Talk/{unique}")),
-            ("talkMetaData", &meta),
-        ]);
-        self.ocs(share).await?;
-        Ok(())
+        self.upload_and_share(conversation, name, mime, data, caption, None).await
+    }
+
+    /// Talk has no threads; a reply goes along with the share (Talk ignores it where it can't).
+    async fn send_file_related(&self, conversation: &ConversationId, _thread_root: Option<&MessageId>, reply_to: Option<&MessageId>, name: &str, mime: Option<&str>, data: Vec<u8>, caption: Option<&str>, _thumb: Option<VideoThumb>) -> Result<()> {
+        self.upload_and_share(conversation, name, mime, data, caption, reply_to).await
     }
 
     async fn members(&self, conversation: &ConversationId) -> Result<Vec<Member>> {

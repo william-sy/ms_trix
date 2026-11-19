@@ -184,9 +184,10 @@ pub trait ProtocolAdapter: Send + Sync {
     async fn send_video(&self, conversation: &ConversationId, name: &str, mime: Option<&str>, data: Vec<u8>, caption: Option<&str>, _thumb: VideoThumb) -> Result<()> {
         self.send_file(conversation, name, mime, data, caption).await
     }
-    /// A file sent into the thread of `root`; protocols without threads send it to the chat.
+    /// A file in reply to a message and/or in the thread of `thread_root`; protocols without
+    /// replies or threads send it to the chat plainly.
     #[allow(clippy::too_many_arguments)]
-    async fn send_file_in_thread(&self, conversation: &ConversationId, _root: &MessageId, name: &str, mime: Option<&str>, data: Vec<u8>, caption: Option<&str>, thumb: Option<VideoThumb>) -> Result<()> {
+    async fn send_file_related(&self, conversation: &ConversationId, _thread_root: Option<&MessageId>, _reply_to: Option<&MessageId>, name: &str, mime: Option<&str>, data: Vec<u8>, caption: Option<&str>, thumb: Option<VideoThumb>) -> Result<()> {
         match thumb {
             Some(thumb) => self.send_video(conversation, name, mime, data, caption, thumb).await,
             None => self.send_file(conversation, name, mime, data, caption).await,

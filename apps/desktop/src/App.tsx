@@ -528,15 +528,17 @@ export function App() {
       if (gone?.preview) URL.revokeObjectURL(gone.preview);
       return { ...s, [key]: (s[key] ?? []).filter((a) => a.id !== id) };
     });
-  const sendAttachments = async (key: string, items: Attachment[], caption: string, threadRoot?: string) => {
+  const sendAttachments = async (key: string, items: Attachment[], caption: string, threadRoot?: string, replyTo?: string) => {
     setStaged((s) => ({ ...s, [stagingKey(key, threadRoot)]: [] }));
     if (!isLive) return setNotice(t("desktopOnly.files"));
     try {
       for (const [i, a] of items.entries()) {
-        // One caption for the batch, on the last file.
-        const text = i === items.length - 1 && caption ? caption : null;
-        if (a.file) await backend.sendFileBytes(key, a.name, a.file.type || null, Array.from(new Uint8Array(await a.file.arrayBuffer())), text, a.thumb ?? null, threadRoot ?? null);
-        else if (a.path) await backend.sendFilePaths(key, [a.path], text, a.thumb ?? null, threadRoot ?? null);
+        // One caption for the batch, on the last file; a reply goes with it too.
+        const last = i === items.length - 1;
+        const text = last && caption ? caption : null;
+        const reply = last ? replyTo ?? null : null;
+        if (a.file) await backend.sendFileBytes(key, a.name, a.file.type || null, Array.from(new Uint8Array(await a.file.arrayBuffer())), text, a.thumb ?? null, threadRoot ?? null, reply);
+        else if (a.path) await backend.sendFilePaths(key, [a.path], text, a.thumb ?? null, threadRoot ?? null, reply);
       }
     } catch (e) {
       setNotice(String(e));
@@ -585,7 +587,7 @@ export function App() {
         return void backend.setArchived(action.id, !conv?.archived).catch(report);
       }
       case "send": {
-        if (action.message.attachments?.length) return void sendAttachments(action.id, action.message.attachments, action.message.text, action.message.threadRoot);
+        if (action.message.attachments?.length) return void sendAttachments(action.id, action.message.attachments, action.message.text, action.message.threadRoot, action.message.replyTo);
         // Shown at once (like WhatsApp), with ⏱ until the server has it.
         const txn = crypto.randomUUID();
         const me = [...(messagesRef.current[action.id] ?? [])].reverse().find((m) => m.fromMe && !m.system && !m.local);

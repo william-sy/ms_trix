@@ -529,10 +529,11 @@ export const backend = {
   pickFiles: () => invoke<PickedFile[]>("pick_files"),
   describeFiles: (paths: string[]) => invoke<PickedFile[]>("describe_files", { paths }),
   filePreview: (path: string) => invoke<number[]>("file_preview", { path }),
-  /** `threadRoot`: sent into that thread (Matrix; elsewhere to the chat). */
-  sendFilePaths: (key: string, paths: string[], caption: string | null, thumb: VideoThumb | null = null, threadRoot: string | null = null) => invoke<void>("send_file_paths", { key, paths, caption, thumb, threadRoot }),
-  sendFileBytes: (key: string, name: string, mime: string | null, data: number[], caption: string | null, thumb: VideoThumb | null = null, threadRoot: string | null = null) =>
-    invoke<void>("send_file_bytes", { key, name, mime, data, caption, thumb, threadRoot }),
+  /** `threadRoot`: into that thread (Matrix; elsewhere to the chat); `replyTo`: as a reply to it. */
+  sendFilePaths: (key: string, paths: string[], caption: string | null, thumb: VideoThumb | null = null, threadRoot: string | null = null, replyTo: string | null = null) =>
+    invoke<void>("send_file_paths", { key, paths, caption, thumb, threadRoot, replyTo }),
+  sendFileBytes: (key: string, name: string, mime: string | null, data: number[], caption: string | null, thumb: VideoThumb | null = null, threadRoot: string | null = null, replyTo: string | null = null) =>
+    invoke<void>("send_file_bytes", { key, name, mime, data, caption, thumb, threadRoot, replyTo }),
   focus: (key: string | null) => invoke<void>("focus", { key }),
   markUnread: (key: string) => invoke<void>("mark_unread", { key }),
   markRead: (key: string) => invoke<void>("mark_read", { key }),

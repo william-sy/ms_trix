@@ -247,7 +247,7 @@ export function TalkSettings({ conv, onNotice, onChanged, onGone }: { conv: Conv
       </section>
 
       {picker === "files" && (
-        <CloudFilePicker accounts={[org]} onClose={() => setPicker(null)} onPick={pictureFromFiles} />
+        <CloudFilePicker single accounts={[org]} onClose={() => setPicker(null)} onPick={(account, files) => files[0] ? pictureFromFiles(account, files[0]) : Promise.resolve()} />
       )}
     </div>
   );

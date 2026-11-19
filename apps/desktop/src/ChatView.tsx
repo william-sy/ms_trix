@@ -244,9 +244,12 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
   // Nextcloud accounts to attach files from; this chat's own account first (shares become file messages).
   const allOrgs = useOrgs();
   const cloudAccounts = isLive ? allOrgs.filter((o) => o.protocol === "talk").sort((a, b) => Number(b.id === conv.orgId) - Number(a.id === conv.orgId)) : [];
-  const attachCloud = async (account: string, file: CloudFile) => {
-    const link = await backend.attachCloudFile(account, file.path, conv.id, null);
-    if (link) send({ text: `📎 ${file.name}\n${link}` });
+  const attachCloud = async (account: string, files: CloudFile[]) => {
+    // Shared into the conversation on the same Nextcloud; elsewhere a link per file or folder.
+    for (const file of files) {
+      const link = await backend.attachCloudFile(account, file.path, conv.id, null);
+      if (link) send({ text: `${file.dir ? "📁" : "📎"} ${file.name}\n${link}` });
+    }
     setCloudPicker(false);
   };
   useEffect(() => setTab("chat"), [conv.id]);

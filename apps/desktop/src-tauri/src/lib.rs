@@ -885,15 +885,16 @@ async fn run_command(state: State<'_, AppState>, key: String, name: String, args
     adapter.command(&id, &name, &args).await.map_err(|e| e.to_string())
 }
 
-async fn send_path(state: &AppState, key: &str, path: &std::path::Path, caption: Option<&str>, thumb: Option<trix_core::VideoThumb>, thread_root: Option<&str>) -> CmdResult<()> {
+async fn send_path(state: &AppState, key: &str, path: &std::path::Path, caption: Option<&str>, thumb: Option<trix_core::VideoThumb>, thread_root: Option<&str>, reply_to: Option<&str>) -> CmdResult<()> {
     let id = conv(key)?;
     let adapter = state.engine.lock().unwrap().adapter(&id.account).ok_or("account not signed in")?;
     let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| "file".into());
     let data = std::fs::read(path).map_err(|e| format!("could not read {name}: {e}"))?;
-    match (thread_root, thumb) {
-        (Some(root), thumb) => adapter.send_file_in_thread(&id, &MessageId(root.to_owned()), &name, None, data, caption, thumb).await,
-        (None, Some(thumb)) => adapter.send_video(&id, &name, None, data, caption, thumb).await,
-        (None, None) => adapter.send_file(&id, &name, None, data, caption).await,
+    let (thread_root, reply_to) = (thread_root.map(|r| MessageId(r.to_owned())), reply_to.map(|r| MessageId(r.to_owned())));
+    match (thread_root.is_some() || reply_to.is_some(), thumb) {
+        (true, thumb) => adapter.send_file_related(&id, thread_root.as_ref(), reply_to.as_ref(), &name, None, data, caption, thumb).await,
+        (false, Some(thumb)) => adapter.send_video(&id, &name, None, data, caption, thumb).await,
+        (false, None) => adapter.send_file(&id, &name, None, data, caption).await,
     }
     .map_err(|e| e.to_string())
 }
@@ -978,13 +979,16 @@ fn file_preview(path: String) -> CmdResult<Vec<u8>> {
 }
 
 #[tauri::command]
-async fn send_file_paths(state: State<'_, AppState>, key: String, paths: Vec<String>, caption: Option<String>, thumb: Option<trix_core::VideoThumb>, thread_root: Option<String>) -> CmdResult<()> {
+#[allow(clippy::too_many_arguments)]
+async fn send_file_paths(state: State<'_, AppState>, key: String, paths: Vec<String>, caption: Option<String>, thumb: Option<trix_core::VideoThumb>, thread_root: Option<String>, reply_to: Option<String>) -> CmdResult<()> {
     let last = paths.len().saturating_sub(1);
     let mut thumb = thumb.filter(|_| paths.len() == 1);
     for (i, path) in paths.iter().enumerate() {
         // One caption for the batch, on the last file.
         let caption = if i == last { caption.as_deref() } else { None };
-        send_path(&state, &key, std::path::Path::new(path), caption, thumb.take(), thread_root.as_deref()).await?;
+        // The reply goes with the last file, which carries the caption.
+        let reply = if i == last { reply_to.as_deref() } else { None };
+        send_path(&state, &key, std::path::Path::new(path), caption, thumb.take(), thread_root.as_deref(), reply).await?;
     }
     Ok(())
 }
@@ -1017,13 +1021,15 @@ async fn forward_message(app: AppHandle, key: String, message: String, target: S
 
 /// Pasted images (the clipboard gives bytes, not a path).
 #[tauri::command]
-async fn send_file_bytes(state: State<'_, AppState>, key: String, name: String, mime: Option<String>, data: Vec<u8>, caption: Option<String>, thumb: Option<trix_core::VideoThumb>, thread_root: Option<String>) -> CmdResult<()> {
+#[allow(clippy::too_many_arguments)]
+async fn send_file_bytes(state: State<'_, AppState>, key: String, name: String, mime: Option<String>, data: Vec<u8>, caption: Option<String>, thumb: Option<trix_core::VideoThumb>, thread_root: Option<String>, reply_to: Option<String>) -> CmdResult<()> {
     let id = conv(&key)?;
     let adapter = state.engine.lock().unwrap().adapter(&id.account).ok_or("account not signed in")?;
-    match (thread_root, thumb) {
-        (Some(root), thumb) => adapter.send_file_in_thread(&id, &MessageId(root), &name, mime.as_deref(), data, caption.as_deref(), thumb).await,
-        (None, Some(thumb)) => adapter.send_video(&id, &name, mime.as_deref(), data, caption.as_deref(), thumb).await,
-        (None, None) => adapter.send_file(&id, &name, mime.as_deref(), data, caption.as_deref()).await,
+    let (thread_root, reply_to) = (thread_root.map(MessageId), reply_to.map(MessageId));
+    match (thread_root.is_some() || reply_to.is_some(), thumb) {
+        (true, thumb) => adapter.send_file_related(&id, thread_root.as_ref(), reply_to.as_ref(), &name, mime.as_deref(), data, caption.as_deref(), thumb).await,
+        (false, Some(thumb)) => adapter.send_video(&id, &name, mime.as_deref(), data, caption.as_deref(), thumb).await,
+        (false, None) => adapter.send_file(&id, &name, mime.as_deref(), data, caption.as_deref()).await,
     }
     .map_err(|e| e.to_string())
 }
