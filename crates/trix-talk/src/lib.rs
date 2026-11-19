@@ -1354,6 +1354,13 @@ impl ProtocolAdapter for TalkAdapter {
         (token.len() >= 4 && token.chars().all(|c| c.is_ascii_alphanumeric())).then(|| self.conv_id(token).key())
     }
 
+    /// The apps in our Nextcloud navigation bar, as in its web interface. The calendar store
+    /// exists without the Calendar app; this tells whether people here actually use calendars.
+    async fn cloud_apps(&self) -> Result<Vec<String>> {
+        let data = self.ocs(self.request(Method::GET, "/ocs/v2.php/core/navigation/apps")).await?.map(|(d, _)| d).unwrap_or(Value::Null);
+        Ok(data.as_array().map(|apps| apps.iter().filter_map(|a| a["id"].as_str().map(ToOwned::to_owned)).collect()).unwrap_or_default())
+    }
+
     async fn notes(&self) -> Result<Vec<Note>> {
         let response = self.request(Method::GET, &format!("{NOTES}?exclude=content")).send().await.map_err(|e| AdapterError::Network(e.to_string()))?;
         // No Notes app on this server.

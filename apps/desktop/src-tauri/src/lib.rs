@@ -1111,6 +1111,12 @@ fn link_target(state: State<'_, AppState>, url: String) -> Option<String> {
     engine.accounts().iter().filter_map(|a| engine.adapter(&a.id)).find_map(|adapter| adapter.link_target(&url))
 }
 
+/// The apps the account's server offers (Nextcloud navigation ids, e.g. "calendar").
+#[tauri::command]
+async fn cloud_apps(state: State<'_, AppState>, account: String) -> CmdResult<Vec<String>> {
+    adapter_for(&state, &account)?.cloud_apps().await.map_err(|e| e.to_string())
+}
+
 /// Markdown as HTML (as messages render it), for the notes preview.
 #[tauri::command]
 fn render_markdown(text: String) -> Option<String> {
@@ -2407,6 +2413,7 @@ pub fn run() {
             delete_note,
             render_markdown,
             link_target,
+            cloud_apps,
             calendar_events,
             create_event,
             update_event,

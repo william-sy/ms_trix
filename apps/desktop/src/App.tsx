@@ -46,6 +46,19 @@ import { RoomLinkContext, type OpenRoomLink } from "./roomLinks";
 import { commandText, friendlyError, locale, rustTexts, t } from "./i18n";
 
 /**
+ * Whether a Nextcloud account uses calendars: the Calendar app is in its navigation (the calendar
+ * store itself exists without it). Servers without that API: a calendar we can write in.
+ */
+async function hasCalendar(account: string): Promise<boolean> {
+  try {
+    return (await backend.cloudApps(account)).includes("calendar");
+  } catch (e) {
+    if (/not signed in|network/i.test(String(e))) throw e;
+    return (await backend.calendars(account)).some((c) => c.writable);
+  }
+}
+
+/**
  * The accounts (of `ids`) where `check` says yes. Asked until the account answers: at start it may
  * still be connecting, or the network may be down; any other answer (no, not found, not
  * supported) is final.
@@ -618,7 +631,7 @@ export function App() {
   // Which Nextcloud accounts have Notes, and which a calendar (not every Nextcloud has them).
   const talkIds = isLive ? state.orgs.filter((o) => o.protocol === "talk").map((o) => o.id) : [];
   const notesAccounts = useAccountsWith(talkIds, (id) => backend.notes(id).then(() => true));
-  const calendarAccounts = useAccountsWith(talkIds, (id) => backend.calendars(id).then((list) => list.length > 0));
+  const calendarAccounts = useAccountsWith(talkIds, hasCalendar);
 
   if (booting) return <div className="login-screen"><div className="spinner" aria-label={t("common.connecting")} /></div>;
   if (isLive && state.orgs.length === 0) return <Login onDone={() => {}} />;
