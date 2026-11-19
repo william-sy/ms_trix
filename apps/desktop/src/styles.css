@@ -248,8 +248,8 @@ kbd { font: 11px ui-monospace, monospace; color: var(--text-subtle); }
 /* ---------- Composer ---------- */
 .composer { margin: 8px 24px 20px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-input); }
 .composer:focus-within { border-bottom: 2px solid var(--accent); }
-.format-bar { display: flex; align-items: center; gap: 2px; padding: 6px 8px; border-bottom: 1px solid var(--border); }
-.fmt { min-width: 28px; height: 28px; padding: 0 6px; border-radius: 4px; color: var(--text-muted); font-size: 13px; }
+.format-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+.fmt { flex: none; min-width: 28px; height: 28px; padding: 0 6px; border-radius: 4px; color: var(--text-muted); font-size: 13px; white-space: nowrap; }
 .fmt:hover { background: var(--bg-hover); color: var(--text); }
 .fmt-B { font-weight: 700; } .fmt-I { font-style: italic; } .fmt-U { text-decoration: underline; } .fmt-S { text-decoration: line-through; }
 .composer-row { display: flex; align-items: flex-end; gap: 2px; padding: 6px 8px 6px 14px; }
@@ -290,6 +290,8 @@ label.btn.disabled { opacity: 0.5; pointer-events: none; }
 .rail-item:disabled, .tab:disabled, .fmt:disabled, .menu-item:disabled { opacity: 0.4; cursor: default; }
 .rail-item:disabled:hover, .fmt:disabled:hover, .menu-item:disabled:hover { background: none; color: var(--text-muted); }
 .soon-note { font-size: 11px; color: var(--text-subtle); margin-right: 8px; }
+/* The format bar's help text gets the room that's left, on one line (all of it in its tooltip). */
+.format-bar .soon-note { flex: 1 1 120px; min-width: 0; margin: 0 0 0 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .notice.warn { background: rgba(255, 170, 68, 0.16); justify-content: flex-start; gap: 10px; padding: 8px 16px; }
 .notice.warn svg { color: var(--warn); flex: none; }
 .notice.warn span { flex: 1; }

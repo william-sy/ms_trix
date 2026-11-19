@@ -184,6 +184,14 @@ pub trait ProtocolAdapter: Send + Sync {
     async fn send_video(&self, conversation: &ConversationId, name: &str, mime: Option<&str>, data: Vec<u8>, caption: Option<&str>, _thumb: VideoThumb) -> Result<()> {
         self.send_file(conversation, name, mime, data, caption).await
     }
+    /// A file sent into the thread of `root`; protocols without threads send it to the chat.
+    #[allow(clippy::too_many_arguments)]
+    async fn send_file_in_thread(&self, conversation: &ConversationId, _root: &MessageId, name: &str, mime: Option<&str>, data: Vec<u8>, caption: Option<&str>, thumb: Option<VideoThumb>) -> Result<()> {
+        match thumb {
+            Some(thumb) => self.send_video(conversation, name, mime, data, caption, thumb).await,
+            None => self.send_file(conversation, name, mime, data, caption).await,
+        }
+    }
     /// A recorded voice message; `waveform` holds 0..1 levels for drawing it.
     /// Protocols without voice messages get it as an ordinary audio file.
     async fn send_voice(&self, conversation: &ConversationId, mime: &str, data: Vec<u8>, _duration_ms: u64, _waveform: Vec<f32>) -> Result<()> {

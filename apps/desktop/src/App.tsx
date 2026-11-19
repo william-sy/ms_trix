@@ -476,7 +476,8 @@ export function App() {
       .then((out) => { setNotice(commandText(out) || null); if (out.open) setPendingOpen(out.open); })
       .catch((e) => setNotice(String(e)));
   };
-  // Files wait in the composer (per chat) until the user presses Send.
+  // Files wait in the composer (per chat, and per thread) until the user presses Send.
+  const stagingKey = (key: string, threadRoot?: string) => (threadRoot ? `${key}#${threadRoot}` : key);
   const stage = (key: string, items: Attachment[]) => setStaged((s) => ({ ...s, [key]: [...(s[key] ?? []), ...items] }));
   /** Makes a still for a staged video: shown in the tray and sent with it. */
   const addStill = (key: string, id: string, src: string) =>
@@ -518,15 +519,15 @@ export function App() {
       if (gone?.preview) URL.revokeObjectURL(gone.preview);
       return { ...s, [key]: (s[key] ?? []).filter((a) => a.id !== id) };
     });
-  const sendAttachments = async (key: string, items: Attachment[], caption: string) => {
-    setStaged((s) => ({ ...s, [key]: [] }));
+  const sendAttachments = async (key: string, items: Attachment[], caption: string, threadRoot?: string) => {
+    setStaged((s) => ({ ...s, [stagingKey(key, threadRoot)]: [] }));
     if (!isLive) return setNotice(t("desktopOnly.files"));
     try {
       for (const [i, a] of items.entries()) {
         // One caption for the batch, on the last file.
         const text = i === items.length - 1 && caption ? caption : null;
-        if (a.file) await backend.sendFileBytes(key, a.name, a.file.type || null, Array.from(new Uint8Array(await a.file.arrayBuffer())), text, a.thumb ?? null);
-        else if (a.path) await backend.sendFilePaths(key, [a.path], text, a.thumb ?? null);
+        if (a.file) await backend.sendFileBytes(key, a.name, a.file.type || null, Array.from(new Uint8Array(await a.file.arrayBuffer())), text, a.thumb ?? null, threadRoot ?? null);
+        else if (a.path) await backend.sendFilePaths(key, [a.path], text, a.thumb ?? null, threadRoot ?? null);
       }
     } catch (e) {
       setNotice(String(e));
@@ -575,7 +576,7 @@ export function App() {
         return void backend.setArchived(action.id, !conv?.archived).catch(report);
       }
       case "send": {
-        if (action.message.attachments?.length) return void sendAttachments(action.id, action.message.attachments, action.message.text);
+        if (action.message.attachments?.length) return void sendAttachments(action.id, action.message.attachments, action.message.text, action.message.threadRoot);
         // Shown at once (like WhatsApp), with ⏱ until the server has it.
         const txn = crypto.randomUUID();
         const me = [...(messagesRef.current[action.id] ?? [])].reverse().find((m) => m.fromMe && !m.system && !m.local);
@@ -729,7 +730,8 @@ export function App() {
               <ChatView conv={selected} messages={timeline(state, selected)} dispatch={act} onNotice={setNotice} focusMessage={focusMessage?.conversation === selected.id ? focusMessage.message : null}
                 onLoadOlder={(limit) => loadOlder(selected.id, limit)} onLoadThread={(root) => loadThread(selected.id, root)}
                 onCommand={(name, args) => runCommand(selected.id, name, args)} attachments={staged[selected.id] ?? []} upload={uploads[selected.id]} onPreview={(m) => setPreview({ conversation: selected.id, message: m })}
-                onPickFiles={() => pickFiles(selected.id)} onAddFiles={(files) => addFiles(selected.id, files)} onRemoveAttachment={(id) => removeStaged(selected.id, id)}
+                threadAttachments={(root) => staged[stagingKey(selected.id, root)] ?? []}
+                onPickFiles={(root) => pickFiles(stagingKey(selected.id, root))} onAddFiles={(files, root) => addFiles(stagingKey(selected.id, root), files)} onRemoveAttachment={(id, root) => removeStaged(stagingKey(selected.id, root), id)}
                 onAccept={() => acceptInvite(selected.id)} onDecline={() => declineInvite(selected.id)} onLeave={() => leaveChat(selected)} allConvs={state.convs} />
             ) : (
               <main className="chat-view empty-view"><p>{state.convs.length ? t("app.selectChat") : t("app.syncing")}</p></main>

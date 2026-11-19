@@ -373,14 +373,21 @@ impl MatrixAdapter {
         }
     }
 
-    async fn send_attachment(&self, conversation: &ConversationId, name: &str, mime: Option<&str>, data: Vec<u8>, caption: Option<&str>, thumb: Option<VideoThumb>) -> Result<()> {
+    #[allow(clippy::too_many_arguments)]
+    async fn send_attachment(&self, conversation: &ConversationId, name: &str, mime: Option<&str>, data: Vec<u8>, caption: Option<&str>, thumb: Option<VideoThumb>, thread: Option<&MessageId>) -> Result<()> {
         use matrix_sdk::attachment::{AttachmentConfig, AttachmentInfo, BaseVideoInfo, Thumbnail};
-        use matrix_sdk::ruma::events::room::message::TextMessageEventContent;
+        use matrix_sdk::room::reply::{EnforceThread, Reply};
+        use matrix_sdk::ruma::events::room::message::{AddMentions, ReplyWithinThread, TextMessageEventContent};
         use matrix_sdk::ruma::UInt;
 
         let mime: mime::Mime = mime.and_then(|m| m.parse().ok()).unwrap_or_else(|| mime_guess::from_path(name).first_or_octet_stream());
         // The SDK encrypts the upload (and the thumbnail) in encrypted rooms.
         let mut config = AttachmentConfig::new().caption(caption.filter(|c| !c.trim().is_empty()).map(TextMessageEventContent::markdown));
+        // In a thread: a thread message under its root (not a reply to the root itself).
+        if let Some(root) = thread {
+            let event_id = OwnedEventId::try_from(root.0.as_str()).map_err(err)?;
+            config = config.reply(Some(Reply { event_id, enforce_thread: EnforceThread::Threaded(ReplyWithinThread::No), add_mentions: AddMentions::No }));
+        }
         if let Some(t) = thumb.filter(|_| mime.type_() == mime::VIDEO) {
             config = config.info(AttachmentInfo::Video(BaseVideoInfo {
                 duration: Some(Duration::from_millis(t.duration_ms)),
@@ -776,12 +783,16 @@ impl ProtocolAdapter for MatrixAdapter {
     }
 
     async fn send_file(&self, conversation: &ConversationId, name: &str, mime: Option<&str>, data: Vec<u8>, caption: Option<&str>) -> Result<()> {
-        self.send_attachment(conversation, name, mime, data, caption, None).await
+        self.send_attachment(conversation, name, mime, data, caption, None, None).await
     }
 
     /// With a still (thumbnail), size and length, like Element sends videos.
     async fn send_video(&self, conversation: &ConversationId, name: &str, mime: Option<&str>, data: Vec<u8>, caption: Option<&str>, thumb: VideoThumb) -> Result<()> {
-        self.send_attachment(conversation, name, mime, data, caption, Some(thumb)).await
+        self.send_attachment(conversation, name, mime, data, caption, Some(thumb), None).await
+    }
+
+    async fn send_file_in_thread(&self, conversation: &ConversationId, root: &MessageId, name: &str, mime: Option<&str>, data: Vec<u8>, caption: Option<&str>, thumb: Option<VideoThumb>) -> Result<()> {
+        self.send_attachment(conversation, name, mime, data, caption, thumb, Some(root)).await
     }
 
     /// Sent like Element's voice messages (m.audio + the voice and waveform blocks).

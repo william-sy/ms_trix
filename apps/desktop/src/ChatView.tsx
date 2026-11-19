@@ -47,9 +47,12 @@ interface Props {
   upload?: UploadProgress;
   /** Quick preview of a message that isn't loaded (older search matches). */
   onPreview?: (message: string) => void;
-  onPickFiles: () => void;
-  onAddFiles: (files: File[]) => void;
-  onRemoveAttachment: (id: string) => void;
+  /** Files waiting in a thread's own composer. */
+  threadAttachments: (root: string) => Attachment[];
+  /** With `root`: for that thread's composer. */
+  onPickFiles: (root?: string) => void;
+  onAddFiles: (files: File[], root?: string) => void;
+  onRemoveAttachment: (id: string, root?: string) => void;
   onAccept: () => void;
   onDecline: () => void;
   onLeave: () => void;
@@ -59,7 +62,7 @@ interface Props {
   focusMessage?: string | null;
 }
 
-export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLoadThread, onCommand, attachments, onPickFiles, onAddFiles, onRemoveAttachment, onAccept, onDecline, onLeave, focusMessage, upload, onPreview, allConvs }: Props) {
+export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLoadThread, onCommand, attachments, threadAttachments, onPickFiles, onAddFiles, onRemoveAttachment, onAccept, onDecline, onLeave, focusMessage, upload, onPreview, allConvs }: Props) {
   const posts = conv.kind === "channel";
   const openProfile = useOpenProfile();
   // Send later: what's waiting here, and a scheduled message put back in the composer to edit.
@@ -535,7 +538,8 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
               <MessageItem key={m.id} m={m} account={conv.orgId} conversation={conv.id} grouped={i > 0 && all[i - 1]!.sender === m.sender} media={mediaUi.actions} {...localActions(m)} tick={tickOf(m)} />
             ))}
           </div>
-          <Composer key={threadId} placeholder={t("composer.threadPlaceholder")} onSend={(m) => send({ ...m, threadRoot: threadId })} onNotice={onNotice} getMembers={getMembers} />
+          <Composer key={threadId} placeholder={t("composer.threadPlaceholder")} onSend={(m) => send({ ...m, threadRoot: threadId })} onNotice={onNotice} getMembers={getMembers}
+            attachments={threadAttachments(threadId)} onPickFiles={() => onPickFiles(threadId)} onAddFiles={(files) => onAddFiles(files, threadId)} onRemoveAttachment={(id) => onRemoveAttachment(id, threadId)} />
         </aside>
       )}
 

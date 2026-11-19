@@ -276,7 +276,10 @@ export function Composer(p: Props) {
           ))}
           <span className="sep" />
           <button className="fmt" disabled title={t("composer.tableSoon")}>{t("composer.table")}</button>
-          <span className="soon-note">{currentSettings().enterSends ? t("composer.markdownHintEnter") : t("composer.markdownHint", { key: isMac ? "⌘" : "Ctrl" })}</span>
+          {(() => {
+            const hint = currentSettings().enterSends ? t("composer.markdownHintEnter") : t("composer.markdownHint", { key: isMac ? "⌘" : "Ctrl" });
+            return <span className="soon-note" title={hint}>{hint}</span>;
+          })()}
         </div>
       )}
       {attachments.length > 0 && (
