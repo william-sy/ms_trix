@@ -91,7 +91,8 @@ export function App() {
   // Everything shown in the notice bar gets common errors in plain words.
   const setNotice = useCallback((message: string | null) => setNoticeRaw(message && friendlyError(message)), []);
   const [query, setQuery] = useState("");
-  const [dragging, setDragging] = useState(false);
+  // Files being dragged over the window: onto the chat, or onto an open thread.
+  const [dragging, setDragging] = useState<false | "chat" | "thread">(false);
   // Conversation to open once it shows up (after /join or /query).
   const [pendingOpen, setPendingOpen] = useState<string | null>(null);
   const [staged, setStaged] = useState<Record<string, Attachment[]>>({});
@@ -345,17 +346,25 @@ export function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // Drop files anywhere on the window to send them to the open chat.
+  // Drop files anywhere on the window to send them to the open chat; over an open thread, into
+  // that thread's reply box.
   useEffect(() => {
     if (!isLive) return;
+    // The thread under a position (device pixels), looking underneath the drop overlay too.
+    const threadAt = (position: { x: number; y: number }) => {
+      const ratio = window.devicePixelRatio || 1;
+      return document.elementsFromPoint(position.x / ratio, position.y / ratio)
+        .map((el) => (el as HTMLElement).closest<HTMLElement>("[data-thread-root]")?.dataset.threadRoot).find(Boolean);
+    };
     const off = getCurrentWebview().onDragDropEvent((e) => {
       const p = e.payload;
-      if (p.type === "enter" || p.type === "over") setDragging(!!selectedRef.current);
+      if (p.type === "enter" || p.type === "over") setDragging(selectedRef.current ? (threadAt(p.position) ? "thread" : "chat") : false);
       else if (p.type === "leave") setDragging(false);
       else if (p.type === "drop") {
         setDragging(false);
         const key = selectedRef.current;
-        if (key && p.paths.length) backend.describeFiles(p.paths).then((files) => stagePaths(key, files)).catch((err) => setNotice(String(err)));
+        const root = threadAt(p.position);
+        if (key && p.paths.length) backend.describeFiles(p.paths).then((files) => stagePaths(stagingKey(key, root), files)).catch((err) => setNotice(String(err)));
       }
     });
     return () => { off.then((f) => f()); };
@@ -739,7 +748,7 @@ export function App() {
           </div>
         </div>
       </div>
-      {dragging && selected && <div className="drop-overlay">{t("app.dropToAttach", { name: selected.name })}</div>}
+      {dragging && selected && <div className="drop-overlay">{dragging === "thread" ? t("app.dropToThread") : t("app.dropToAttach", { name: selected.name })}</div>}
       {browse && <BrowseDialog orgId={browse.space ? browse.space.joined!.split("|")[0] : state.orgFilter === "all" ? undefined : state.orgFilter}
         initialSpace={browse.space} onClose={() => setBrowse(false)} onOpen={setPendingOpen} />}
       {verification && (

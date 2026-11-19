@@ -525,7 +525,8 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
       </main>
 
       {threadId && (
-        <aside className="thread-pane">
+        // Files dropped here go into this thread (see the drop handler in App).
+        <aside className="thread-pane" data-thread-root={threadId}>
           <header className="chat-head">
             <h2>{t("chatView.thread")}</h2>
             <span className="spacer" />

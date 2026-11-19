@@ -23,6 +23,7 @@
   "activity.replied": "replied in {room}",
   "activity.title": "Activity",
   "app.dropToAttach": "Drop to attach to {name}",
+  "app.dropToThread": "Drop to attach to the thread",
   "app.reconnectFailed": "Could not reconnect {user}: {error}",
   "app.selectChat": "Select a chat to start",
   "app.signOutConfirm": "Sign out of {user}? This removes the account and its local data from this device.",

@@ -10,8 +10,8 @@
 - Pictures shared in Nextcloud Talk showed as a question mark instead of the picture.
 - The format bar's buttons no longer break over two lines and its help text stays on one line
   (shortened with … when there's no room), also in the narrow thread reply box.
-- Pictures and files can be pasted or attached in a thread's reply box too; they go into the
-  thread.
+- Pictures and files can be pasted, attached or dropped (on the open thread) in a thread's reply
+  box too; they go into the thread.
 - Verifying someone by emoji could stay at "Waiting for … to accept" until it timed out: the
   room the verification runs in is now followed closely, so the other side's answers aren't
   cut short by sliding sync.

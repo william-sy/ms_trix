@@ -23,6 +23,7 @@
   "activity.replied": "antwoordde in {room}",
   "activity.title": "Activiteit",
   "app.dropToAttach": "Loslaten om toe te voegen aan {name}",
+  "app.dropToThread": "Loslaten om aan de thread toe te voegen",
   "app.reconnectFailed": "Kon {user} niet opnieuw verbinden: {error}",
   "app.selectChat": "Kies een chat om te beginnen",
   "app.signOutConfirm": "Afmelden bij {user}? Dit verwijdert het account en de lokale gegevens van dit apparaat.",
