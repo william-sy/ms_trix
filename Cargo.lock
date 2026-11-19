@@ -3718,6 +3718,7 @@ dependencies = [
  "tokio",
  "trix-core",
  "trix-matrix",
+ "trix-ntfy",
  "trix-search",
  "trix-talk",
  "url",
@@ -6908,6 +6909,20 @@ dependencies = [
  "tracing",
  "trix-core",
  "url",
+]
+
+[[package]]
+name = "trix-ntfy"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "futures",
+ "rand 0.9.5",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "trix-core",
 ]
 
 [[package]]

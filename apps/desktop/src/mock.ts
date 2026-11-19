@@ -5,6 +5,8 @@ export const capabilities: Record<Protocol, Capabilities> = {
   matrix: { teams: true, calls: false },
   // Talk has no spaces; calls open Talk's own call screen in a window.
   talk: { teams: false, calls: true },
+  // ntfy: topics to watch (and publish to); no calls, no teams.
+  ntfy: { teams: false, calls: false },
   xmpp: { teams: false, calls: false },
   irc: { teams: false, calls: false },
 };

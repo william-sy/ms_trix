@@ -8,9 +8,14 @@
   always, and never during do not disturb. By default just who and where ("New message"); the
   message text only if you turn that on. Works with ntfy.sh or your own server (access token
   kept in the keychain).
+- **Watch ntfy topics:** add ntfy as an account (Add account → ntfy) to follow topics from
+  ntfy.sh or your own server, for backups, servers or your own scripts. Each topic is a chat with
+  notifications (urgent ones even with "mentions only"); writing in it publishes to the topic.
+  Add more topics with New room; leave the chat to stop watching.
 - **Notes:** your Nextcloud Notes in the app (Notes in the left rail, when your Nextcloud has the
   Notes app): by category, favourites first, searchable; write in Markdown with a preview, saved
-  as you type. If a note was changed elsewhere meanwhile, you choose which version to keep.
+  as you type, with a format bar (⌘B / ⌘I) and a category filter. If a note was changed
+  elsewhere meanwhile, you choose which version to keep.
 
 ## 1.2 (2026-11-19)
 

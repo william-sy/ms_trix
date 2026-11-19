@@ -3,7 +3,7 @@ import { backend, type LoginMethods } from "./backend";
 import { t } from "./i18n";
 
 type Step = { kind: "server" } | { kind: "method"; methods: LoginMethods } | { kind: "sso"; methods: LoginMethods } | { kind: "talk" };
-type Protocol = "matrix" | "talk";
+type Protocol = "matrix" | "talk" | "ntfy";
 
 interface Props {
   /** Shown as a dialog over the app (adding a 2nd account) instead of full screen. */
@@ -18,6 +18,9 @@ export function Login({ dialog, onDone, onCancel }: Props) {
   const [server, setServer] = useState("matrix.org");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  // ntfy: the topics to watch, and an optional access token.
+  const [topics, setTopics] = useState("");
+  const [token, setToken] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,6 +38,12 @@ export function Login({ dialog, onDone, onCancel }: Props) {
 
   const discover = (e: FormEvent) => {
     e.preventDefault();
+    if (protocol === "ntfy") {
+      return run(async () => {
+        await backend.loginNtfy(server, topics.split(/[\s,]+/).filter(Boolean), token.trim() || null);
+        onDone();
+      });
+    }
     if (protocol === "talk") {
       // Nextcloud: straight to the browser (Login Flow v2).
       setStep({ kind: "talk" });
@@ -53,7 +62,7 @@ export function Login({ dialog, onDone, onCancel }: Props) {
 
   const pickProtocol = (p: Protocol) => {
     setProtocol(p);
-    setServer(p === "matrix" ? "matrix.org" : "");
+    setServer(p === "matrix" ? "matrix.org" : p === "ntfy" ? "https://ntfy.sh" : "");
     setError(null);
   };
 
@@ -85,18 +94,33 @@ export function Login({ dialog, onDone, onCancel }: Props) {
           <form onSubmit={discover}>
             <h1>{t("login.title")}</h1>
             <div className="segmented protocol-pick" role="radiogroup">
-              {(["matrix", "talk"] as Protocol[]).map((p) => (
+              {(["matrix", "talk", "ntfy"] as Protocol[]).map((p) => (
                 <button type="button" key={p} role="radio" aria-checked={protocol === p} className={protocol === p ? "on" : ""} onClick={() => pickProtocol(p)}>
                   {t(`login.protocol.${p}`)}
                 </button>
               ))}
             </div>
-            <p className="muted">{protocol === "talk" ? t("login.introTalk") : t("login.intro")}</p>
+            <p className="muted">{protocol === "talk" ? t("login.introTalk") : protocol === "ntfy" ? t("login.introNtfy") : t("login.intro")}</p>
             <label>
               {t("login.server")}
-              <input autoFocus value={server} onChange={(e) => setServer(e.target.value)} placeholder={protocol === "talk" ? t("login.talkPlaceholder") : t("login.serverPlaceholder")} />
+              <input autoFocus value={server} onChange={(e) => setServer(e.target.value)}
+                placeholder={protocol === "talk" ? t("login.talkPlaceholder") : protocol === "ntfy" ? "https://ntfy.sh" : t("login.serverPlaceholder")} />
             </label>
-            <button className="btn primary wide" disabled={busy || !server.trim()}>{busy ? t("login.checking") : t("login.continue")}</button>
+            {protocol === "ntfy" && (
+              <>
+                <label>
+                  {t("login.ntfyTopics")}
+                  <input value={topics} onChange={(e) => setTopics(e.target.value)} placeholder={t("login.ntfyTopicsPlaceholder")} />
+                </label>
+                <label>
+                  {t("login.ntfyToken")}
+                  <input type="password" value={token} onChange={(e) => setToken(e.target.value)} placeholder={t("login.ntfyTokenPlaceholder")} autoComplete="off" />
+                </label>
+              </>
+            )}
+            <button className="btn primary wide" disabled={busy || !server.trim() || (protocol === "ntfy" && !topics.trim())}>
+              {busy ? t("login.checking") : protocol === "ntfy" ? t("login.ntfyAdd") : t("login.continue")}
+            </button>
           </form>
         );
       case "method": {

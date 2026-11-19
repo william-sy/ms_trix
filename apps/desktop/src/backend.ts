@@ -513,6 +513,8 @@ export const backend = {
   loginSso: (homeserver: string, identityProvider: string | null) => invoke<AccountWire>("login_sso", { homeserver, identityProvider }),
   loginOauth: (homeserver: string) => invoke<AccountWire>("login_oauth", { homeserver }),
   loginTalk: (server: string) => invoke<AccountWire>("login_talk", { server }),
+  /** ntfy: watch these topics on the server; the token is optional. */
+  loginNtfy: (server: string, topics: string[], token: string | null) => invoke<AccountWire>("login_ntfy", { server, topics, token }),
   signOut: (account: string) => invoke<void>("sign_out", { account }),
   /** Resolves to the new message's id. */
   send: (key: string, m: Outgoing) =>

@@ -36,6 +36,9 @@
 - [x] ntfy add-on (Settings → Notifications): notifications also to an ntfy topic (ntfy.sh or your
       own server), only while away (auto-away idle time) or always, never during do not disturb;
       without the message text unless you turn it on; access token in the keychain; test button
+- [x] ntfy as an account (Add account → ntfy): watch topics on ntfy.sh or your own server; each
+      topic is a room with notifications (priority 4–5 count as mentions), writing in it publishes;
+      New room adds a topic, leaving stops watching; one streaming connection, resumes after drops
 - [x] Nextcloud Notes (rail → Notes, for Nextcloud accounts with the Notes app): list by category
       with favourites and search, Markdown editor with preview, saves as you type; a change made
       elsewhere in between isn't overwritten (keep mine / load theirs)

@@ -33,6 +33,8 @@ export function NewChatDialog({ orgId, initialMode = "chat", team, onClose, onOp
   const [alias, setAlias] = useState("");
   const [account, setAccount] = useState(team?.account ?? (orgs.some((o) => o.id === orgId) ? orgId! : orgs[0]?.id ?? ""));
   const isMatrix = orgs.find((o) => o.id === account)?.protocol === "matrix";
+  // ntfy: a "room" is a topic to watch.
+  const isNtfy = orgs.find((o) => o.id === account)?.protocol === "ntfy";
   const [term, setTerm] = useState("");
   const [results, setResults] = useState<Member[]>([]);
   const [picked, setPicked] = useState<Member[]>([]);
@@ -92,7 +94,7 @@ export function NewChatDialog({ orgId, initialMode = "chat", team, onClose, onOp
       <div className="login-card new-chat">
         <button className="icon-btn close" onClick={onClose} title={t("common.closeEsc")}>✕</button>
         <h1>{formTitle}</h1>
-        {mode !== "team" && !team && (
+        {mode !== "team" && !team && !isNtfy && (
           <div className="segmented" role="radiogroup">
             {(["chat", "room"] as const).map((m) => (
               <button key={m} role="radio" aria-checked={mode === m} className={mode === m ? "on" : ""} onClick={() => setMode(m)}>{t(`newChat.mode.${m}`)}</button>
@@ -109,6 +111,16 @@ export function NewChatDialog({ orgId, initialMode = "chat", team, onClose, onOp
           </label>
         )}
 
+        {isNtfy ? (
+          <>
+            <label>
+              {t("newRoom.ntfyTopic")}
+              <input autoFocus value={roomName} onChange={(e) => setRoomName(e.target.value.replace(/[^A-Za-z0-9_-]/g, ""))} placeholder={t("newRoom.ntfyPlaceholder")} />
+            </label>
+            <p className="hint">{t("newRoom.ntfyHint")}</p>
+            <button className="btn primary wide" disabled={busy || !roomName} onClick={createRoom}>{busy ? t("newChat.starting") : t("newRoom.ntfyWatch")}</button>
+          </>
+        ) : (<>
         {(mode === "room" || mode === "team") && (
           <>
             <label>
@@ -198,6 +210,7 @@ export function NewChatDialog({ orgId, initialMode = "chat", team, onClose, onOp
           </button>
         )}
         {mode === "chat" && <p className="hint">{t("newChat.hint")}</p>}
+        </>)}
         {error && <p className="error">{error}</p>}
       </div>
     </div>

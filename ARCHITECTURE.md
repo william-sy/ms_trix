@@ -8,7 +8,7 @@ Licensed GPL-3.0-or-later.
 | Topic | Decision |
 |---|---|
 | Core protocol | Matrix first; other networks via mautrix bridges |
-| Other protocols | Adapters implementing `trix_core::ProtocolAdapter`: Nextcloud Talk now; Zulip and Mattermost next (see ROADMAP.md); XMPP and IRC skipped |
+| Other protocols | Adapters implementing `trix_core::ProtocolAdapter`: Nextcloud Talk and ntfy now; Zulip and Mattermost next (see ROADMAP.md); XMPP and IRC skipped |
 | Multi-org | One signed-in account = one org. All accounts sync simultaneously |
 | Rail items | Driven by protocol capabilities: Teams = Matrix spaces; Calls = Matrix 1:1 and Talk calls (Matrix group calls wait for MatrixRTC); Calendar = Nextcloud over CalDAV |
 | Org switching | Org switcher in the top tile of the app rail (where Teams shows the org logo); "All organizations" combined view; ⌘0 / ⌘1-9 |
@@ -22,7 +22,8 @@ Licensed GPL-3.0-or-later.
 crates/
   trix-core/      protocol-agnostic model, adapter trait, unread state machine
   trix-matrix/    Matrix adapter (matrix-sdk 0.19, sliding sync with classic fallback)
-  trix-talk/      Nextcloud Talk adapter (OCS REST, Login Flow v2, polling, CalDAV)
+  trix-talk/      Nextcloud Talk adapter (OCS REST, Login Flow v2, polling, CalDAV, Notes)
+  trix-ntfy/      ntfy adapter: topics as rooms, one streaming JSON connection, publish
   trix-search/    encrypted local full-text index (all history, the Shared tab)
   trix-zulip/     Zulip adapter                               [next]
   trix-mattermost/ Mattermost adapter                         [next]

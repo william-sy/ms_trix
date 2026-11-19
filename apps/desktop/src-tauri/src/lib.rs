@@ -716,6 +716,13 @@ async fn login_talk(app: AppHandle, server: String) -> CmdResult<Account> {
     finish_login(&app, result).await
 }
 
+/// ntfy: watch topics on a server (ntfy.sh or your own), with an optional access token.
+#[tauri::command]
+async fn login_ntfy(app: AppHandle, server: String, topics: Vec<String>, token: Option<String>) -> CmdResult<Account> {
+    let result = trix_ntfy::login(&server, &topics, token.as_deref()).await;
+    finish_login(&app, result).await
+}
+
 #[tauri::command]
 async fn sign_out(app: AppHandle, account: String) -> CmdResult<()> {
     let account = AccountId(account);
@@ -2125,6 +2132,7 @@ async fn restore_all(app: AppHandle) {
             let blob = accounts::session(&account.id)?;
             let adapter: Arc<dyn ProtocolAdapter> = match account.protocol.0.as_str() {
                 trix_talk::PROTOCOL => trix_talk::TalkAdapter::restore(account.clone(), &blob).map_err(|e| e.to_string())?,
+                trix_ntfy::PROTOCOL => trix_ntfy::NtfyAdapter::restore(account.clone(), &blob).map_err(|e| e.to_string())?,
                 _ => MatrixAdapter::restore(&data_dir, account.clone(), &blob).await.map_err(|e| e.to_string())?,
             };
             start(app.clone(), adapter).await
@@ -2242,6 +2250,7 @@ pub fn run() {
             login_password,
             login_sso,
             login_talk,
+            login_ntfy,
             sign_out,
             conversations,
             teams,

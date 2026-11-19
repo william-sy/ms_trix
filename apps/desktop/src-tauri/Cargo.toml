@@ -27,6 +27,7 @@ tauri-plugin-log = "2"
 trix-core = { path = "../../../crates/trix-core" }
 trix-matrix = { path = "../../../crates/trix-matrix" }
 trix-talk = { path = "../../../crates/trix-talk" }
+trix-ntfy = { path = "../../../crates/trix-ntfy" }
 trix-search = { path = "../../../crates/trix-search" }
 rand = "0.9"
 # Same version trix-matrix uses; content type of picked files.

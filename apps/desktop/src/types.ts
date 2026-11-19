@@ -1,7 +1,7 @@
 // Mirrors trix-core's model. Replaced by Tauri commands once the core is wired up.
 import type { RoomEvent } from "./roomEvents";
 
-export type Protocol = "matrix" | "talk" | "xmpp" | "irc";
+export type Protocol = "matrix" | "talk" | "ntfy" | "xmpp" | "irc";
 
 /** Subset of trix-core's Capabilities that drives the UI chrome. */
 export interface Capabilities {
