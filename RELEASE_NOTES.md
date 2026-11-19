@@ -1,6 +1,6 @@
 # Release notes
 
-## 1.2 (not released yet)
+## 1.2 (2026-11-19)
 
 ### New
 - **Do not disturb** (account menu): no notifications or sounds for 30 minutes, 1 or 2 hours,
