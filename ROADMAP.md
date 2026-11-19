@@ -17,7 +17,8 @@
 1.2 (in progress):
 - [x] Do not disturb until a chosen time (account menu): no notifications or sounds; calls and
       reminders still show, silently; you show as busy, with when it ends as your status
-- [ ] #hashtags highlighted and clickable: every message with that tag, in this chat or all chats
+- [x] #hashtags highlighted and clickable: every message with that tag, in this chat or all chats;
+      searching "#tag" only finds that tag (not the word elsewhere)
 - [ ] Link previews (fetched by the app itself, not the homeserver; setting to turn them off),
       with a phishing check on this computer only: link text vs. destination, lookalike and
       mixed-script domains, URL tricks (user@host, IP addresses), where redirects really lead

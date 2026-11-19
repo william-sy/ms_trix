@@ -806,6 +806,9 @@ mark { background: rgba(255, 196, 0, 0.45); color: inherit; border-radius: 2px; 
 .login-card.context-dialog { width: min(620px, 100%); max-height: calc(100vh - 80px); display: flex; flex-direction: column; }
 .context-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; margin: 8px 0; }
 .context-msg { display: flex; gap: 10px; padding: 6px 8px; border-radius: 6px; }
+.hashtag { color: var(--accent); text-decoration: none; cursor: pointer; }
+.hashtag:hover { text-decoration: underline; }
+.hashtag-dialog .segmented { align-self: flex-start; margin-top: 4px; }
 .context-msg.target { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
 .context-body { flex: 1; min-width: 0; font-size: 13px; }
 .context-meta { display: block; font-size: 12px; margin-bottom: 2px; }

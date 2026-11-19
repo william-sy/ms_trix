@@ -688,3 +688,49 @@ pub struct VideoThumb {
     pub video_height: u32,
     pub duration_ms: u64,
 }
+
+/// The #hashtags in a text, lowercased, without the #. Room addresses (#room:server), the part of
+/// a link after # (…/page#part) and numbers alone (#2) aren't tags.
+pub fn hashtags(text: &str) -> Vec<String> {
+    let chars: Vec<char> = text.chars().collect();
+    let tag_char = |c: char| c.is_alphanumeric() || c == '_' || c == '-';
+    let mut out: Vec<String> = vec![];
+    let mut i = 0;
+    while i < chars.len() {
+        let starts = chars[i] == '#' && (i == 0 || !(chars[i - 1].is_alphanumeric() || matches!(chars[i - 1], '#' | '&' | '/' | '_')));
+        if !starts {
+            i += 1;
+            continue;
+        }
+        let start = i + 1;
+        let mut end = start;
+        while end < chars.len() && tag_char(chars[end]) {
+            end += 1;
+        }
+        let room = chars.get(end) == Some(&':') && chars.get(end + 1).is_some_and(|c| c.is_alphanumeric());
+        // A dash at the end is punctuation ("#planning-").
+        let mut last = end;
+        while last > start && chars[last - 1] == '-' {
+            last -= 1;
+        }
+        let tag: String = chars[start..last].iter().collect::<String>().to_lowercase();
+        if !room && tag.chars().count() >= 2 && tag.chars().any(char::is_alphabetic) && !out.contains(&tag) {
+            out.push(tag);
+        }
+        i = end.max(start);
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::hashtags;
+
+    #[test]
+    fn finds_tags_but_not_rooms_links_or_numbers() {
+        assert_eq!(hashtags("Plan for #Q3 and #budget-2027, see #planning."), ["q3", "budget-2027", "planning"]);
+        assert_eq!(hashtags("join #team:surf.nl or https://x.nl/page#part"), Vec::<String>::new());
+        assert_eq!(hashtags("issue #12, colour#fff, ##double, #a"), Vec::<String>::new());
+        assert_eq!(hashtags("#vergadering: morgen #Vergadering"), ["vergadering"]);
+    }
+}

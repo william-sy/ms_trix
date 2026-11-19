@@ -37,6 +37,7 @@ import { CallsPane } from "./CallsPane";
 import { CalendarPane } from "./CalendarPane";
 import { MeetingReminder } from "./MeetingReminder";
 import { ContextDialog } from "./ContextDialog";
+import { HashtagContext, HashtagPanel } from "./Hashtags";
 import { ImageCropper } from "./ImageCropper";
 import { VerificationDialog } from "./VerificationDialog";
 import { RoomLinkContext, type OpenRoomLink } from "./roomLinks";
@@ -371,6 +372,8 @@ export function App() {
   };
   // A result that isn't loaded yet opens as a quick preview first; paging back to it can take a while.
   const [preview, setPreview] = useState<{ conversation: string; message: string } | null>(null);
+  // A #hashtag clicked in a message: the messages that use it.
+  const [hashtag, setHashtag] = useState<string | null>(null);
   const openMessage = (conversation: string, message: string) =>
     isLive && !(state.messages[conversation] ?? []).some((m) => m.id === message) ? setPreview({ conversation, message }) : showInChat(conversation, message);
   // A room link: open the room (at the linked message) if we're in it, else offer to join.
@@ -579,6 +582,7 @@ export function App() {
     <OrgsContext.Provider value={state.orgs.map((o) => ({ ...o, color: settings.orgColors[o.id] ?? o.color, ...shownPresence[o.id], ...(autoAway.has(o.id) ? { presence: "away" as const } : {}) }))}>
     <ProfileContext.Provider value={openProfile}>
     <RoomLinkContext.Provider value={openRoomLink}>
+    <HashtagContext.Provider value={setHashtag}>
     <CallsContext.Provider value={calls}>
     <TalkCallsContext.Provider value={talkCalls}>
     <KeyHelpContext.Provider value={(orgId) => {
@@ -663,6 +667,7 @@ export function App() {
           onCrop={(png) => (cropFor.kind === "me" ? backend.setAvatar(cropFor.account, png)
             : cropFor.kind === "room" ? backend.setRoomAvatar(cropFor.key, png) : backend.setRoomMemberAvatar(cropFor.key, png))} />
       )}
+      {hashtag && <HashtagPanel tag={hashtag} conversation={selected?.id} conversationName={selected?.name} onOpen={openMessage} onClose={() => setHashtag(null)} />}
       {preview && (
         <ContextDialog {...preview} title={state.convs.find((c) => c.id === preview.conversation)?.name ?? ""}
           onClose={() => setPreview(null)} onShowInChat={() => { setPreview(null); showInChat(preview.conversation, preview.message); }} />
@@ -698,6 +703,7 @@ export function App() {
       )}
     </TalkCallsContext.Provider>
     </CallsContext.Provider>
+    </HashtagContext.Provider>
     </RoomLinkContext.Provider>
     </ProfileContext.Provider>
     </OrgsContext.Provider>

@@ -6,6 +6,8 @@
 - **Do not disturb** (account menu): no notifications or sounds for 30 minutes, 1 or 2 hours,
   the rest of the day, until a time you choose, or until you turn it off. Calls and meeting
   reminders still show, silently. You show as busy, with when it ends as your status.
+- **#hashtags:** tags in messages are highlighted; click one to see every message with that tag,
+  in this chat or in all chats. Searching for "#tag" finds only that tag.
 
 ## 1.1 (2026-11-18)
 

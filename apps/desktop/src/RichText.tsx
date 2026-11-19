@@ -1,6 +1,7 @@
 import DOMPurify from "dompurify";
 import { useMemo, type MouseEvent, type ReactNode } from "react";
 import { backend, isLive, mediaUrl } from "./backend";
+import { useOpenHashtag } from "./Hashtags";
 import { useOpenProfile } from "./Profile";
 import { parseRoomLink, useOpenRoomLink } from "./roomLinks";
 import { t } from "./i18n";
@@ -52,6 +53,29 @@ function sanitize(html: string, account: string): string {
     if (url && img.hasAttribute("data-mx-emoticon")) img.setAttribute("data-mxc", src); // for "add to my emoji"
     else img.remove();
   }
+  // #hashtags open the messages that use them (not inside links or code).
+  const texts: Text[] = [];
+  const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) if (!n.parentElement?.closest("a, code, pre")) texts.push(n as Text);
+  for (const node of texts) {
+    const value = node.nodeValue ?? "";
+    const found = [...value.matchAll(HASHTAG_RE)];
+    if (!found.length) continue;
+    const parts = doc.createDocumentFragment();
+    let at = 0;
+    for (const m of found) {
+      parts.append(value.slice(at, m.index));
+      const a = doc.createElement("a");
+      a.className = "hashtag";
+      a.setAttribute("href", "#");
+      a.dataset.tag = m[1]!.toLowerCase();
+      a.textContent = m[0];
+      parts.append(a);
+      at = m.index! + m[0].length;
+    }
+    parts.append(value.slice(at));
+    node.replaceWith(parts);
+  }
   for (const el of root.querySelectorAll("[data-mx-color], [data-mx-bg-color], font[color]")) {
     const color = el.getAttribute("data-mx-color") ?? el.getAttribute("color");
     const bg = el.getAttribute("data-mx-bg-color");
@@ -61,8 +85,13 @@ function sanitize(html: string, account: string): string {
   return root.innerHTML;
 }
 
-// Web links, plus bare room addresses like #room:server.org (turned into matrix.to links).
-const URL_RE = /\b(https?:\/\/[^\s<]+[^\s<.,:;"')\]!?])|(?<![\w#])(#[\w.=-]+:[\w-]+(?:\.[\w-]+)+)/g;
+// A #hashtag, by the same rule as the core's (trix_core::hashtags): not inside a word or link, at
+// least two characters with a letter among them, and not a room address (#room:server).
+const HASHTAG = String.raw`(?<![\p{L}\p{N}_#&/])#((?=[\p{N}_-]*\p{L})[\p{L}\p{N}_][\p{L}\p{N}_-]*[\p{L}\p{N}_])(?!-*[\p{L}\p{N}_]|:[\p{L}\p{N}])`;
+const HASHTAG_RE = new RegExp(HASHTAG, "gu");
+
+// Web links, bare room addresses like #room:server.org (turned into matrix.to links), hashtags.
+const URL_RE = new RegExp(String.raw`\b(https?:\/\/[^\s<]+[^\s<.,:;"')\]!?])|(?<![\w#])(#[\w.=-]+:[\w-]+(?:\.[\w-]+)+)|` + HASHTAG, "gu");
 
 function highlight(text: string, query: string | undefined, key: string): ReactNode[] {
   if (!query) return [text];
@@ -81,15 +110,17 @@ function highlight(text: string, query: string | undefined, key: string): ReactN
 
 /** Plain text with clickable links and optional search highlighting. */
 function PlainText({ text, query }: { text: string; query?: string }) {
-  // split() puts the two capture groups after each text part: [text, url, room, text, …].
+  // split() puts the capture groups after each text part: [text, url, room, tag, text, …].
   const parts = text.split(URL_RE);
   const out: ReactNode[] = [];
-  for (let i = 0; i < parts.length; i += 3) {
+  for (let i = 0; i < parts.length; i += 4) {
     if (parts[i]) out.push(<span key={i}>{highlight(parts[i]!, query, `t${i}`)}</span>);
     const url = parts[i + 1];
     const room = parts[i + 2];
+    const tag = parts[i + 3];
     if (url) out.push(<a key={`l${i}`} href={url}>{highlight(url, query, `l${i}`)}</a>);
     if (room) out.push(<a key={`r${i}`} className="mention" href={`https://matrix.to/#/${encodeURIComponent(room)}`}>{highlight(room, query, `r${i}`)}</a>);
+    if (tag) out.push(<a key={`h${i}`} className="hashtag" href="#" data-tag={tag.toLowerCase()}>{highlight(`#${tag}`, query, `h${i}`)}</a>);
   }
   return <>{out}</>;
 }
@@ -99,6 +130,7 @@ export function RichText({ body, html, account, query }: { body: string; html?: 
   const safe = useMemo(() => (html ? sanitize(html, account) : null), [html, account]);
   const openProfile = useOpenProfile();
   const openRoomLink = useOpenRoomLink();
+  const openHashtag = useOpenHashtag();
   const onLinkClick = (e: MouseEvent) => {
     // Someone's custom emoji: offer to add it to your own pack.
     const emote = (e.target as HTMLElement).closest("img[data-mx-emoticon]") as HTMLImageElement | null;
@@ -117,6 +149,7 @@ export function RichText({ body, html, account, query }: { body: string; html?: 
     const a = (e.target as HTMLElement).closest("a");
     if (!a) return;
     e.preventDefault();
+    if (a.classList.contains("hashtag")) return openHashtag(a.dataset.tag ?? "");
     const href = a.getAttribute("href") ?? "";
     // User mentions open the profile card; room links open (or offer to join) the room.
     const user = /^https:\/\/matrix\.to\/#\/(@[^/?]+)/.exec(href)?.[1];

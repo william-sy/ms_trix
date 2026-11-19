@@ -249,9 +249,10 @@ impl SearchIndex {
     }
 
     /// Newest first. Every word of `query` must start a word in the message
-    /// (words of one or two letters must match whole).
+    /// (words of one or two letters must match whole); a #hashtag in it only matches that tag.
     pub fn search(&self, query: &str, conversation: Option<&str>, limit: usize) -> Result<Vec<Doc>> {
         let terms: Vec<String> = words(query).collect::<HashSet<_>>().into_iter().collect();
+        let tags = trix_core::hashtags(query);
         if terms.is_empty() || limit == 0 {
             return Ok(vec![]);
         }
@@ -264,8 +265,9 @@ impl SearchIndex {
             values.push(self.hash("conv", conversation));
             sql.push_str(&format!(" AND conv = ?{}", values.len()));
         }
-        // Over-fetch a little: candidates that only share a long prefix are dropped below.
-        sql.push_str(&format!(" ORDER BY ts DESC LIMIT {}", limit * 3));
+        // Over-fetch: candidates that only share a long prefix (or have the word but not the tag)
+        // are dropped below.
+        sql.push_str(&format!(" ORDER BY ts DESC LIMIT {}", limit * if tags.is_empty() { 3 } else { 10 }));
         let db = self.db.lock().unwrap();
         let mut stmt = db.prepare(&sql)?;
         let rows = stmt.query_map(params_from_iter(values), |r| r.get::<_, Vec<u8>>(0))?;
@@ -273,7 +275,11 @@ impl SearchIndex {
         for row in rows {
             let Ok(doc) = self.cipher.decrypt_value::<Doc>(&row?) else { continue };
             let body_words: Vec<String> = words(&doc.body).collect();
-            if terms.iter().all(|t| body_words.iter().any(|w| term_matches(w, t))) {
+            let tagged = tags.is_empty() || {
+                let found = trix_core::hashtags(&doc.body);
+                tags.iter().all(|t| found.contains(t))
+            };
+            if tagged && terms.iter().all(|t| body_words.iter().any(|w| term_matches(w, t))) {
                 out.push(doc);
                 if out.len() == limit {
                     break;

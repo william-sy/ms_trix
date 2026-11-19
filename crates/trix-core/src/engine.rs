@@ -761,16 +761,22 @@ impl Engine {
         if q.chars().count() < 2 {
             return vec![];
         }
+        // "#tag" finds that hashtag only, not the word inside other tags or plain text.
+        let tags = crate::model::hashtags(&q);
         let mut hits: Vec<SearchHit> = self
             .convs
             .iter()
             .filter_map(|(id, e)| e.conv.as_ref().map(|c| (id, e, c)))
             .flat_map(|(id, e, c)| {
                 let q = q.clone();
+                let tags = tags.clone();
                 e.messages.iter().filter_map(move |m| {
                     let text = m.body.plain_text();
                     let lower = text.to_lowercase();
                     let at = lower.find(&q)?;
+                    if !tags.is_empty() && !tags.iter().all(|t| crate::model::hashtags(&text).contains(t)) {
+                        return None;
+                    }
                     Some(SearchHit {
                         conversation: id.key(),
                         conversation_name: c.name.clone(),
