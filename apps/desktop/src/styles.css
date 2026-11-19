@@ -629,6 +629,9 @@ mark { background: rgba(255, 196, 0, 0.45); color: inherit; border-radius: 2px; 
 .settings .toggle-row span { flex: 1; }
 .settings .field-row { display: flex; flex-direction: row; align-items: center; gap: 10px; font-size: 14px; color: var(--text); }
 .settings .field-row select { width: auto; }
+.settings .ntfy .field-row > span:first-child { flex: 0 0 110px; }
+.settings .ntfy .field-row input { flex: 1; min-width: 0; }
+.ntfy-test { display: flex; align-items: center; gap: 10px; }
 .shortcut-list { margin: 0; }
 .shortcut-list > div { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-top: 1px solid var(--border); }
 .shortcut-list > div:first-child { border-top: none; }

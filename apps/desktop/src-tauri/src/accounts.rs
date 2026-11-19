@@ -74,3 +74,19 @@ pub fn remove(data_dir: &Path, account: &AccountId) -> Result<(), String> {
     let _ = std::fs::remove_dir_all(data_dir.join("accounts").join(&account.0));
     Ok(())
 }
+
+/// The ntfy access token (ntfy add-on), if one is saved.
+pub fn ntfy_token() -> Option<String> {
+    keyring::Entry::new(KEYCHAIN_SERVICE, "ntfy-token").ok()?.get_password().ok()
+}
+
+pub fn set_ntfy_token(token: Option<&str>) -> Result<(), String> {
+    let entry = keyring::Entry::new(KEYCHAIN_SERVICE, "ntfy-token").map_err(|e| e.to_string())?;
+    match token {
+        Some(token) => entry.set_password(token).map_err(|e| e.to_string()),
+        None => match entry.delete_credential() {
+            Err(keyring::Error::NoEntry) | Ok(()) => Ok(()),
+            Err(e) => Err(e.to_string()),
+        },
+    }
+}

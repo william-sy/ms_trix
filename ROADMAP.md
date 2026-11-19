@@ -14,7 +14,7 @@
   once certificates are sorted (Apple fee waiver for education, GÉANT TCS / SignPath for Windows)
 
 ## Next versions (ideas from 2026-11-19)
-1.2 (in progress):
+1.2 (released 2026-11-19):
 - [x] Do not disturb until a chosen time (account menu): no notifications or sounds; calls and
       reminders still show, silently; you show as busy, with when it ends as your status
 - [x] #hashtags highlighted and clickable: every message with that tag, in this chat or all chats;
@@ -32,9 +32,10 @@
       the app was closed goes out at start. Waiting messages show at the bottom of the chat with
       Send now / Edit / Delete; kept encrypted on disk like the search index. Not for files
 
-1.3 (candidates):
-- [ ] ntfy add-on: forward notifications to an ntfy topic (a webhook), e.g. to your phone while
-      you're away from the computer
+1.3 (in progress):
+- [x] ntfy add-on (Settings → Notifications): notifications also to an ntfy topic (ntfy.sh or your
+      own server), only while away (auto-away idle time) or always, never during do not disturb;
+      without the message text unless you turn it on; access token in the keychain; test button
 - [ ] Nextcloud Notes, if the account's Nextcloud has the Notes app (its REST API)
 - [ ] Phishing check against a downloaded list of known phishing sites (e.g. OpenPhish), checked
       locally, if the built-in checks turn out too limited

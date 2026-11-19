@@ -44,6 +44,8 @@ export interface Settings {
   spellCheck: boolean;
   /** Minutes without input before "available" shows as away; 0 = never. */
   awayAfter: number;
+  /** ntfy add-on: notifications also to an ntfy topic (your phone), e.g. while you're away. */
+  ntfy: { enabled: boolean; server: string; topic: string; when: "away" | "always"; includeText: boolean };
   /** Previews under messages with a link, fetched by the app itself. */
   linkPreviews: boolean;
   /** Do not disturb until this time (ms; DND_FOREVER: until switched off), or off. */
@@ -104,6 +106,7 @@ const defaults: Settings = {
   awayAfter: 5,
   dndUntil: null,
   linkPreviews: true,
+  ntfy: { enabled: false, server: "https://ntfy.sh", topic: "", when: "away", includeText: false },
   shortcuts: {},
   orgColors: {},
   micId: null,
@@ -129,7 +132,7 @@ export const currentSettings = () => current;
 export function loadSettings(): Settings {
   try {
     const stored = JSON.parse(localStorage.getItem(KEY) ?? "{}");
-    return { ...defaults, ...stored, notify: { ...defaults.notify, ...stored.notify }, sounds: { ...defaults.sounds, ...stored.sounds }, shortcuts: { ...stored.shortcuts }, orgColors: { ...stored.orgColors }, deviceLabels: { ...stored.deviceLabels }, colors: { ...stored.colors } };
+    return { ...defaults, ...stored, notify: { ...defaults.notify, ...stored.notify }, sounds: { ...defaults.sounds, ...stored.sounds }, shortcuts: { ...stored.shortcuts }, orgColors: { ...stored.orgColors }, deviceLabels: { ...stored.deviceLabels }, colors: { ...stored.colors }, ntfy: { ...defaults.ntfy, ...stored.ntfy } };
   } catch {
     return defaults;
   }

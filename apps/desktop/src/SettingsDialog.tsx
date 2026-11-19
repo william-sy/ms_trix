@@ -457,8 +457,58 @@ function Notifications({ settings, set }: Section) {
         <RingtoneRow field="ringtone" settings={settings} set={set} />
         <RingtoneRow field="reminderSound" settings={settings} set={set} />
       </section>
+      <NtfySection settings={settings} set={set} />
       <p className="hint">{t("settings.notify.perChat")}</p>
     </>
+  );
+}
+
+/** A long random topic name: on ntfy.sh anyone who knows a topic can read it. */
+const randomTopic = () => `ms_trix-${Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => (b % 36).toString(36)).join("")}`;
+
+/** ntfy add-on: notifications also to an ntfy topic (the ntfy app on your phone), e.g. while you're away. */
+function NtfySection({ settings, set }: Section) {
+  const ntfy = settings.ntfy;
+  const update = (patch: Partial<Settings["ntfy"]>) => set({ ntfy: { ...ntfy, ...patch } });
+  const [token, setToken] = useState("");
+  const [hasToken, setHasToken] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+  useEffect(() => { if (isLive) void backend.hasNtfyToken().then(setHasToken).catch(() => {}); }, []);
+  const saveToken = (value: string | null) => backend.setNtfyToken(value).then(() => { setToken(""); setHasToken(!!value); }, (e) => setStatus(String(e)));
+  return (
+    <section className="ntfy">
+      <h2>{t("settings.ntfy.title")}</h2>
+      <label className="toggle-row">
+        <input type="checkbox" checked={ntfy.enabled} onChange={(e) => update({ enabled: e.target.checked, topic: ntfy.topic || randomTopic() })} />
+        <span>{t("settings.ntfy.enable")}</span>
+      </label>
+      <p className="hint">{t("settings.ntfy.hint")}</p>
+      {ntfy.enabled && (
+        <>
+          <label className="field-row"><span>{t("settings.ntfy.server")}</span>
+            <input value={ntfy.server} placeholder="https://ntfy.sh" onChange={(e) => update({ server: e.target.value.trim() })} /></label>
+          <label className="field-row"><span>{t("settings.ntfy.topic")}</span>
+            <input value={ntfy.topic} onChange={(e) => update({ topic: e.target.value.replace(/[^A-Za-z0-9_-]/g, "") })} />
+            <button type="button" className="btn small" onClick={() => update({ topic: randomTopic() })}>{t("settings.ntfy.newTopic")}</button></label>
+          <p className="hint">{t("settings.ntfy.topicHint")}</p>
+          <label className="field-row"><span>{t("settings.ntfy.token")}</span>
+            <input type="password" value={token} placeholder={hasToken ? t("settings.ntfy.tokenSaved") : t("settings.ntfy.tokenNone")} onChange={(e) => setToken(e.target.value)} />
+            <button type="button" className="btn small" disabled={!token.trim()} onClick={() => void saveToken(token)}>{t("common.save")}</button>
+            {hasToken && <button type="button" className="btn small" onClick={() => void saveToken(null)}>{t("common.remove")}</button>}</label>
+          <Segmented value={ntfy.when} options={["away", "always"] as const} label={(v) => t(`settings.ntfy.when.${v}`)} onPick={(when) => update({ when })} />
+          <label className="toggle-row">
+            <input type="checkbox" checked={ntfy.includeText} onChange={(e) => update({ includeText: e.target.checked })} />
+            <span>{t("settings.ntfy.includeText")}</span>
+          </label>
+          <p className="hint">{t("settings.ntfy.includeTextHint")}</p>
+          <div className="ntfy-test">
+            <button type="button" className="btn small" disabled={!isLive || !ntfy.topic}
+              onClick={() => { setStatus(null); backend.testNtfy().then(() => setStatus(t("settings.ntfy.testSent")), (e) => setStatus(String(e))); }}>{t("settings.ntfy.test")}</button>
+            {status && <span className="muted">{status}</span>}
+          </div>
+        </>
+      )}
+    </section>
   );
 }
 

@@ -15,6 +15,8 @@ const ENGLISH: &[(&str, &str)] = &[
     ("notify.invited", "{by} invited you"),
     ("notify.call", "📞 Call started"),
     ("notify.verifyTitle", "Verification request"),
+    ("ntfy.newMessage", "New message"),
+    ("ntfy.meeting", "Meeting reminder"),
     ("notify.verifyBody", "{user} wants to verify by emoji"),
     ("cmd.joined", "Joined {room}"),
     ("cmd.left", "You left the room"),

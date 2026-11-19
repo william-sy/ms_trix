@@ -80,7 +80,7 @@ export function App() {
   }, (e) => setNotice(e));
   const calls = useMatrixCalls((e) => setNotice(String(e)), (conversation, peer, video) => {
     const name = convsRef.current.find((c) => c.id === conversation)?.name ?? peer;
-    if (!dndActive()) backend.testNotification("call", name, video ? t("mxcall.incomingVideo") : t("mxcall.incomingVoice")).catch(() => {});
+    backend.notifyCall(name, video ? t("mxcall.incomingVideo") : t("mxcall.incomingVoice")).catch(() => {});
   });
   // Do not disturb shows you as busy everywhere (on Talk: "do not disturb"), with when it ends as
   // your status message unless you have one; when it ends, your own status comes back.
@@ -99,6 +99,14 @@ export function App() {
     }
   }, [dnd]); // eslint-disable-line react-hooks/exhaustive-deps
   const autoAway = useAutoAway(orgIds, shownPresence, settings.awayAfter);
+  // ntfy add-on: the core forwards notifications while it's on ("away": no input for the
+  // auto-away time, or 5 minutes when auto-away is off).
+  const ntfy = settings.ntfy;
+  useEffect(() => {
+    if (!isLive) return;
+    const on = ntfy.enabled && ntfy.topic.trim() && ntfy.server.trim();
+    backend.setNtfy(on ? { server: ntfy.server.trim(), topic: ntfy.topic.trim(), onlyAway: ntfy.when === "away", awayAfterSecs: (settings.awayAfter || 5) * 60, includeText: ntfy.includeText } : null).catch(() => {});
+  }, [ntfy.enabled, ntfy.server, ntfy.topic, ntfy.when, ntfy.includeText, settings.awayAfter]);
   const [showSettings, setShowSettings] = useState<false | SettingsTab>(false);
   const [newChat, setNewChat] = useState<false | "chat" | "room" | "team">(false);
   const [newChannelIn, setNewChannelIn] = useState<TeamView | null>(null);

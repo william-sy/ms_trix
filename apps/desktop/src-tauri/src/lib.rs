@@ -1,5 +1,6 @@
 mod audio_out;
 mod links;
+mod ntfy;
 mod scheduled;
 mod spell;
 mod accounts;
@@ -57,6 +58,7 @@ fn do_not_disturb(app: &AppHandle) -> bool {
 fn show_notification(app: &AppHandle, title: &str, body: &str, kind: NotificationKind) {
     if !do_not_disturb(app) {
         present_notification(app, title, body, kind);
+        ntfy::forward(app, title, body, ntfy::Kind::Message(kind));
     }
 }
 
@@ -1107,6 +1109,7 @@ fn notify(app: AppHandle, title: String, body: String) {
     if do_not_disturb(&app) {
         return;
     }
+    ntfy::forward(&app, &title, &body, ntfy::Kind::Reminder);
     if let Err(e) = app.notification().builder().title(title).body(body).show() {
         log::warn!("notification failed: {e}");
     }
@@ -1897,6 +1900,33 @@ async fn send_scheduled_now(app: AppHandle, id: String) {
     scheduled::send_due(&app).await;
 }
 
+/// An incoming Matrix call's notification (not during do not disturb; also to ntfy).
+#[tauri::command]
+fn notify_call(app: AppHandle, title: String, body: String) {
+    show_notification(&app, &title, &body, NotificationKind::Call);
+}
+
+/// The ntfy add-on's settings (None: off); the token is set apart, into the keychain.
+#[tauri::command]
+fn set_ntfy(prefs: Option<ntfy::Prefs>) {
+    ntfy::set_prefs(prefs);
+}
+
+#[tauri::command]
+fn set_ntfy_token(token: Option<String>) -> CmdResult<()> {
+    ntfy::set_token(token)
+}
+
+#[tauri::command]
+fn has_ntfy_token() -> bool {
+    ntfy::has_token()
+}
+
+#[tauri::command]
+async fn test_ntfy() -> CmdResult<()> {
+    ntfy::test().await
+}
+
 /// Do not disturb until `until` (ms since 1970), or off.
 #[tauri::command]
 fn set_dnd(state: State<'_, AppState>, until: Option<u64>) {
@@ -2255,6 +2285,11 @@ pub fn run() {
             pick_image_file,
             set_notify_prefs,
             set_dnd,
+            notify_call,
+            set_ntfy,
+            set_ntfy_token,
+            has_ntfy_token,
+            test_ntfy,
             link_preview,
             schedule_message,
             scheduled_messages,

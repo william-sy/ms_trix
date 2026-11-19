@@ -448,6 +448,13 @@ export const backend = {
   notify: (title: string, body: string) => invoke<void>("notify", { title, body }),
   /** Do not disturb until this time (ms), or off: the core then shows no system notifications. */
   setDnd: (until: number | null) => invoke<void>("set_dnd", { until }),
+  /** An incoming Matrix call's notification (none during do not disturb; also to ntfy). */
+  notifyCall: (title: string, body: string) => invoke<void>("notify_call", { title, body }),
+  /** ntfy add-on: its settings (null: off); the access token goes into the keychain. */
+  setNtfy: (prefs: { server: string; topic: string; onlyAway: boolean; awayAfterSecs: number; includeText: boolean } | null) => invoke<void>("set_ntfy", { prefs }),
+  setNtfyToken: (token: string | null) => invoke<void>("set_ntfy_token", { token }),
+  hasNtfyToken: () => invoke<boolean>("has_ntfy_token"),
+  testNtfy: () => invoke<void>("test_ntfy"),
   /** Send later: the message goes out at `at` (ms), sent by this app. */
   scheduleMessage: (key: string, m: Outgoing, at: number) =>
     invoke<string>("schedule_message", { key, at, text: m.text, emote: !!m.emote, replyTo: m.replyTo ?? null, threadRoot: m.threadRoot ?? null, mentions: m.mentions ?? [], html: m.html ?? null, msgtype: m.msgtype ?? null, emotes: m.emotes ?? null }),

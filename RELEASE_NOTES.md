@@ -1,5 +1,14 @@
 # Release notes
 
+## 1.3 (not released yet)
+
+### New
+- **Notifications on your phone (ntfy):** Settings → Notifications can also send notifications
+  to an ntfy topic, for the ntfy app on your phone: only while you're away from the computer, or
+  always, and never during do not disturb. By default just who and where ("New message"); the
+  message text only if you turn that on. Works with ntfy.sh or your own server (access token
+  kept in the keychain).
+
 ## 1.2 (2026-11-19)
 
 ### New
