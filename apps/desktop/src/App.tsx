@@ -45,6 +45,31 @@ import { VerificationDialog } from "./VerificationDialog";
 import { RoomLinkContext, type OpenRoomLink } from "./roomLinks";
 import { commandText, friendlyError, locale, rustTexts, t } from "./i18n";
 
+/**
+ * The accounts (of `ids`) where `check` says yes. Asked until the account answers: at start it may
+ * still be connecting, or the network may be down; any other answer (no, not found, not
+ * supported) is final.
+ */
+function useAccountsWith(ids: string[], check: (id: string) => Promise<boolean>): string[] {
+  const [yes, setYes] = useState<string[]>([]);
+  const asked = useRef(new Set<string>());
+  const tries = useRef(0);
+  const [retry, setRetry] = useState(0);
+  useEffect(() => {
+    for (const id of ids) {
+      if (asked.current.has(id)) continue;
+      asked.current.add(id);
+      check(id).then((ok) => { if (ok) setYes((list) => [...new Set([...list, id])]); }, (e) => {
+        if (!/not signed in|network/i.test(String(e))) return;
+        asked.current.delete(id);
+        // Soon at first, then less often.
+        window.setTimeout(() => setRetry((n) => n + 1), Math.min(30_000, 3000 * 2 ** tries.current++));
+      });
+    }
+  }, [ids.join("|"), retry]); // eslint-disable-line react-hooks/exhaustive-deps
+  return yes;
+}
+
 export function App() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [booting, setBooting] = useState(isLive);
@@ -124,7 +149,6 @@ export function App() {
   const [cropFor, setCropFor] = useState<{ kind: "me"; account: string } | { kind: "room" | "memberRoom"; key: string } | null>(null);
   const [joinPreview, setJoinPreview] = useState<{ account: string; room: DirectoryRoom; via: string[] } | null>(null);
   const [view, setView] = useState<"activity" | "chat" | "teams" | "calls" | "calendar" | "notes">("chat");
-  const [notesAccounts, setNotesAccounts] = useState<string[]>([]);
   const [teams, setTeams] = useState<TeamView[]>([]);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [activitySelected, setActivitySelected] = useState<string | null>(null);
@@ -591,24 +615,10 @@ export function App() {
     backend.signOut(orgId).catch((e) => setNotice(String(e)));
   };
 
-  // Which Nextcloud accounts have the Notes app. Asked until the account answers (it may still be
-  // connecting at start); a server without Notes isn't asked again.
-  const notesAsked = useRef(new Set<string>());
-  const [notesRetry, setNotesRetry] = useState(0);
-  const notesTries = useRef(0);
+  // Which Nextcloud accounts have Notes, and which a calendar (not every Nextcloud has them).
   const talkIds = isLive ? state.orgs.filter((o) => o.protocol === "talk").map((o) => o.id) : [];
-  useEffect(() => {
-    for (const id of talkIds) {
-      if (notesAsked.current.has(id)) continue;
-      notesAsked.current.add(id);
-      backend.notes(id).then(() => setNotesAccounts((ids) => [...new Set([...ids, id])]), (e) => {
-        if (String(e).includes("not supported")) return;
-        notesAsked.current.delete(id);
-        // Soon at first (the account is usually just still connecting), then less often.
-        window.setTimeout(() => setNotesRetry((n) => n + 1), Math.min(30_000, 3000 * 2 ** notesTries.current++));
-      });
-    }
-  }, [talkIds.join("|"), notesRetry]); // eslint-disable-line react-hooks/exhaustive-deps
+  const notesAccounts = useAccountsWith(talkIds, (id) => backend.notes(id).then(() => true));
+  const calendarAccounts = useAccountsWith(talkIds, (id) => backend.calendars(id).then((list) => list.length > 0));
 
   if (booting) return <div className="login-screen"><div className="spinner" aria-label={t("common.connecting")} /></div>;
   if (isLive && state.orgs.length === 0) return <Login onDone={() => {}} />;
@@ -621,9 +631,11 @@ export function App() {
   const caps = state.orgs.filter((o) => state.orgFilter === "all" || o.id === state.orgFilter).map((o) => capabilities[o.protocol]);
   const can = (k: keyof (typeof caps)[number]) => caps.some((c) => c[k]);
   // Reminders cover every Nextcloud account, whatever organization is in view.
-  const cloudOrgsAll = isLive ? state.orgs.filter((o) => o.protocol === "talk") : [];
   const cloudOrgs = isLive ? state.orgs.filter((o) => o.protocol === "talk" && (state.orgFilter === "all" || o.id === state.orgFilter)) : [];
   const notesOrgs = cloudOrgs.filter((o) => notesAccounts.includes(o.id));
+  // Calendar and meeting reminders only for the Nextcloud accounts that have a calendar.
+  const calendarOrgsAll = isLive ? state.orgs.filter((o) => calendarAccounts.includes(o.id)) : [];
+  const calendarOrgs = cloudOrgs.filter((o) => calendarAccounts.includes(o.id));
   const inOrg = (key: string) => state.orgFilter === "all" || key.startsWith(`${state.orgFilter}|`);
   const teamChannels = new Set(teams.filter((t) => inOrg(t.key)).flatMap((t) => t.channels));
   const teamsBadge = state.convs.filter((c) => teamChannels.has(c.id) && isUnread(c) && !c.muted).length;
@@ -658,7 +670,7 @@ export function App() {
               badge={calls.history.filter((r) => r.direction === "in" && !r.duration && r.outcome !== "answered_elsewhere" && r.at > callsSeenAt).length} />
           )}
           {/* Nextcloud Calendar (CalDAV) for the Nextcloud accounts in view. */}
-          {cloudOrgs.length > 0 && <RailItem icon={<CalendarIcon />} label={t("rail.calendar")} active={view === "calendar"} onClick={() => openView("calendar")} />}
+          {calendarOrgs.length > 0 && <RailItem icon={<CalendarIcon />} label={t("rail.calendar")} active={view === "calendar"} onClick={() => openView("calendar")} />}
           {/* Nextcloud Notes, for the Nextcloud accounts that have the Notes app. */}
           {notesOrgs.length > 0 && <RailItem icon={<NotesIcon />} label={t("rail.notes")} active={view === "notes"} onClick={() => openView("notes")} />}
           <RailItem icon={<MoreIcon />} label="" soon />
@@ -685,7 +697,7 @@ export function App() {
                 onBrowseTeam={(t) => openBrowse({ id: t.spaceId, alias: null, name: t.name, topic: t.topic, members: 0, avatar: t.avatar, isSpace: true, joined: t.key, joinRule: null })} />
             )}
             {view === "calendar" && (
-              <CalendarPane orgs={cloudOrgs} convs={state.convs} onOpenChat={(id) => { setView("chat"); act({ type: "select", id }); }}
+              <CalendarPane orgs={calendarOrgs} convs={state.convs} onOpenChat={(id) => { setView("chat"); act({ type: "select", id }); }}
                 onJoinCall={(id) => { setView("chat"); act({ type: "select", id }); talkCalls.start(id, lastCameraOn()); }} />
             )}
             {view === "notes" && <NotesPane orgs={notesOrgs} />}
@@ -747,8 +759,8 @@ export function App() {
       {addingAccount && <Login dialog onDone={() => setAddingAccount(false)} onCancel={() => setAddingAccount(false)} />}
       </KeyHelpContext.Provider>
       <CallScreen calls={calls} conversation={state.convs.find((c) => c.id === calls.call?.conversation)} />
-      {cloudOrgsAll.length > 0 && (
-        <MeetingReminder orgs={cloudOrgsAll} convs={state.convs} minutes={settings.reminderMinutes}
+      {calendarOrgsAll.length > 0 && (
+        <MeetingReminder orgs={calendarOrgsAll} convs={state.convs} minutes={settings.reminderMinutes}
           onOpenChat={(id) => { setView("chat"); act({ type: "select", id }); }}
           onJoin={(id) => { setView("chat"); act({ type: "select", id }); talkCalls.start(id, lastCameraOn()); }} />
       )}

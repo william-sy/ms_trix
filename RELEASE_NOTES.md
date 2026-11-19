@@ -4,6 +4,9 @@
 
 ### Fixed
 - The buttons in someone's profile card no longer break over two lines ("Copy user ID").
+- The calendar (and meeting reminders) only appear for Nextcloud accounts that have a calendar;
+  a Nextcloud without one no longer offers meetings that then fail.
+- A meeting invitation's answers (Accept, Maybe, Decline) stay together on one line.
 - Verifying someone by emoji could stay at "Waiting for … to accept" until it timed out: the
   room the verification runs in is now followed closely, so the other side's answers aren't
   cut short by sliding sync.

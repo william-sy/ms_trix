@@ -352,9 +352,12 @@ function EventDialog({ item, chat, writable, onClose, onEdit, onDeleted, onOpenC
         {event.myStatus && !event.mine && (
           <div className="calendar-reply">
             <span>{t("calendar.yourAnswer")}</span>
-            {(["ACCEPTED", "TENTATIVE", "DECLINED"] as const).map((s) => (
-              <button key={s} className={`btn small ${event.myStatus === s ? "primary" : ""}`} onClick={() => reply(s)}>{t(`calendar.reply.${s}`)}</button>
-            ))}
+            {/* One connected group, so the answers stay together on one line. */}
+            <div className="segmented small" role="radiogroup">
+              {(["ACCEPTED", "TENTATIVE", "DECLINED"] as const).map((s) => (
+                <button key={s} role="radio" aria-checked={event.myStatus === s} className={event.myStatus === s ? "on" : ""} onClick={() => reply(s)}>{t(`calendar.reply.${s}`)}</button>
+              ))}
+            </div>
           </div>
         )}
         {error && <p className="error">{error}</p>}

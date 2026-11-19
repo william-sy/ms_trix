@@ -1047,7 +1047,9 @@ html.reminder-page .meeting-reminder { inset: 0; border-radius: 12px; box-shadow
 .calendar-event.unanswered, .calendar-chip.unanswered { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--cal) 18%, var(--bg-main)) 0 6px, color-mix(in srgb, var(--cal) 8%, var(--bg-main)) 6px 12px); border-left-style: dashed; }
 .calendar-event.declined, .calendar-chip.declined { opacity: 0.5; }
 .calendar-event.declined b, .calendar-chip.declined { text-decoration: line-through; }
-.calendar-reply { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 10px 0 4px; font-size: 13px; }
+.calendar-reply { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 10px 0 4px; font-size: 13px; }
+.calendar-reply .segmented { margin-left: auto; flex: none; }
+.calendar-reply .segmented button { white-space: nowrap; }
 .qr-scanner { width: 100%; max-height: 300px; border-radius: 8px; background: #000; transform: scaleX(-1); object-fit: cover; }
 .talk-recording { margin-left: 10px; padding: 2px 8px; border-radius: 4px; background: #c4314b; color: #fff; font-size: 12px; font-weight: 600; }
 
