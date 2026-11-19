@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { backend } from "./backend";
+import { warmUpEffects } from "./cameraEffects";
 import { t } from "./i18n";
 import { setCallsInOwnWindow, useTalkCallEngine, type CallWindowParams } from "./talkCalls";
 import { TalkCallScreen } from "./TalkCallScreen";
@@ -15,6 +16,9 @@ export const isCallWindow = location.hash.startsWith(PREFIX);
 
 // See-through around the minimised card in the corner of the app.
 if (isCallWindow) document.documentElement.classList.add("call-page");
+// This page is a process of its own: the background's person detection loads here right away,
+// side by side with the camera, instead of after it.
+if (isCallWindow) warmUpEffects();
 
 function params(): CallWindowParams | null {
   try { return JSON.parse(decodeURIComponent(location.hash.slice(PREFIX.length).replace(/\+/g, " "))); } catch { return null; }

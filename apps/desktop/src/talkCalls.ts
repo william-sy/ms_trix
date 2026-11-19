@@ -173,7 +173,12 @@ export class TalkCall {
       local.getAudioTracks().forEach(watchMic);
       this.selfMeter = speakingMeter(local, (speakingSelf) => this.set({ speakingSelf }));
       this.set({ local, cameraOn: local.getVideoTracks().length > 0 });
-      this.effectReady = switchEffect(local, [], currentEffect()).then((changed) => { if (changed) this.set({ local }); }, () => {});
+      // In the log, for "the camera is slow": milliseconds since this call's page opened.
+      log(`camera ready after ${Math.round(performance.now())} ms`);
+      this.effectReady = switchEffect(local, [], currentEffect()).then((changed) => {
+        if (changed) this.set({ local });
+        if (changed) log(`background ready after ${Math.round(performance.now())} ms`);
+      }, () => {});
     } catch (e) {
       log(`couldn't open the microphone or camera: ${String(e)}`);
       this.set({ error: String(e) });
