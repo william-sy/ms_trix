@@ -35,6 +35,7 @@
   "av.namesHidden": "Er staan alleen tijdelijke apparaten tot ms_trix de microfoon en camera mag gebruiken.",
   "av.noAccess": "Geen toegang tot microfoon of camera: {error}",
   "av.showNames": "Apparaatnamen tonen",
+  "av.showAll": "Alle apparaten tonen…",
   "av.speakNow": "Zeg iets; de balkjes moeten bewegen.",
   "av.speaker": "Luidspreker",
   "av.speakerSystem": "Geluid komt uit de luidspreker die in je systeeminstellingen is gekozen.",

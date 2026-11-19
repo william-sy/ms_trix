@@ -35,6 +35,7 @@
   "av.namesHidden": "Only placeholder devices are shown until ms_trix may use the microphone and camera.",
   "av.noAccess": "No access to microphone or camera: {error}",
   "av.showNames": "Show device names",
+  "av.showAll": "Show all devices…",
   "av.speakNow": "Say something; the bars should move.",
   "av.speaker": "Speaker",
   "av.speakerSystem": "Sound plays through the speaker chosen in your system settings.",

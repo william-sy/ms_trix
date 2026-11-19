@@ -8,6 +8,10 @@
   Nextcloud without it no longer offers its calendar for new meetings, which then failed.
 - A meeting invitation's answers (Accept, Maybe, Decline) stay together on one line.
 - Pictures shared in Nextcloud Talk showed as a question mark instead of the picture.
+- Settings → Audio & video: the camera list showed only "Device 1" (which did nothing) until the
+  camera was tested. Clicking a list now asks for access and shows the real devices, and your
+  saved camera shows by name meanwhile.
+- Calls start faster with a camera background: the person detection loads as the call opens.
 - The format bar's buttons no longer break over two lines and its help text stays on one line
   (shortened with … when there's no room), also in the narrow thread reply box.
 - Pictures and files can be pasted, attached or dropped (on the open thread) in a thread's reply

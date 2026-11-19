@@ -15,9 +15,9 @@ export function AudioVideoSettings({ settings, set }: Section) {
 
   // Device names only show once access is granted. Asking starts up the audio system
   // (a brief freeze on macOS), so it only happens on request: a test or "Show device names".
-  const refresh = async (ask: boolean) => {
+  const refresh = async (ask: boolean, camera = false) => {
     try {
-      if (ask) (await navigator.mediaDevices.getUserMedia({ audio: true })).getTracks().forEach((track) => track.stop());
+      if (ask) (await navigator.mediaDevices.getUserMedia({ audio: true, video: camera }).catch(() => navigator.mediaDevices.getUserMedia({ audio: true }))).getTracks().forEach((track) => track.stop());
       setDevices(await navigator.mediaDevices.enumerateDevices());
       setError(null);
     } catch (e) {
@@ -47,17 +47,45 @@ export function AudioVideoSettings({ settings, set }: Section) {
     const label = devices.find((d) => d.deviceId === id)?.label;
     set({ [field]: id, deviceLabels: { ...settings.deviceLabels, [kind]: label ?? "" } });
   };
-  const picker = (kind: MediaDeviceKind, value: string | null, onPick: (id: string | null) => void) => (
-    <select value={resolve(kind, value) ?? ""} onChange={(e) => onPick(e.target.value || null)}>
-      <option value="">{t("av.systemDefault")}</option>
-      {of(kind).map((d, i) => <option key={d.deviceId} value={d.deviceId}>{d.label || t("av.unnamed", { n: i + 1 })}</option>)}
-    </select>
-  );
+  // Before access WebKit lists nameless placeholders (with an empty id, the same as "System
+  // default"), and cameras stay nameless until the camera itself was asked for. So: asked for the
+  // moment the list is clicked (or "Show all devices…" picked), and the saved device shows by its
+  // remembered name meanwhile.
+  const asking = useRef(false);
+  const askFor = async (kind: MediaDeviceKind) => {
+    if (asking.current || !of(kind).some((d) => !d.label)) return;
+    asking.current = true;
+    try {
+      (await navigator.mediaDevices.getUserMedia(kind === "videoinput" ? { video: true } : { audio: true })).getTracks().forEach((track) => track.stop());
+      setDevices(await navigator.mediaDevices.enumerateDevices());
+      setError(null);
+    } catch (e) {
+      setError(t("av.noAccess", { error: String(e) }));
+    } finally {
+      asking.current = false;
+    }
+  };
+  const ASK = "\u0000ask";
+  const picker = (kind: MediaDeviceKind, value: string | null, onPick: (id: string | null) => void) => {
+    const named = of(kind).filter((d) => d.label && d.deviceId);
+    const shown = resolve(kind, value);
+    const remembered = shown && !named.some((d) => d.deviceId === shown) ? settings.deviceLabels[kind] : undefined;
+    return (
+      <select value={remembered || named.some((d) => d.deviceId === shown) ? shown ?? "" : ""}
+        onMouseDown={() => void askFor(kind)} onFocus={() => void askFor(kind)}
+        onChange={(e) => (e.target.value === ASK ? void askFor(kind) : onPick(e.target.value || null))}>
+        <option value="">{t("av.systemDefault")}</option>
+        {remembered && <option value={shown!}>{remembered}</option>}
+        {named.map((d) => <option key={d.deviceId} value={d.deviceId}>{d.label}</option>)}
+        {named.length < of(kind).length && <option value={ASK}>{t("av.showAll")}</option>}
+      </select>
+    );
+  };
 
   return (
     <>
       {unnamed && (
-        <p className="hint">{t("av.namesHidden")} <button className="link" onClick={() => void refresh(true)}>{t("av.showNames")}</button></p>
+        <p className="hint">{t("av.namesHidden")} <button className="link" onClick={() => void refresh(true, true)}>{t("av.showNames")}</button></p>
       )}
       <section>
         <h2>{t("av.microphone")}</h2>
