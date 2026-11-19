@@ -39,6 +39,7 @@ import { CalendarPane } from "./CalendarPane";
 import { MeetingReminder } from "./MeetingReminder";
 import { ContextDialog } from "./ContextDialog";
 import { HashtagContext, HashtagPanel } from "./Hashtags";
+import { InAppLinkContext } from "./LinkPreview";
 import { ImageCropper } from "./ImageCropper";
 import { VerificationDialog } from "./VerificationDialog";
 import { RoomLinkContext, type OpenRoomLink } from "./roomLinks";
@@ -386,6 +387,27 @@ export function App() {
   const [hashtag, setHashtag] = useState<string | null>(null);
   const openMessage = (conversation: string, message: string) =>
     isLive && !(state.messages[conversation] ?? []).some((m) => m.id === message) ? setPreview({ conversation, message }) : showInChat(conversation, message);
+  // A Talk link to one of our servers: its conversation opens here (joined first when we aren't in
+  // it yet), and a call going on there opens its pre-join screen. No new call is started.
+  const talkCallsRef = useRef(talkCalls);
+  talkCallsRef.current = talkCalls;
+  const openInApp = useCallback((key: string) => {
+    const open = () => {
+      const conv = convsRef.current.find((c) => c.id === key);
+      if (!conv) return false;
+      setView("chat");
+      act({ type: "select", id: key });
+      if (conv.callActive) talkCallsRef.current.start(key, lastCameraOn());
+      return true;
+    };
+    if (open()) return;
+    const at = key.indexOf("|");
+    backend.joinRoom(key.slice(0, at), key.slice(at + 1)).then(() => {
+      // Once it shows up in the chat list.
+      let tries = 0;
+      const timer = window.setInterval(() => { if (open() || ++tries > 30) window.clearInterval(timer); }, 500);
+    }, (e) => setNotice(String(e)));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // A room link: open the room (at the linked message) if we're in it, else offer to join.
   const orgsRef = useRef(state.orgs);
   orgsRef.current = state.orgs;
@@ -613,6 +635,7 @@ export function App() {
     <ProfileContext.Provider value={openProfile}>
     <RoomLinkContext.Provider value={openRoomLink}>
     <HashtagContext.Provider value={setHashtag}>
+    <InAppLinkContext.Provider value={openInApp}>
     <CallsContext.Provider value={calls}>
     <TalkCallsContext.Provider value={talkCalls}>
     <KeyHelpContext.Provider value={(orgId) => {
@@ -736,6 +759,7 @@ export function App() {
       )}
     </TalkCallsContext.Provider>
     </CallsContext.Provider>
+    </InAppLinkContext.Provider>
     </HashtagContext.Provider>
     </RoomLinkContext.Provider>
     </ProfileContext.Provider>

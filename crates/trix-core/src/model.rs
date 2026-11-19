@@ -703,14 +703,14 @@ pub struct Note {
     pub content: Option<String>,
 }
 
-/// A note's new state, from the notes editor.
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
+/// What changes in a note (the editor sends all of it; moving notes between categories only that).
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
 pub struct NoteChange {
-    pub title: String,
-    pub content: String,
-    pub category: String,
-    pub favorite: bool,
+    pub title: Option<String>,
+    pub content: Option<String>,
+    pub category: Option<String>,
+    pub favorite: Option<bool>,
 }
 
 /// A still from a video being sent (made in the UI), with the video's own size and length.

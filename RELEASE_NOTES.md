@@ -14,8 +14,11 @@
   Add more topics with New room; leave the chat to stop watching.
 - **Notes:** your Nextcloud Notes in the app (Notes in the left rail, when your Nextcloud has the
   Notes app): by category, favourites first, searchable; write in Markdown with a preview, saved
-  as you type, with a format bar (⌘B / ⌘I) and a category filter. If a note was changed
-  elsewhere meanwhile, you choose which version to keep.
+  as you type, with a format bar (⌘B / ⌘I); categories can be filtered, made, renamed and
+  removed. If a note was changed elsewhere meanwhile, you choose which version to keep.
+- **Talk links open here:** a link to a Talk conversation on your own Nextcloud opens it in the
+  app (joining it first if needed); a call going on there opens its pre-join screen.
+- **Hide your own video** in a call, only on your own screen (layout menu, or ✕ on your tile).
 
 ## 1.2 (2026-11-19)
 

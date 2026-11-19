@@ -1346,6 +1346,14 @@ impl ProtocolAdapter for TalkAdapter {
         data["url"].as_str().map(ToOwned::to_owned).ok_or_else(|| err("Nextcloud returned no link"))
     }
 
+    /// Talk's conversation links: <server>/call/<token> (also with /index.php).
+    fn link_target(&self, url: &str) -> Option<String> {
+        let rest = url.strip_prefix(self.session.server.trim_end_matches('/'))?;
+        let rest = rest.strip_prefix("/index.php").unwrap_or(rest);
+        let token = rest.strip_prefix("/call/")?.split(['/', '?', '#']).next()?;
+        (token.len() >= 4 && token.chars().all(|c| c.is_ascii_alphanumeric())).then(|| self.conv_id(token).key())
+    }
+
     async fn notes(&self) -> Result<Vec<Note>> {
         let response = self.request(Method::GET, &format!("{NOTES}?exclude=content")).send().await.map_err(|e| AdapterError::Network(e.to_string()))?;
         // No Notes app on this server.
@@ -1368,7 +1376,20 @@ impl ProtocolAdapter for TalkAdapter {
     }
 
     async fn save_note(&self, id: Option<u64>, etag: Option<&str>, change: &NoteChange) -> Result<Note> {
-        let body = serde_json::json!({ "title": change.title, "content": change.content, "category": change.category, "favorite": change.favorite });
+        // Only what changes (moving a note to another category sends just that).
+        let mut body = serde_json::Map::new();
+        if let Some(title) = &change.title {
+            body.insert("title".into(), title.clone().into());
+        }
+        if let Some(content) = &change.content {
+            body.insert("content".into(), content.clone().into());
+        }
+        if let Some(category) = &change.category {
+            body.insert("category".into(), category.clone().into());
+        }
+        if let Some(favorite) = change.favorite {
+            body.insert("favorite".into(), favorite.into());
+        }
         let mut builder = match id {
             Some(id) => self.request(Method::PUT, &format!("{NOTES}/{id}")),
             None => self.request(Method::POST, NOTES),
@@ -1583,6 +1604,15 @@ mod tests {
         assert_eq!((note.id, note.title.as_str(), note.category.as_str(), note.favorite, note.readonly), (76, "Shopping", "Home/Lists", true, false));
         assert_eq!(note.content.as_deref(), Some("# Shopping\n- milk"));
         assert!(note_from(&serde_json::json!({"title": "no id"})).is_none());
+    }
+
+    #[test]
+    fn knows_its_own_call_links() {
+        let talk = TalkAdapter::new(placeholder_account(AccountId("a".into()), &Session { server: "https://cloud.example.org".into(), login: "me".into(), app_password: String::new() }), Session { server: "https://cloud.example.org".into(), login: "me".into(), app_password: String::new() });
+        assert_eq!(talk.link_target("https://cloud.example.org/index.php/call/ab12cd34").as_deref(), Some("a|ab12cd34"));
+        assert_eq!(talk.link_target("https://cloud.example.org/call/ab12cd34#message_5").as_deref(), Some("a|ab12cd34"));
+        assert!(talk.link_target("https://elsewhere.example/call/ab12cd34").is_none());
+        assert!(talk.link_target("https://cloud.example.org/apps/files").is_none());
     }
 
     #[test]

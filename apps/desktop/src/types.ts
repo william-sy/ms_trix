@@ -226,9 +226,10 @@ export interface Note {
   content?: string;
 }
 
+/** What changes in a note (the editor sends all of it; moving between categories only that). */
 export interface NoteChange {
-  title: string;
-  content: string;
-  category: string;
-  favorite: boolean;
+  title?: string;
+  content?: string;
+  category?: string;
+  favorite?: boolean;
 }

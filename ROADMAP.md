@@ -39,6 +39,10 @@
 - [x] ntfy as an account (Add account → ntfy): watch topics on ntfy.sh or your own server; each
       topic is a room with notifications (priority 4–5 count as mentions), writing in it publishes;
       New room adds a topic, leaving stops watching; one streaming connection, resumes after drops
+- [x] Talk links to your own Nextcloud open the conversation in the app (joined if needed); a call
+      going on there opens the pre-join screen (no call is started by a link)
+- [x] Calls: hide your own video, only for you (layout menu or ✕ on your tile); remembered
+- [x] Notes categories: new (with a first note), rename (subfolders move along), remove (notes stay)
 - [x] Nextcloud Notes (rail → Notes, for Nextcloud accounts with the Notes app): list by category
       with favourites and search, Markdown editor with preview, saves as you type; a change made
       elsewhere in between isn't overwritten (keep mine / load theirs)

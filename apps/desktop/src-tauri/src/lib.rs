@@ -1103,6 +1103,14 @@ async fn delete_note(state: State<'_, AppState>, account: String, id: u64) -> Cm
     adapter_for(&state, &account)?.delete_note(id).await.map_err(|e| e.to_string())
 }
 
+/// The conversation a link points to on one of our accounts (a Talk call link), so it opens here
+/// instead of in the browser; None for other links.
+#[tauri::command]
+fn link_target(state: State<'_, AppState>, url: String) -> Option<String> {
+    let engine = state.engine.lock().unwrap();
+    engine.accounts().iter().filter_map(|a| engine.adapter(&a.id)).find_map(|adapter| adapter.link_target(&url))
+}
+
 /// Markdown as HTML (as messages render it), for the notes preview.
 #[tauri::command]
 fn render_markdown(text: String) -> Option<String> {
@@ -2398,6 +2406,7 @@ pub fn run() {
             save_note,
             delete_note,
             render_markdown,
+            link_target,
             calendar_events,
             create_event,
             update_event,

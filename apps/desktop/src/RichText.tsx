@@ -3,7 +3,7 @@ import { useMemo, type MouseEvent, type ReactNode } from "react";
 import { backend, isLive, mediaUrl } from "./backend";
 import { useOpenHashtag } from "./Hashtags";
 import { checkLink } from "./linkCheck";
-import { confirmLink, mainWarning, useOwnDomains, warningText } from "./LinkPreview";
+import { mainWarning, useOpenLink, useOwnDomains, warningText } from "./LinkPreview";
 import { useOpenProfile } from "./Profile";
 import { parseRoomLink, useOpenRoomLink } from "./roomLinks";
 import { t } from "./i18n";
@@ -141,6 +141,7 @@ export function RichText({ body, html, account, query }: { body: string; html?: 
   const openProfile = useOpenProfile();
   const openRoomLink = useOpenRoomLink();
   const openHashtag = useOpenHashtag();
+  const openLink = useOpenLink();
   const onLinkClick = (e: MouseEvent) => {
     // Someone's custom emoji: offer to add it to your own pack.
     const emote = (e.target as HTMLElement).closest("img[data-mx-emoticon]") as HTMLImageElement | null;
@@ -167,8 +168,7 @@ export function RichText({ body, html, account, query }: { body: string; html?: 
     const room = parseRoomLink(href);
     if (room) return openRoomLink(account, room);
     if (MENTION.test(href) || !isLive) return;
-    if (!confirmLink(/^https?:/i.test(href) ? mainWarning(checkLink(href, a.textContent ?? "", own)) : undefined)) return;
-    backend.openUrl(href).catch(() => {});
+    openLink(href, /^https?:/i.test(href) ? mainWarning(checkLink(href, a.textContent ?? "", own)) : undefined);
   };
   // Search highlights only work on plain text; formatted messages still match, they just aren't marked.
   if (safe && !query) return <div className="rich" onClick={onLinkClick} dangerouslySetInnerHTML={{ __html: safe }} />;

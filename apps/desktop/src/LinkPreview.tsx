@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { backend, isLive, type LinkPreviewData } from "./backend";
 import { t } from "./i18n";
 import { checkLink, ownDomains, siteOf, type LinkWarning } from "./linkCheck";
@@ -29,6 +29,22 @@ export function warningText(w: LinkWarning): string {
 
 /** Asks before opening a link that looks like phishing; true to go ahead. */
 export const confirmLink = (warning: LinkWarning | undefined) => !warning || confirm(t("link.warn.confirm", { warning: warningText(warning) }));
+
+/** Opens a conversation of ours here (the key a Talk link points to). */
+export const InAppLinkContext = createContext<((key: string) => void) | null>(null);
+
+/**
+ * Opens a link: a Talk link to one of your own servers here in the app, anything else in the
+ * browser (asking first when it looks like phishing).
+ */
+export function useOpenLink() {
+  const openInApp = useContext(InAppLinkContext);
+  return (href: string, warning?: LinkWarning) => void (async () => {
+    const key = openInApp && isLive ? await backend.linkTarget(href).catch(() => null) : null;
+    if (key) return openInApp!(key);
+    if (confirmLink(warning)) void backend.openUrl(href).catch(() => {});
+  })();
+}
 
 /** The first web link in a message that gets a preview (mentions and room links don't). */
 export function previewLink(body: string, html?: string): string | undefined {
@@ -80,9 +96,10 @@ function PreviewCard({ url, data, own }: { url: string; data: LinkPreviewData; o
   const elsewhere = !!finalHost && siteOf(finalHost) !== siteOf(hostOf(url));
   // Where it really leads is checked too (a short link can hide a phishing site).
   const warning = mainWarning([...checkLink(url, undefined, own), ...(elsewhere ? checkLink(data.finalUrl, undefined, own) : [])]);
+  const openLink = useOpenLink();
   const open = (e: MouseEvent) => {
     e.preventDefault();
-    if (confirmLink(warning)) void backend.openUrl(url).catch(() => {});
+    openLink(url, warning);
   };
   return (
     <a className={`link-preview ${warning ? "warn" : ""}`} href={url} title={url} onClick={open}>

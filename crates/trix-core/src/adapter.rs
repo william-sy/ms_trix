@@ -412,6 +412,11 @@ pub trait ProtocolAdapter: Send + Sync {
     async fn calendars(&self) -> Result<Vec<Calendar>> {
         Err(AdapterError::Unsupported("calendar"))
     }
+    /// The conversation a web link points to on this account's server (a Talk call link), as a
+    /// conversation key; None for any other link.
+    fn link_target(&self, _url: &str) -> Option<String> {
+        None
+    }
     /// Notes (Nextcloud Notes), without their text; Unsupported where the server has no Notes app.
     async fn notes(&self) -> Result<Vec<Note>> {
         Err(AdapterError::Unsupported("notes"))

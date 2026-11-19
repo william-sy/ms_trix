@@ -90,8 +90,10 @@ function DeviceButton({ calls }: { calls: TalkCalls }) {
 }
 
 /** One person: their camera, or picture and name; a ring while they speak. */
-function Tile({ account, name, stream, videoOn, audioOn, speaking, self, small, pinned, onPin, hand }: {
+function Tile({ account, name, stream, videoOn, audioOn, speaking, self, small, pinned, onPin, onHide, hand }: {
   account: string; name: string; stream?: MediaStream; videoOn: boolean; audioOn: boolean; speaking: boolean; self?: boolean; small?: boolean;
+  /** Your own tile: hide it (only for you). */
+  onHide?: () => void;
   pinned?: boolean; onPin?: () => void; hand?: boolean;
 }) {
   const hasVideo = videoOn && !!stream?.getVideoTracks().some((tr) => tr.readyState === "live" && tr.enabled !== false);
@@ -100,6 +102,7 @@ function Tile({ account, name, stream, videoOn, audioOn, speaking, self, small, 
   return (
     <div className={`talk-tile ${speaking ? "speaking" : ""} ${small ? "small" : ""} ${pinned ? "pinned" : ""}`} onDoubleClick={onPin}>
       {onPin && <button className="talk-pin" title={pinned ? t("talkcall.unpin") : t("talkcall.pin")} onClick={onPin}><PinIcon size={16} /></button>}
+      {onHide && <button className="talk-pin" title={t("talkcall.hideSelf")} onClick={onHide}>✕</button>}
       {hasVideo ? <Video key={videoKey} stream={stream} muted={self} mirror={self} className="talk-tile-video" /> : (
         <div className="talk-tile-avatar">
           <Avatar account={account} name={name} className="big" />
@@ -118,6 +121,8 @@ const LAYOUT = "trix.callLayout";
 /** How a shared screen is shown: faces beside it, above it, or hidden (sound keeps playing). */
 type ShareView = "side" | "top" | "content";
 const SHARE_VIEW = "trix.callShareView";
+/** Your own video hidden from your screen (the others still see it). */
+const HIDE_SELF = "trix.callHideSelf";
 /** Tiles per page: Teams' gallery and large gallery. */
 const PER_PAGE = { gallery: 9, large: 49 };
 
@@ -159,6 +164,8 @@ export function TalkCallScreen({ calls, conversation, docked, onPopOut, onPopIn 
   const [now, setNow] = useState(Date.now());
   const [layout, setLayoutState] = useState<Layout>(() => remembered(LAYOUT, "auto"));
   const [shareView, setShareViewState] = useState<ShareView>(() => remembered(SHARE_VIEW, "side"));
+  const [hideSelf, setHideSelfState] = useState(() => remembered<string>(HIDE_SELF, "") === "1");
+  const setHideSelf = (hide: boolean) => { setHideSelfState(hide); setLayoutMenu(false); remember(HIDE_SELF, hide ? "1" : ""); };
   const [layoutMenu, setLayoutMenu] = useState(false);
   const [page, setPage] = useState(0);
   const [pinned, setPinned] = useState<string | null>(null);
@@ -191,7 +198,9 @@ export function TalkCallScreen({ calls, conversation, docked, onPopOut, onPopIn 
     <Tile key={p.sid} account={call.account} name={p.name} stream={p.stream} videoOn={p.videoOn} audioOn={p.audioOn} speaking={p.speaking} small={small}
       pinned={pinned === p.sid} onPin={() => pin(p.sid)} hand={!!p.handRaised} />
   );
-  const selfTile = (small?: boolean) => <Tile key="self" account={call.account} self small={small} hand={call.handRaised} {...self} />;
+  const selfTile = (small?: boolean) => <Tile key="self" account={call.account} self small={small} hand={call.handRaised} onHide={() => setHideSelf(true)} {...self} />;
+  // Hidden only from your own screen; while minimised you still see yourself when no one else is on.
+  const selfShown = !hideSelf;
   // People who aren't on screen (another page, content only, minimised) must still be heard.
   const sound = (peers: TalkPeerView[]) => peers.map((p) => p.stream && <Video key={`sound-${p.sid}`} stream={p.stream} className="hidden-audio" />);
   const effective = layout === "auto" ? (call.peers.length <= 1 || pinnedPeer ? "speaker" : "gallery") : layout;
@@ -233,7 +242,7 @@ export function TalkCallScreen({ calls, conversation, docked, onPopOut, onPopIn 
           {shareView === "content" ? sound(call.peers) : (
             <div className={`talk-strip ${shareView === "top" ? "row" : ""}`}>
               {call.peers.map((p) => tile(p, true))}
-              {selfTile(true)}
+              {selfShown && selfTile(true)}
             </div>
           )}
           <Video stream={sharer.screen} className="talk-screen" />
@@ -247,7 +256,7 @@ export function TalkCallScreen({ calls, conversation, docked, onPopOut, onPopIn 
           <div className="talk-speaker-main">
             {tile(onStage)}
             {/* You, small in the corner. */}
-            {selfTile(true)}
+            {selfShown && selfTile(true)}
           </div>
           {others.length > 0 && <div className="talk-strip row">{others.map((p) => tile(p, true))}</div>}
         </div>
@@ -255,14 +264,14 @@ export function TalkCallScreen({ calls, conversation, docked, onPopOut, onPopIn 
     }
     // Gallery: you get an equal tile once there's more than one other person and room for you.
     const visible = call.peers.slice(shownPage * perPage, (shownPage + 1) * perPage);
-    const selfInGrid = call.peers.length !== 1 && pages === 1 && visible.length < perPage;
+    const selfInGrid = selfShown && call.peers.length !== 1 && pages === 1 && visible.length < perPage;
     const count = Math.max(visible.length + (selfInGrid ? 1 : 0), 1);
     const columns = count <= 2 ? 1 : Math.ceil(Math.sqrt(count));
     return (
       <div className={`talk-grid ${columns > 3 ? "dense" : ""}`} style={{ gridTemplateColumns: `repeat(${columns}, 1fr)` }}>
         {call.peers.length === 0 && call.phase === "connected" && <p className="talk-alone">{t("talkcall.alone")}</p>}
         {visible.map((p) => tile(p))}
-        {selfTile(!selfInGrid)}
+        {(selfShown || call.peers.length === 0) && selfTile(!selfInGrid)}
         {sound(call.peers.filter((p) => !visible.includes(p)))}
       </div>
     );
@@ -297,6 +306,8 @@ export function TalkCallScreen({ calls, conversation, docked, onPopOut, onPopIn 
                 <button key={v} className="menu-item" onClick={() => setShareView(v)}>{shareView === v ? "✓ " : ""}{t(`talkcall.shareView.${v}`)}</button>
               ))}
               {pinned && <button className="menu-item" onClick={() => { setPinned(null); setLayoutMenu(false); }}>{t("talkcall.unpin")}</button>}
+              <div className="menu-sep" />
+              <button className="menu-item" onClick={() => setHideSelf(!hideSelf)}>{hideSelf ? t("talkcall.showSelf") : t("talkcall.hideSelf")}</button>
             </div>
           )}
         </span>

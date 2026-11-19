@@ -445,6 +445,8 @@ export const backend = {
   /** Creates (no id) or saves a note; with the etag, a change made elsewhere isn't overwritten. */
   saveNote: (account: string, id: number | null, etag: string | null, change: NoteChange) => invoke<Note>("save_note", { account, id, etag, change }),
   deleteNote: (account: string, id: number) => invoke<void>("delete_note", { account, id }),
+  /** The conversation a link points to on one of our accounts (a Talk call link), or null. */
+  linkTarget: (url: string) => invoke<string | null>("link_target", { url }),
   /** Markdown as HTML, rendered as messages are (null for plain text). */
   renderMarkdown: (text: string) => invoke<string | null>("render_markdown", { text }),
   createEvent: (account: string, event: NewEvent) => calendarChanged(invoke<void>("create_event", { account, event })),

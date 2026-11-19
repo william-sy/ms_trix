@@ -34,6 +34,9 @@ export function NotesPane({ orgs }: { orgs: Org[] }) {
   const [selected, setSelected] = useState<{ account: string; id: number } | null>(null);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState(ALL);
+  // Naming a new category, or renaming the one in view.
+  const [naming, setNaming] = useState<"new" | "rename" | null>(null);
+  const [name, setName] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [target, setTarget] = useState(orgs[0]?.id ?? "");
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +58,44 @@ export function NotesPane({ orgs }: { orgs: Org[] }) {
       setSelected({ account: target, id: note.id });
     } catch (e) {
       setError(String(e));
+    }
+  };
+
+  /** Moves the notes of category `from` (and its subfolders) to `to`; "" takes the category away. */
+  const moveCategory = async (from: string, to: string) => {
+    const moving = every.filter((x) => x.category === from || x.category.startsWith(`${from}/`));
+    // An open note would save its old category back; it closes first.
+    if (moving.some((n) => selected?.account === n.account && selected.id === n.id)) setSelected(null);
+    for (const n of moving) {
+      const rest = n.category.slice(from.length).replace(/^\//, "");
+      const category = [to, rest].filter(Boolean).join("/");
+      try {
+        put(n.account, await backend.saveNote(n.account, n.id, n.etag, { category }));
+      } catch (e) {
+        setError(String(e));
+      }
+    }
+  };
+  const tidyName = (raw: string) => raw.split("/").map((p) => p.trim()).filter(Boolean).join("/");
+  const finishNaming = async () => {
+    const value = tidyName(name);
+    const kind = naming;
+    setNaming(null);
+    setName("");
+    if (!value || !target) return;
+    if (kind === "rename" && filter !== ALL && filter && value !== filter) {
+      await moveCategory(filter, value);
+      setFilter(value);
+    } else if (kind === "new") {
+      // A category exists through its notes: it starts with a first one.
+      try {
+        const note = await backend.saveNote(target, null, null, { title: t("notes.untitled"), content: "", category: value, favorite: false });
+        put(target, note);
+        setFilter(value);
+        setSelected({ account: target, id: note.id });
+      } catch (e) {
+        setError(String(e));
+      }
     }
   };
 
@@ -84,6 +125,23 @@ export function NotesPane({ orgs }: { orgs: Org[] }) {
           {count("") > 0 && <option value="">{t("notes.noCategory")} ({count("")})</option>}
           {categories.map((c) => <option key={c} value={c}>{c} ({count(c)})</option>)}
         </select>
+        {naming ? (
+          <form className="notes-naming" onSubmit={(e) => { e.preventDefault(); void finishNaming(); }}>
+            <input autoFocus value={name} placeholder={t("notes.categoryName")} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Escape" && setNaming(null)} />
+            <button className="btn small primary" disabled={!tidyName(name)}>{t("common.save")}</button>
+            <button type="button" className="btn small" onClick={() => setNaming(null)}>{t("common.cancel")}</button>
+          </form>
+        ) : (
+          <div className="notes-category-tools">
+            <button className="link" disabled={!target} onClick={() => { setName(""); setNaming("new"); }}>{t("notes.newCategory")}</button>
+            {filter !== ALL && filter && <>
+              <button className="link" onClick={() => { setName(filter); setNaming("rename"); }}>{t("notes.renameCategory")}</button>
+              <button className="link" onClick={() => {
+                if (confirm(t("notes.removeCategoryConfirm", { name: filter, count: count(filter) }))) void moveCategory(filter, "").then(() => setFilter(ALL));
+              }}>{t("notes.removeCategory")}</button>
+            </>}
+          </div>
+        )}
         {orgs.length > 1 && (
           <select className="notes-account" value={target} onChange={(e) => setTarget(e.target.value)} title={t("notes.newIn")}>
             {orgs.map((o) => <option key={o.id} value={o.id}>{t("notes.newInAccount", { account: o.name })}</option>)}
