@@ -412,7 +412,8 @@ export const backend = {
   teams: () => invoke<TeamView[]>("teams"),
   activity: () => invoke<ActivityItem[]>("activity"),
   /** Full history (local encrypted index) plus loaded messages; optionally one conversation. */
-  searchMessages: (query: string, conversation: string | null = null) => invoke<SearchHit[]>("search_messages", { query, conversation }),
+  /** Words, "exact phrases", *wildcards*, #tags; `matchCase` for the exact capitals. */
+  searchMessages: (query: string, conversation: string | null = null, matchCase = false) => invoke<SearchHit[]>("search_messages", { query, conversation, matchCase }),
   /** Translations for texts made in Rust ("rust.*" keys without the prefix). */
   imagePacks: (key: string) => invoke<ImagePack[]>("image_packs", { key }),
   ownPack: (account: string) => invoke<ImagePack>("own_pack", { account }),

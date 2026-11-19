@@ -1,6 +1,6 @@
 # Release notes
 
-## 1.3 (not released yet)
+## 1.3 (2026-11-19)
 
 ### New
 - **Notifications on your phone (ntfy):** Settings → Notifications can also send notifications
@@ -19,6 +19,8 @@
 - **Talk links open here:** a link to a Talk conversation on your own Nextcloud opens it in the
   app (joining it first if needed); a call going on there opens its pre-join screen.
 - **Hide your own video** in a call, only on your own screen (layout menu, or ✕ on your tile).
+- **Advanced search:** "exact phrases" in quotes, wildcards within a word (*part*, part*, *ing)
+  and an Aa switch to match capitals, in the main search and in a chat's search.
 
 ## 1.2 (2026-11-19)
 

@@ -20,6 +20,7 @@ use std::sync::Mutex;
 use matrix_sdk_store_encryption::StoreCipher;
 use rusqlite::{params, params_from_iter, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
+use trix_core::Query;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -122,6 +123,8 @@ pub struct CrawlState {
 /// Bump when docs gain information that old crawls didn't store.
 pub const CRAWL_VERSION: u32 = 2;
 
+/// How many of the newest messages a search the index can't narrow down reads at most.
+const SCAN_MAX: usize = 20_000;
 const MAX_PREFIX: usize = 8;
 
 pub struct SearchIndex {
@@ -249,12 +252,21 @@ impl SearchIndex {
     }
 
     /// Newest first. Every word of `query` must start a word in the message
-    /// (words of one or two letters must match whole); a #hashtag in it only matches that tag.
+    /// (words of one or two letters must match whole); see [`trix_core::query`] for the rest.
     pub fn search(&self, query: &str, conversation: Option<&str>, limit: usize) -> Result<Vec<Doc>> {
-        let terms: Vec<String> = words(query).collect::<HashSet<_>>().into_iter().collect();
-        let tags = trix_core::hashtags(query);
-        if terms.is_empty() || limit == 0 {
+        self.search_query(&Query::parse(query, false), conversation, limit)
+    }
+
+    /// Newest first: candidates come from the words the index can look up, then each is checked
+    /// against the whole query (phrases, wildcards, case). A query of only leading wildcards
+    /// (*ing) reads the newest messages instead, up to SCAN_MAX of them.
+    pub fn search_query(&self, query: &Query, conversation: Option<&str>, limit: usize) -> Result<Vec<Doc>> {
+        if query.is_empty() || limit == 0 {
             return Ok(vec![]);
+        }
+        let terms = query.index_words();
+        if terms.is_empty() {
+            return self.scan(query, conversation, limit);
         }
         let mut values: Vec<i64> = terms.iter().map(|t| self.hash("term", &query_term(t))).collect();
         let mut sql = format!(
@@ -265,21 +277,17 @@ impl SearchIndex {
             values.push(self.hash("conv", conversation));
             sql.push_str(&format!(" AND conv = ?{}", values.len()));
         }
-        // Over-fetch: candidates that only share a long prefix (or have the word but not the tag)
-        // are dropped below.
-        sql.push_str(&format!(" ORDER BY ts DESC LIMIT {}", limit * if tags.is_empty() { 3 } else { 10 }));
+        // Over-fetch: candidates that only share a long prefix, or miss a phrase, wildcard or the
+        // case asked for, are dropped below.
+        let exact = !query.phrases.is_empty() || !query.globs.is_empty() || !query.tags.is_empty() || query.match_case;
+        sql.push_str(&format!(" ORDER BY ts DESC LIMIT {}", limit * if exact { 20 } else { 3 }));
         let db = self.db.lock().unwrap();
         let mut stmt = db.prepare(&sql)?;
         let rows = stmt.query_map(params_from_iter(values), |r| r.get::<_, Vec<u8>>(0))?;
         let mut out = vec![];
         for row in rows {
             let Ok(doc) = self.cipher.decrypt_value::<Doc>(&row?) else { continue };
-            let body_words: Vec<String> = words(&doc.body).collect();
-            let tagged = tags.is_empty() || {
-                let found = trix_core::hashtags(&doc.body);
-                tags.iter().all(|t| found.contains(t))
-            };
-            if tagged && terms.iter().all(|t| body_words.iter().any(|w| term_matches(w, t))) {
+            if query.matches(&doc.body) {
                 out.push(doc);
                 if out.len() == limit {
                     break;
@@ -287,6 +295,25 @@ impl SearchIndex {
             }
         }
         Ok(out)
+    }
+
+    /// The newest messages read one by one (for queries the index can't narrow down).
+    fn scan(&self, query: &Query, conversation: Option<&str>, limit: usize) -> Result<Vec<Doc>> {
+        let db = self.db.lock().unwrap();
+        let rows: Vec<Vec<u8>> = match conversation {
+            Some(c) => {
+                let mut stmt = db.prepare(&format!("SELECT data FROM docs WHERE conv = ?1 ORDER BY ts DESC LIMIT {SCAN_MAX}"))?;
+                let rows = stmt.query_map(params![self.hash("conv", c)], |r| r.get(0))?.filter_map(|r| r.ok()).collect();
+                rows
+            }
+            None => {
+                let mut stmt = db.prepare(&format!("SELECT data FROM docs ORDER BY ts DESC LIMIT {SCAN_MAX}"))?;
+                let rows = stmt.query_map([], |r| r.get(0))?.filter_map(|r| r.ok()).collect();
+                rows
+            }
+        };
+        drop(db);
+        Ok(rows.iter().filter_map(|d| self.cipher.decrypt_value::<Doc>(d).ok()).filter(|d| query.matches(&d.body)).take(limit).collect())
     }
 
     /// Messages with media, files or links in one conversation, newest first,
@@ -372,10 +399,6 @@ fn query_term(term: &str) -> String {
     }
 }
 
-fn term_matches(word: &str, term: &str) -> bool {
-    if term.chars().count() <= 2 { word == term } else { word.starts_with(term) }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -419,6 +442,18 @@ mod tests {
         assert!(index.search("pensearch", None, 10).unwrap().is_empty(), "prefixes only, not infixes");
         assert_eq!(index.search("opensearchcluster", None, 10).unwrap().len(), 0, "long prefix shared, word differs");
         assert_eq!(index.search("lunch", Some("a|!r"), 10).unwrap().len(), 0, "conversation filter");
+    }
+
+    #[test]
+    fn phrases_wildcards_and_case() {
+        let dir = tempfile::tempdir().unwrap();
+        let index = open(&dir);
+        index.add(&[doc("a|!r", "$1", "Deploying the SURF cluster", 1), doc("a|!r", "$2", "surf the web, then cluster", 2)]).unwrap();
+        let ids = |q: &str, case: bool| index.search_query(&Query::parse(q, case), None, 10).unwrap().into_iter().map(|d| d.event_id).collect::<Vec<_>>();
+        assert_eq!(ids("\"surf cluster\"", false), ["$1"], "a phrase keeps its words together");
+        assert_eq!(ids("*ploy*", false), ["$1"], "a leading wildcard reads the messages");
+        assert_eq!(ids("SURF", true), ["$1"], "match case");
+        assert_eq!(ids("clus* web", false), ["$2"]);
     }
 
     #[test]

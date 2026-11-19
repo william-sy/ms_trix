@@ -257,29 +257,29 @@ async fn retry_undecrypted(app: &AppHandle, index: &Arc<SearchIndex>, adapter: &
 }
 
 /// Full-history hits from the index plus whatever the engine has loaded, newest first.
-pub fn search(app: &AppHandle, query: &str, conversation: Option<&str>, limit: usize) -> Vec<SearchHit> {
+pub fn search(app: &AppHandle, query: &str, match_case: bool, conversation: Option<&str>, limit: usize) -> Vec<SearchHit> {
     let state = app.state::<AppState>();
+    let query = trix_core::Query::parse(query, match_case);
     let (names, mut hits): (HashMap<String, String>, Vec<SearchHit>) = {
         let engine = state.engine.lock().unwrap();
         let names = engine.conversations().into_iter().map(|c| (c.key, c.name)).collect();
-        let hits = engine.search(query, limit).into_iter().filter(|h| conversation.is_none_or(|c| h.conversation == c)).collect();
+        let hits = engine.search_query(&query, limit).into_iter().filter(|h| conversation.is_none_or(|c| h.conversation == c)).collect();
         (names, hits)
     };
     if let Some(index) = state.search.clone() {
-        let first = query.split_whitespace().next().unwrap_or_default().to_lowercase();
-        for doc in index.search(query, conversation, limit).unwrap_or_default() {
+        for doc in index.search_query(&query, conversation, limit).unwrap_or_default() {
             // Rooms we've left stay out of results.
             let Some(name) = names.get(&doc.conversation) else { continue };
             if hits.iter().any(|h| h.conversation == doc.conversation && h.message == doc.event_id) {
                 continue;
             }
-            let at = doc.body.to_lowercase().find(&first).unwrap_or(0);
+            let (at, len) = query.first_match(&doc.body).unwrap_or((0, 0));
             hits.push(SearchHit {
                 conversation: doc.conversation.clone(),
                 conversation_name: name.clone(),
                 message: doc.event_id,
                 sender_name: if doc.from_me { String::new() } else { doc.sender_name },
-                snippet: snippet(&doc.body, at, first.len()),
+                snippet: snippet(&doc.body, at, len),
                 at: doc.ts,
             });
         }

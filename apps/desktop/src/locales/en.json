@@ -627,6 +627,8 @@
   "search.hintIndexed_one": "Searching {formatted} message on this device, including encrypted chats.",
   "search.hintIndexed_other": "Searching {formatted} messages on this device, including encrypted chats. Older history is added in the background.",
   "search.messages": "Messages",
+  "search.matchCase": "Match case",
+  "search.syntax": "\"exact words\" in quotes · part* or *part* for part of a word · Aa: match capitals",
   "search.none": "No messages found",
   "hashtag.inChat": "In {name}",
   "hashtag.allChats": "All chats",

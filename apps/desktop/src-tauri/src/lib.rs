@@ -751,8 +751,8 @@ async fn teams(app: AppHandle) -> Vec<TeamView> {
 }
 
 #[tauri::command]
-async fn search_messages(app: AppHandle, query: String, conversation: Option<String>) -> Vec<SearchHit> {
-    tauri::async_runtime::spawn_blocking(move || search::search(&app, &query, conversation.as_deref(), 50)).await.unwrap_or_default()
+async fn search_messages(app: AppHandle, query: String, conversation: Option<String>, match_case: Option<bool>) -> Vec<SearchHit> {
+    tauri::async_runtime::spawn_blocking(move || search::search(&app, &query, match_case.unwrap_or(false), conversation.as_deref(), 50)).await.unwrap_or_default()
 }
 
 /// The Shared tab: "media", "files" or "links" of a conversation, newest first.

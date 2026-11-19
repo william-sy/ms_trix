@@ -5,6 +5,7 @@ import { useOpenHashtag } from "./Hashtags";
 import { checkLink } from "./linkCheck";
 import { mainWarning, useOpenLink, useOwnDomains, warningText } from "./LinkPreview";
 import { useOpenProfile } from "./Profile";
+import { HASHTAG, markTerm } from "./searchQuery";
 import { parseRoomLink, useOpenRoomLink } from "./roomLinks";
 import { t } from "./i18n";
 
@@ -93,15 +94,13 @@ function sanitize(html: string, account: string, own: string[]): string {
   return root.innerHTML;
 }
 
-// A #hashtag, by the same rule as the core's (trix_core::hashtags): not inside a word or link, at
-// least two characters with a letter among them, and not a room address (#room:server).
-const HASHTAG = String.raw`(?<![\p{L}\p{N}_#&/])#((?=[\p{N}_-]*\p{L})[\p{L}\p{N}_][\p{L}\p{N}_-]*[\p{L}\p{N}_])(?!-*[\p{L}\p{N}_]|:[\p{L}\p{N}])`;
 const HASHTAG_RE = new RegExp(HASHTAG, "gu");
 
 // Web links, bare room addresses like #room:server.org (turned into matrix.to links), hashtags.
 const URL_RE = new RegExp(String.raw`\b(https?:\/\/[^\s<]+[^\s<.,:;"')\]!?])|(?<![\w#])(#[\w.=-]+:[\w-]+(?:\.[\w-]+)+)|` + HASHTAG, "gu");
 
 function highlight(text: string, query: string | undefined, key: string): ReactNode[] {
+  query = query && markTerm(query);
   if (!query) return [text];
   const out: ReactNode[] = [];
   const lower = text.toLowerCase();

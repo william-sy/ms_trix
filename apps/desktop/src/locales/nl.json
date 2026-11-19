@@ -627,6 +627,8 @@
   "search.hintIndexed_one": "Doorzoekt {formatted} bericht op dit apparaat, ook in versleutelde chats.",
   "search.hintIndexed_other": "Doorzoekt {formatted} berichten op dit apparaat, ook in versleutelde chats. Oudere geschiedenis wordt op de achtergrond toegevoegd.",
   "search.messages": "Berichten",
+  "search.matchCase": "Hoofdlettergevoelig",
+  "search.syntax": "\"exacte woorden\" tussen aanhalingstekens · deel* of *deel* voor een deel van een woord · Aa: hoofdletters gelijk",
   "search.none": "Geen berichten gevonden",
   "hashtag.inChat": "In {name}",
   "hashtag.allChats": "Alle chats",

@@ -27,6 +27,7 @@ import { effectFor, type EffectName } from "./effects";
 import { RoomPanel } from "./RoomPanel";
 import { LinkPreview, previewLink } from "./LinkPreview";
 import { useScheduled, whenLabel } from "./scheduled";
+import { parseQuery, queryMatches } from "./searchQuery";
 import { useOpenProfile } from "./Profile";
 import { summarize } from "./roomEvents";
 import { capabilities } from "./mock";
@@ -131,7 +132,9 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
   const searchInput = useRef<HTMLInputElement>(null);
   const [hit, setHit] = useState(0);
   const q = search?.trim().toLowerCase() ?? "";
-  const hits = q ? mainList.filter((m) => !m.system && `${m.body} ${m.media?.name ?? ""}`.toLowerCase().includes(q)) : [];
+  // The same syntax as the main search: words, "exact phrases", *wildcards*.
+  const parsed = useMemo(() => parseQuery(q), [q]);
+  const hits = q ? mainList.filter((m) => !m.system && queryMatches(parsed, `${m.body} ${m.media?.name ?? ""}`)) : [];
   const currentHit = hits.length ? hits[Math.min(hit, hits.length - 1)] : undefined;
   // Full-history matches (local index) that aren't among the loaded messages.
   const [historyHits, setHistoryHits] = useState<SearchHit[]>([]);

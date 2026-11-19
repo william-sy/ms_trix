@@ -757,32 +757,31 @@ impl Engine {
 
     /// Case-insensitive search over all loaded messages, newest first.
     pub fn search(&self, query: &str, limit: usize) -> Vec<SearchHit> {
-        let q = query.trim().to_lowercase();
-        if q.chars().count() < 2 {
+        self.search_query(&crate::query::Query::parse(query, false), limit)
+    }
+
+    /// Loaded messages matching `q` (words, phrases, wildcards, tags; see [`crate::query`]), newest first.
+    pub fn search_query(&self, q: &crate::query::Query, limit: usize) -> Vec<SearchHit> {
+        if q.is_empty() {
             return vec![];
         }
-        // "#tag" finds that hashtag only, not the word inside other tags or plain text.
-        let tags = crate::model::hashtags(&q);
         let mut hits: Vec<SearchHit> = self
             .convs
             .iter()
             .filter_map(|(id, e)| e.conv.as_ref().map(|c| (id, e, c)))
             .flat_map(|(id, e, c)| {
-                let q = q.clone();
-                let tags = tags.clone();
                 e.messages.iter().filter_map(move |m| {
                     let text = m.body.plain_text();
-                    let lower = text.to_lowercase();
-                    let at = lower.find(&q)?;
-                    if !tags.is_empty() && !tags.iter().all(|t| crate::model::hashtags(&text).contains(t)) {
+                    if !q.matches(&text) {
                         return None;
                     }
+                    let (at, len) = q.first_match(&text).unwrap_or((0, 0));
                     Some(SearchHit {
                         conversation: id.key(),
                         conversation_name: c.name.clone(),
                         message: m.id.0.clone(),
                         sender_name: if m.from_me { String::new() } else { m.sender_name.clone() },
-                        snippet: snippet(&text, at, q.len()),
+                        snippet: snippet(&text, at, len),
                         at: m.sent_at,
                     })
                 })

@@ -7,6 +7,7 @@ import { matches } from "./shortcuts";
 import { isUnread, useOrg, type Action, type OrgFilter } from "./store";
 import type { Conversation } from "./types";
 import { t } from "./i18n";
+import { markTerm } from "./searchQuery";
 
 // No "meeting chats": Matrix has no meeting rooms yet; it returns with calls.
 type Filter = "unread" | "chats" | "rooms" | "channels";
@@ -57,7 +58,8 @@ export function ChatList({ query, convs, orgFilter, selectedId, dispatch, onNewC
   }, []);
 
   const f = filters.find((x) => x.id === filter);
-  const q = query.trim().toLowerCase();
+  // Chat names are matched on the plain part of a search ("exact words" and *wildcards* stripped).
+  const q = markTerm(query).trim().toLowerCase();
   const lq = listQuery?.trim().toLowerCase() ?? "";
   // Keep the selected chat visible under the Unread filter, otherwise it vanishes the moment you open it.
   const visible = convs

@@ -7,6 +7,7 @@ import { backend, formatTime, isLive, type SearchHit } from "./backend";
 import type { PresenceState } from "./types";
 import { locale, t } from "./i18n";
 import { matches } from "./shortcuts";
+import { markTerm } from "./searchQuery";
 
 
 interface Props {
@@ -74,6 +75,7 @@ export function TitleBar({ orgFilter, query, onQuery, onAddAccount, onSignOut, o
   const [hits, setHits] = useState<SearchHit[]>([]);
   const [showHits, setShowHits] = useState(false);
   const [indexed, setIndexed] = useState<number | null>(null);
+  const [matchCase, setMatchCase] = useState(false);
   useEffect(() => {
     if (isLive && showHits) backend.searchStatus().then(setIndexed).catch(() => setIndexed(null));
   }, [showHits]);
@@ -81,10 +83,10 @@ export function TitleBar({ orgFilter, query, onQuery, onAddAccount, onSignOut, o
   useEffect(() => {
     if (!isLive || query.trim().length < 2) return setHits([]);
     const timer = window.setTimeout(() => {
-      backend.searchMessages(query).then((all) => setHits(all.filter((h) => orgFilter === "all" || h.conversation.startsWith(`${orgFilter}|`)))).catch(() => setHits([]));
+      backend.searchMessages(query, null, matchCase).then((all) => setHits(all.filter((h) => orgFilter === "all" || h.conversation.startsWith(`${orgFilter}|`)))).catch(() => setHits([]));
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [query, orgFilter]);
+  }, [query, orgFilter, matchCase]);
   const orgs = useOrgs();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -122,6 +124,8 @@ export function TitleBar({ orgFilter, query, onQuery, onAddAccount, onSignOut, o
         <input ref={search} value={query} onChange={(e) => { onQuery(e.target.value); setShowHits(true); }} onFocus={() => setShowHits(true)}
           onKeyDown={(e) => { if (e.key === "Escape") { onQuery(""); setShowHits(false); } }}
           placeholder={orgFilter === "all" ? t("titlebar.searchAll") : t("titlebar.searchOrg", { org: me.name })} />
+        <button type="button" className={`search-case ${matchCase ? "on" : ""}`} title={t("search.matchCase")} aria-pressed={matchCase}
+          onMouseDown={(e) => e.preventDefault()} onClick={() => setMatchCase(!matchCase)}>Aa</button>
         {showHits && query.trim().length >= 2 && isLive && (
           <div className="menu search-results">
             <div className="menu-title">{t("search.messages")}</div>
@@ -133,6 +137,7 @@ export function TitleBar({ orgFilter, query, onQuery, onAddAccount, onSignOut, o
               </button>
             ))}
             <p className="hint small">{indexed !== null ? t("search.hintIndexed", { count: indexed, formatted: indexed.toLocaleString(locale()) }) : t("search.hint")}</p>
+            <p className="hint small">{t("search.syntax")}</p>
           </div>
         )}
       </div>
@@ -181,7 +186,7 @@ export function TitleBar({ orgFilter, query, onQuery, onAddAccount, onSignOut, o
 /** Marks the whole query, or else its first word (full-history hits match word by word). */
 export function Highlight({ text, query }: { text: string; query: string }) {
   const lower = text.toLowerCase();
-  let q = query.toLowerCase();
+  let q = markTerm(query).toLowerCase();
   let i = lower.indexOf(q);
   if (i < 0) {
     q = q.split(/\s+/)[0] ?? "";

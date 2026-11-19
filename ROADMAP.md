@@ -32,7 +32,7 @@
       the app was closed goes out at start. Waiting messages show at the bottom of the chat with
       Send now / Edit / Delete; kept encrypted on disk like the search index. Not for files
 
-1.3 (in progress):
+1.3 (released 2026-11-19):
 - [x] ntfy add-on (Settings → Notifications): notifications also to an ntfy topic (ntfy.sh or your
       own server), only while away (auto-away idle time) or always, never during do not disturb;
       without the message text unless you turn it on; access token in the keychain; test button
@@ -43,6 +43,9 @@
       going on there opens the pre-join screen (no call is started by a link)
 - [x] Calls: hide your own video, only for you (layout menu or ✕ on your tile); remembered
 - [x] Notes categories: new (with a first note), rename (subfolders move along), remove (notes stay)
+- [x] Advanced search: "exact phrases", wildcards within a word (*part*, part*, *ing), match case (Aa);
+      one query rule in the core for the index and loaded messages (and a TypeScript twin for
+      in-chat search); a query of only leading wildcards reads the newest 20,000 messages
 - [x] Nextcloud Notes (rail → Notes, for Nextcloud accounts with the Notes app): list by category
       with favourites and search, Markdown editor with preview, saves as you type; a change made
       elsewhere in between isn't overwritten (keep mine / load theirs)
