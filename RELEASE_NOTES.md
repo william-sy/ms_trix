@@ -7,6 +7,7 @@
 - The calendar (and meeting reminders) only cover Nextcloud accounts with the Calendar app; a
   Nextcloud without it no longer offers its calendar for new meetings, which then failed.
 - A meeting invitation's answers (Accept, Maybe, Decline) stay together on one line.
+- Pictures shared in Nextcloud Talk showed as a question mark instead of the picture.
 - Verifying someone by emoji could stay at "Waiting for … to accept" until it timed out: the
   room the verification runs in is now followed closely, so the other side's answers aren't
   cut short by sliding sync.

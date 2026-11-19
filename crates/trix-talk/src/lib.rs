@@ -989,11 +989,24 @@ impl ProtocolAdapter for TalkAdapter {
             self.request(Method::GET, &format!("/index.php/avatar/{user}/{size}"))
         } else if let Some(rest) = media.strip_prefix("file:") {
             let (id, path) = rest.split_once(':').unwrap_or((rest, ""));
+            let preview = |w: u32, h: u32| self.request(Method::GET, "/index.php/core/preview").query(&[("fileId", id), ("x", &w.to_string()), ("y", &h.to_string()), ("a", "1")]);
             match thumbnail {
-                Some((w, h)) => self.request(Method::GET, "/index.php/core/preview").query(&[("fileId", id), ("x", &w.to_string()), ("y", &h.to_string()), ("a", "1")]),
+                Some((w, h)) => preview(w, h),
                 None => {
-                    let path: String = path.split('/').map(|s| percent_encoding::utf8_percent_encode(s, percent_encoding::NON_ALPHANUMERIC).to_string()).collect::<Vec<_>>().join("/");
-                    self.request(Method::GET, &format!("/remote.php/dav/files/{}{path}", self.session.login))
+                    // Talk gives the path in our own files without a leading slash ("Talk/x.jpg");
+                    // the files root has our user id (not necessarily the login name).
+                    let encoded = dav::encode_path(path).ok_or_else(|| err("bad path"))?;
+                    let response = self.request(Method::GET, &format!("{}{encoded}", self.files_root().await)).header("Accept", "*/*").send().await.map_err(|e| AdapterError::Network(e.to_string()))?;
+                    if response.status().is_success() {
+                        return Ok(response.bytes().await.map_err(err)?.to_vec());
+                    }
+                    // A picture not in our files (yet): Nextcloud's own large preview of it. Other
+                    // files must come as they are, so they fail here.
+                    let picture = path.rsplit('.').next().is_some_and(|ext| matches!(ext.to_ascii_lowercase().as_str(), "jpg" | "jpeg" | "png" | "gif" | "webp" | "heic" | "heif" | "bmp"));
+                    if !picture {
+                        return Err(err(response.status()));
+                    }
+                    preview(2048, 2048)
                 }
             }
         } else {
