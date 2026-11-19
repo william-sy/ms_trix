@@ -573,6 +573,7 @@ export function App() {
   // connecting at start); a server without Notes isn't asked again.
   const notesAsked = useRef(new Set<string>());
   const [notesRetry, setNotesRetry] = useState(0);
+  const notesTries = useRef(0);
   const talkIds = isLive ? state.orgs.filter((o) => o.protocol === "talk").map((o) => o.id) : [];
   useEffect(() => {
     for (const id of talkIds) {
@@ -581,7 +582,8 @@ export function App() {
       backend.notes(id).then(() => setNotesAccounts((ids) => [...new Set([...ids, id])]), (e) => {
         if (String(e).includes("not supported")) return;
         notesAsked.current.delete(id);
-        window.setTimeout(() => setNotesRetry((n) => n + 1), 20_000);
+        // Soon at first (the account is usually just still connecting), then less often.
+        window.setTimeout(() => setNotesRetry((n) => n + 1), Math.min(30_000, 3000 * 2 ** notesTries.current++));
       });
     }
   }, [talkIds.join("|"), notesRetry]); // eslint-disable-line react-hooks/exhaustive-deps

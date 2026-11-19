@@ -1574,6 +1574,7 @@ impl<T> futures::Stream for ReceiverStream<T> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
 
     #[test]
     fn reads_a_note_as_the_notes_api_sends_it() {
@@ -1583,8 +1584,6 @@ mod tests {
         assert_eq!(note.content.as_deref(), Some("# Shopping\n- milk"));
         assert!(note_from(&serde_json::json!({"title": "no id"})).is_none());
     }
-
-    use super::*;
 
     #[test]
     fn renders_mentions_and_files() {

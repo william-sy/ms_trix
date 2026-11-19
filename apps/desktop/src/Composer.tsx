@@ -13,7 +13,7 @@ import { currentSettings, isMac } from "./settings";
 
 // Markdown the format buttons insert; the adapter sends it as rich text.
 // `label` is a symbol shown as-is; `labelKey` is translated.
-const formats: { label?: string; labelKey?: Key; className?: string; title: Key; format: Format }[] = [
+export const formats: { label?: string; labelKey?: Key; className?: string; title: Key; format: Format }[] = [
   { label: "B", className: "fmt-B", title: "composer.bold", format: { kind: "wrap", before: "**", after: "**" } },
   { label: "I", className: "fmt-I", title: "composer.italic", format: { kind: "wrap", before: "_", after: "_" } },
   { label: "S", className: "fmt-S", title: "composer.strike", format: { kind: "wrap", before: "~~", after: "~~" } },

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { backend, formatTime } from "./backend";
-import { t } from "./i18n";
+import { formats } from "./Composer";
+import { applyFormat, type Format } from "./format";
+import { t, type Key } from "./i18n";
 import { RichText } from "./RichText";
 import type { Note, Org } from "./types";
 
@@ -16,16 +18,29 @@ function titleOf(text: string): string {
 
 type Listed = Note & { account: string };
 
+/** The composer's format buttons, plus what notes often need: a heading, a checklist, a link. */
+const noteFormats: { label?: string; labelKey?: Key; className?: string; title: Key; format: Format }[] = [
+  { label: "H", className: "fmt-B", title: "notes.heading", format: { kind: "line", prefix: "## " } },
+  ...formats,
+  { label: "☑", title: "notes.checklist", format: { kind: "line", prefix: "- [ ] " } },
+  { label: "🔗", title: "notes.link", format: { kind: "wrap", before: "[", after: "](https://)" } },
+];
+
+/** Category filter values besides a category's own name. */
+const ALL = "\u0000all";
+
 export function NotesPane({ orgs }: { orgs: Org[] }) {
   const [notes, setNotes] = useState<Record<string, Note[]>>({});
   const [selected, setSelected] = useState<{ account: string; id: number } | null>(null);
   const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState(ALL);
+  const [loaded, setLoaded] = useState(false);
   const [target, setTarget] = useState(orgs[0]?.id ?? "");
   const [error, setError] = useState<string | null>(null);
   const ids = orgs.map((o) => o.id).join("|");
 
   const load = () => {
-    for (const o of orgs) backend.notes(o.id).then((list) => setNotes((n) => ({ ...n, [o.id]: list })), (e) => setError(String(e)));
+    for (const o of orgs) backend.notes(o.id).then((list) => { setNotes((n) => ({ ...n, [o.id]: list })); setLoaded(true); }, (e) => { setError(String(e)); setLoaded(true); });
   };
   useEffect(load, [ids]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (!orgs.some((o) => o.id === target)) setTarget(orgs[0]?.id ?? ""); }, [ids]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -34,7 +49,8 @@ export function NotesPane({ orgs }: { orgs: Org[] }) {
   const create = async () => {
     if (!target) return;
     try {
-      const note = await backend.saveNote(target, null, null, { title: t("notes.untitled"), content: "", category: "", favorite: false });
+      // In the category being looked at.
+      const note = await backend.saveNote(target, null, null, { title: t("notes.untitled"), content: "", category: filter === ALL ? "" : filter, favorite: false });
       put(target, note);
       setSelected({ account: target, id: note.id });
     } catch (e) {
@@ -43,8 +59,10 @@ export function NotesPane({ orgs }: { orgs: Org[] }) {
   };
 
   const q = query.trim().toLowerCase();
-  const all: Listed[] = orgs.flatMap((o) => (notes[o.id] ?? []).map((n) => ({ ...n, account: o.id })))
-    .filter((n) => !q || n.title.toLowerCase().includes(q) || n.category.toLowerCase().includes(q));
+  const every: Listed[] = orgs.flatMap((o) => (notes[o.id] ?? []).map((n) => ({ ...n, account: o.id })));
+  const categories = [...new Set(every.map((n) => n.category).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const count = (c: string) => every.filter((n) => n.category === c).length;
+  const all = every.filter((n) => (filter === ALL || n.category === filter) && (!q || n.title.toLowerCase().includes(q) || n.category.toLowerCase().includes(q)));
   // By category (none first), favourites on top, then the latest changed.
   const groups = new Map<string, Listed[]>();
   for (const n of all) {
@@ -52,7 +70,6 @@ export function NotesPane({ orgs }: { orgs: Org[] }) {
     groups.set(key, [...(groups.get(key) ?? []), n]);
   }
   const sorted = [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
-  const categories = [...new Set(all.map((n) => n.category).filter(Boolean))].sort();
 
   return (
     <div className="notes-pane">
@@ -62,13 +79,18 @@ export function NotesPane({ orgs }: { orgs: Org[] }) {
           <button className="icon-btn" title={t("notes.reload")} onClick={load}>↻</button>
           <button className="btn primary small" disabled={!target} onClick={() => void create()}>{t("notes.new")}</button>
         </div>
+        <select className="notes-filter" value={filter} onChange={(e) => setFilter(e.target.value)} title={t("notes.category")}>
+          <option value={ALL}>{t("notes.allNotes", { count: every.length })}</option>
+          {count("") > 0 && <option value="">{t("notes.noCategory")} ({count("")})</option>}
+          {categories.map((c) => <option key={c} value={c}>{c} ({count(c)})</option>)}
+        </select>
         {orgs.length > 1 && (
           <select className="notes-account" value={target} onChange={(e) => setTarget(e.target.value)} title={t("notes.newIn")}>
             {orgs.map((o) => <option key={o.id} value={o.id}>{t("notes.newInAccount", { account: o.name })}</option>)}
           </select>
         )}
         {error && <p className="error small">{error}</p>}
-        {all.length === 0 && <p className="empty small">{q ? t("notes.noneFound") : t("notes.none")}</p>}
+        {all.length === 0 && <p className="empty small">{!loaded ? t("common.loading") : q || filter !== ALL ? t("notes.noneFound") : t("notes.none")}</p>}
         {sorted.map(([key, list]) => (
           <div key={key}>
             <div className="notes-group">{key.endsWith(" · ") || !key ? `${key}${t("notes.noCategory")}` : key}</div>
@@ -140,6 +162,14 @@ function NoteEditor({ account, id, categories, onSaved, onDeleted }: {
     }
   };
   const change = (apply: () => void) => { dirty.current = true; apply(); };
+  const area = useRef<HTMLTextAreaElement>(null);
+  const format = (f: Format) => {
+    const el = area.current;
+    if (!el || note?.readonly) return;
+    const edit = applyFormat(text, el.selectionStart, el.selectionEnd, f);
+    change(() => setText(edit.text));
+    requestAnimationFrame(() => { el.focus(); el.setSelectionRange(edit.start, edit.end); });
+  };
   // A second after the last change; and whatever is left when the note is closed.
   useEffect(() => {
     if (!dirty.current || state === "conflict") return;
@@ -158,8 +188,9 @@ function NoteEditor({ account, id, categories, onSaved, onDeleted }: {
     <div className="note-editor">
       <div className="note-toolbar">
         <button className={`icon-btn ${favorite ? "on" : ""}`} title={t("notes.favorite")} disabled={note.readonly} onClick={() => change(() => setFavorite(!favorite))}>{favorite ? "★" : "☆"}</button>
-        <input className="note-category" list="note-categories" value={category} placeholder={t("notes.noCategory")} disabled={note.readonly}
-          onChange={(e) => change(() => setCategory(e.target.value))} />
+        <label className="note-category">{t("notes.category")}
+          <input list="note-categories" value={category} placeholder={t("notes.noCategory")} disabled={note.readonly} title={t("notes.categoryHint")}
+            onChange={(e) => change(() => setCategory(e.target.value))} /></label>
         <datalist id="note-categories">{categories.map((c) => <option key={c} value={c} />)}</datalist>
         <span className="spacer" />
         <span className={`note-state ${state}`}>{note.readonly ? t("notes.readonly") : t(`notes.state.${state}`)}</span>
@@ -178,11 +209,29 @@ function NoteEditor({ account, id, categories, onSaved, onDeleted }: {
         </div>
       )}
       {state === "error" && error && <div className="notice" role="alert">{error} <button className="link" onClick={() => void save()}>{t("notes.retry")}</button></div>}
+      {!preview && !note.readonly && (
+        <div className="format-bar note-format">
+          {noteFormats.map((f) => (
+            <button key={f.title} className={`fmt ${f.className ?? ""}`} title={t(f.title)} onMouseDown={(e) => e.preventDefault()} onClick={() => format(f.format)}>
+              {f.labelKey ? t(f.labelKey) : f.label}
+            </button>
+          ))}
+        </div>
+      )}
       {preview ? (
         <div className="note-preview"><RichText body={text} html={html ?? undefined} account={account} /></div>
       ) : (
-        <textarea className="note-text" autoFocus={!text} value={text} readOnly={note.readonly} placeholder={t("notes.placeholder")}
-          onChange={(e) => change(() => setText(e.target.value))} />
+        <textarea ref={area} className="note-text" autoFocus={!text} value={text} readOnly={note.readonly} placeholder={t("notes.placeholder")}
+          onChange={(e) => change(() => setText(e.target.value))}
+          onKeyDown={(e) => {
+            // ⌘B / ⌘I (Ctrl elsewhere), as in the composer's format bar.
+            if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
+            const key = e.key.toLowerCase();
+            if (key === "b" || key === "i") {
+              e.preventDefault();
+              format(key === "b" ? { kind: "wrap", before: "**", after: "**" } : { kind: "wrap", before: "_", after: "_" });
+            }
+          }} />
       )}
     </div>
   );
