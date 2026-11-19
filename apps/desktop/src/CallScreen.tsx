@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { dndActive } from "./dnd";
 import { playRingtone } from "./ringtone";
 import { Avatar } from "./Avatar";
 import { CallIcon, CameraIcon, CameraOffIcon, ExpandIcon, MicIcon, MicOffIcon, PopInIcon, ShareScreenIcon } from "./Icons";
@@ -30,8 +31,8 @@ function Media({ stream, muted, className, audioOnly }: { stream?: MediaStream; 
 export function useRingtone(on: boolean, incoming: boolean) {
   useEffect(() => {
     if (!on) return;
-    // Ringing for you: your ringtone. Calling out: the ringback tone below.
-    if (incoming) return playRingtone();
+    // Ringing for you: your ringtone (none during do not disturb). Calling out: the ringback tone below.
+    if (incoming) return dndActive() ? undefined : playRingtone();
     const ctx = new AudioContext();
     const ring = () => {
       for (const freq of [440, 480]) {

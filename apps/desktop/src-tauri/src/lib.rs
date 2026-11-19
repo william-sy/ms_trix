@@ -29,6 +29,8 @@ struct AppState {
     chat_list_dirty: std::sync::atomic::AtomicBool,
     /// Unread count and tooltip for the tray icon, kept for when it's (re)built.
     tray_unread: Mutex<(u32, String)>,
+    /// Do not disturb until this time (ms since 1970; 0: off): no system notifications or sounds.
+    dnd_until: std::sync::atomic::AtomicU64,
 }
 
 /// Notification sound per kind: "none", "default" (the OS sound) or, on
@@ -46,7 +48,18 @@ impl Default for Sounds {
     }
 }
 
+fn do_not_disturb(app: &AppHandle) -> bool {
+    now() < app.state::<AppState>().dnd_until.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 fn show_notification(app: &AppHandle, title: &str, body: &str, kind: NotificationKind) {
+    if !do_not_disturb(app) {
+        present_notification(app, title, body, kind);
+    }
+}
+
+/// A system notification with its sound, also during do not disturb (a test from Settings).
+fn present_notification(app: &AppHandle, title: &str, body: &str, kind: NotificationKind) {
     use tauri_plugin_notification::NotificationExt;
     let sounds = app.state::<AppState>().sounds.lock().unwrap().clone();
     let sound = match kind {
@@ -1089,6 +1102,9 @@ async fn respond_event(state: State<'_, AppState>, account: String, href: String
 #[tauri::command]
 fn notify(app: AppHandle, title: String, body: String) {
     use tauri_plugin_notification::NotificationExt;
+    if do_not_disturb(&app) {
+        return;
+    }
     if let Err(e) = app.notification().builder().title(title).body(body).show() {
         log::warn!("notification failed: {e}");
     }
@@ -1846,10 +1862,16 @@ fn set_notify_prefs(state: State<'_, AppState>, prefs: NotifyPrefs, sounds: Soun
     *state.sounds.lock().unwrap() = sounds;
 }
 
+/// Do not disturb until `until` (ms since 1970), or off.
+#[tauri::command]
+fn set_dnd(state: State<'_, AppState>, until: Option<u64>) {
+    state.dnd_until.store(until.unwrap_or(0), std::sync::atomic::Ordering::Relaxed);
+}
+
 /// Shows a sample notification so the user hears the chosen sound.
 #[tauri::command]
 fn test_notification(app: AppHandle, kind: NotificationKind, title: String, body: String) {
-    show_notification(&app, &title, &body, kind);
+    present_notification(&app, &title, &body, kind);
 }
 
 #[tauri::command]
@@ -2073,7 +2095,7 @@ pub fn run() {
             let mut engine = Engine::new();
             engine.restore_activity(load_activity(&data_dir));
             let search = search::open(&data_dir);
-            app.manage(AppState { engine: Mutex::new(engine), search, data_dir, sounds: Default::default(), privacy: Mutex::new((true, true)), close_to_tray: Default::default(), tray_unread: Default::default(), chat_list_dirty: Default::default() });
+            app.manage(AppState { engine: Mutex::new(engine), search, data_dir, sounds: Default::default(), privacy: Mutex::new((true, true)), close_to_tray: Default::default(), tray_unread: Default::default(), chat_list_dirty: Default::default(), dnd_until: Default::default() });
             // Save the chat list (encrypted) now and then, so the next start can show it at once.
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
@@ -2188,6 +2210,7 @@ pub fn run() {
             set_room_avatar,
             pick_image_file,
             set_notify_prefs,
+            set_dnd,
             set_close_to_tray,
             set_tray_unread,
             set_texts,

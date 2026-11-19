@@ -1,5 +1,12 @@
 # Release notes
 
+## 1.2 (not released yet)
+
+### New
+- **Do not disturb** (account menu): no notifications or sounds for 30 minutes, 1 or 2 hours,
+  the rest of the day, until a time you choose, or until you turn it off. Calls and meeting
+  reminders still show, silently. You show as busy, with when it ends as your status.
+
 ## 1.1 (2026-11-18)
 
 ### New

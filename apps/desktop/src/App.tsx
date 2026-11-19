@@ -14,6 +14,7 @@ import { TitleBar } from "./TitleBar";
 import { SettingsDialog, type SettingsTab } from "./SettingsDialog";
 import { matches } from "./shortcuts";
 import { PRESENCE_KEY, useAutoAway } from "./presence";
+import { dndActive, dndStatus, setDnd, useDnd } from "./dnd";
 import { warmUpEffects } from "./cameraEffects";
 import { applySettings, currentSettings, loadSettings, onSettingsChanged, saveSettings, type Settings } from "./settings";
 import type { Attachment, Conversation, Outgoing, PresenceState } from "./types";
@@ -58,6 +59,8 @@ export function App() {
     try { return JSON.parse(localStorage.getItem(PRESENCE_KEY) ?? "{}"); } catch { return {}; }
   });
   const setPresence = (orgId: string, presence: PresenceState, status?: string) => {
+    // Picking a status yourself ends do not disturb.
+    if (dndActive()) setDnd(null);
     setOwnPresence((s) => {
       const next = { ...s, [orgId]: { presence, status } };
       try { localStorage.setItem(PRESENCE_KEY, JSON.stringify(next)); } catch { /* private mode */ }
@@ -76,9 +79,25 @@ export function App() {
   }, (e) => setNotice(e));
   const calls = useMatrixCalls((e) => setNotice(String(e)), (conversation, peer, video) => {
     const name = convsRef.current.find((c) => c.id === conversation)?.name ?? peer;
-    backend.testNotification("call", name, video ? t("mxcall.incomingVideo") : t("mxcall.incomingVoice")).catch(() => {});
+    if (!dndActive()) backend.testNotification("call", name, video ? t("mxcall.incomingVideo") : t("mxcall.incomingVoice")).catch(() => {});
   });
-  const autoAway = useAutoAway(state.orgs.map((o) => o.id), ownPresence, settings.awayAfter);
+  // Do not disturb shows you as busy everywhere (on Talk: "do not disturb"), with when it ends as
+  // your status message unless you have one; when it ends, your own status comes back.
+  const dnd = useDnd();
+  const orgIds = state.orgs.map((o) => o.id);
+  const shownPresence = dnd
+    ? Object.fromEntries(orgIds.map((id) => [id, { presence: "busy" as PresenceState, status: ownPresence[id]?.status || dndStatus(dnd) }]))
+    : ownPresence;
+  const dndSent = useRef<number | null>(null);
+  useEffect(() => {
+    if (!isLive || dndSent.current === dnd) return;
+    dndSent.current = dnd;
+    for (const id of orgIds) {
+      const shown = shownPresence[id];
+      backend.setPresence(id, shown?.presence ?? "available", shown?.status ?? null).catch(() => {});
+    }
+  }, [dnd]); // eslint-disable-line react-hooks/exhaustive-deps
+  const autoAway = useAutoAway(orgIds, shownPresence, settings.awayAfter);
   const [showSettings, setShowSettings] = useState<false | SettingsTab>(false);
   const [newChat, setNewChat] = useState<false | "chat" | "room" | "team">(false);
   const [newChannelIn, setNewChannelIn] = useState<TeamView | null>(null);
@@ -557,7 +576,7 @@ export function App() {
   const securityOrg = state.orgs.find((o) => o.id === securityFor);
 
   return (
-    <OrgsContext.Provider value={state.orgs.map((o) => ({ ...o, color: settings.orgColors[o.id] ?? o.color, ...ownPresence[o.id], ...(autoAway.has(o.id) ? { presence: "away" as const } : {}) }))}>
+    <OrgsContext.Provider value={state.orgs.map((o) => ({ ...o, color: settings.orgColors[o.id] ?? o.color, ...shownPresence[o.id], ...(autoAway.has(o.id) ? { presence: "away" as const } : {}) }))}>
     <ProfileContext.Provider value={openProfile}>
     <RoomLinkContext.Provider value={openRoomLink}>
     <CallsContext.Provider value={calls}>
@@ -586,7 +605,7 @@ export function App() {
           <RailItem icon={<MoreIcon />} label="" soon />
         </nav>
         <div className="main">
-          <TitleBar orgFilter={state.orgFilter} query={query} onQuery={setQuery} onSettings={() => setShowSettings("general")} onPresence={setPresence} onOpenMessage={openMessage} onAddAccount={addAccount} onSignOut={signOut} onSecurity={setSecurityFor} />
+          <TitleBar orgFilter={state.orgFilter} query={query} onQuery={setQuery} onSettings={() => setShowSettings("general")} onPresence={setPresence} dnd={dnd} onDnd={setDnd} onOpenMessage={openMessage} onAddAccount={addAccount} onSignOut={signOut} onSecurity={setSecurityFor} />
           {attention && (
             <SecurityBanner org={attention} status={security[attention.id]!} onFix={() => setSecurityFor(attention.id)}
               onDismiss={() => setDismissed(new Set([...dismissed, attention.id]))} />

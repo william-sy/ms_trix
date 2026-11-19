@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { dndActive } from "./dnd";
 import { backend, CALENDAR_CHANGED, isLive } from "./backend";
 import { firstUrl, meetingChat, parseIcal, toIcalUtc } from "./CalendarPane";
 import { locale, t } from "./i18n";
@@ -100,7 +101,7 @@ export function MeetingReminder({ orgs, convs, minutes, onJoin, onOpenChat }: {
       setDue((list) => [...list.filter((x) => x.key !== key), r].sort((a, b) => a.until - b.until));
       // The reminder sound, once for meetings due together: the chime once, a ringtone twice
       // (at most ten seconds of a sound file).
-      if (Date.now() - lastSound.current > QUIET) {
+      if (Date.now() - lastSound.current > QUIET && !dndActive()) {
         lastSound.current = Date.now();
         const sound = currentSettings().reminderSound;
         window.setTimeout(playRingtone(sound === "chime" ? 1 : 2, sound), 10_000);

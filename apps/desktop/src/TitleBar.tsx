@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { LockIcon, MoreIcon, PlusIcon, SearchIcon } from "./Icons";
+import { LockIcon, MoreIcon, MuteIcon, PlusIcon, SearchIcon } from "./Icons";
+import { DND_FOREVER, dndEnd } from "./dnd";
 import { Avatar } from "./Avatar";
 import { useOrgs, type OrgFilter } from "./store";
 import { backend, formatTime, isLive, type SearchHit } from "./backend";
@@ -17,11 +18,59 @@ interface Props {
   onSecurity: (orgId: string) => void;
   onSettings: () => void;
   onPresence: (orgId: string, presence: PresenceState, status?: string) => void;
+  /** Do not disturb: until when, while it's on. */
+  dnd: number | null;
+  onDnd: (until: number | null) => void;
   /** Open a search result: conversation key + message id. */
   onOpenMessage: (conversation: string, message: string) => void;
 }
 
-export function TitleBar({ orgFilter, query, onQuery, onAddAccount, onSignOut, onSecurity, onSettings, onPresence, onOpenMessage }: Props) {
+/** Do not disturb: on (until when, switch off), or the choice of how long. */
+function DndChoice({ dnd, onDnd, onDone }: { dnd: number | null; onDnd: (until: number | null) => void; onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [time, setTime] = useState("");
+  const set = (until: number) => { onDnd(until); setOpen(false); onDone(); };
+  const inMinutes = (m: number) => Date.now() + m * 60_000;
+  const endOfToday = () => { const d = new Date(); d.setHours(23, 59, 59, 0); return d.getTime(); };
+  // A time of day: today, or tomorrow once it has passed.
+  const at = (hhmm: string) => {
+    const [h, m] = hhmm.split(":").map(Number);
+    const d = new Date();
+    d.setHours(h ?? 0, m ?? 0, 0, 0);
+    if (d.getTime() <= Date.now()) d.setDate(d.getDate() + 1);
+    return d.getTime();
+  };
+  if (dnd) {
+    return (
+      <div className="dnd-on">
+        <span className="presence inline p-busy p-dnd" />
+        <span>{dnd === DND_FOREVER ? t("dnd.on") : t("dnd.onUntil", { time: dndEnd(dnd) })}</span>
+        <button className="link" onClick={() => onDnd(null)}>{t("dnd.off")}</button>
+      </div>
+    );
+  }
+  return (
+    <div className="dnd-choice">
+      <button className="menu-item" onClick={() => setOpen(!open)} title={t("dnd.hint")}><MuteIcon /> {t("dnd.title")}<span className="spacer" />{open ? "▾" : "›"}</button>
+      {open && (
+        <div className="dnd-options">
+          <button className="menu-item" onClick={() => set(inMinutes(30))}>{t("dnd.for30")}</button>
+          <button className="menu-item" onClick={() => set(inMinutes(60))}>{t("dnd.for1h")}</button>
+          <button className="menu-item" onClick={() => set(inMinutes(120))}>{t("dnd.for2h")}</button>
+          <button className="menu-item" onClick={() => set(endOfToday())}>{t("dnd.today")}</button>
+          <button className="menu-item" onClick={() => set(DND_FOREVER)}>{t("dnd.forever")}</button>
+          <form className="dnd-until" onSubmit={(e) => { e.preventDefault(); if (time) set(at(time)); }}>
+            <label>{t("dnd.until")} <input type="time" value={time} onChange={(e) => setTime(e.target.value)} /></label>
+            <button className="btn small" disabled={!time}>{t("dnd.start")}</button>
+          </form>
+          <p className="hint small">{t("dnd.hint")}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function TitleBar({ orgFilter, query, onQuery, onAddAccount, onSignOut, onSecurity, onSettings, onPresence, dnd, onDnd, onOpenMessage }: Props) {
   const [hits, setHits] = useState<SearchHit[]>([]);
   const [showHits, setShowHits] = useState(false);
   const [indexed, setIndexed] = useState<number | null>(null);
@@ -91,10 +140,12 @@ export function TitleBar({ orgFilter, query, onQuery, onAddAccount, onSignOut, o
         <button className="icon-btn" title={t("titlebar.settings")} onClick={onSettings}><MoreIcon /></button>
         <button className="me" onClick={() => setOpen(!open)} title={t("titlebar.accounts")}>
           <Avatar account={me.id} media={me.avatar} name={me.displayName} className="small" />
-          <span className={`presence p-${me.presence}`} />
+          <span className={`presence p-${me.presence} ${dnd ? "p-dnd" : ""}`} />
         </button>
         {open && (
           <div className="menu account-menu">
+            <DndChoice dnd={dnd} onDnd={onDnd} onDone={() => setOpen(false)} />
+            <div className="menu-sep" />
             {accounts.map((o) => (
               <div className="account" key={o.id}>
                 <div className="account-head">

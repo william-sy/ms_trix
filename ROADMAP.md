@@ -13,6 +13,25 @@
 - Releases: GitHub repo + unsigned builds for all OSes first (acceptable for v1); signing follows
   once certificates are sorted (Apple fee waiver for education, GÉANT TCS / SignPath for Windows)
 
+## Next versions (ideas from 2026-11-19)
+1.2 (in progress):
+- [x] Do not disturb until a chosen time (account menu): no notifications or sounds; calls and
+      reminders still show, silently; you show as busy, with when it ends as your status
+- [ ] #hashtags highlighted and clickable: every message with that tag, in this chat or all chats
+- [ ] Link previews (fetched by the app itself, not the homeserver; setting to turn them off),
+      with a phishing check on this computer only: link text vs. destination, lookalike and
+      mixed-script domains, URL tricks (user@host, IP addresses), where redirects really lead
+- [ ] Repeating meetings in the calendar (RRULE, as Nextcloud Calendar supports)
+- [ ] Send later: write now, sent at a chosen time by this app (Matrix has no server-side
+      scheduling yet; a message whose time passed while the app was closed goes out at start)
+
+1.3 (candidates):
+- [ ] ntfy add-on: forward notifications to an ntfy topic (a webhook), e.g. to your phone while
+      you're away from the computer
+- [ ] Nextcloud Notes, if the account's Nextcloud has the Notes app (its REST API)
+- [ ] Phishing check against a downloaded list of known phishing sites (e.g. OpenPhish), checked
+      locally, if the built-in checks turn out too limited
+
 Ordered by what makes ms_trix usable as a daily driver first. Anything not
 built yet is visibly disabled in the UI with a "coming soon" tooltip.
 

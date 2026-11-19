@@ -424,6 +424,8 @@ export const backend = {
     calendarChanged(invoke<void>("respond_event", { account, href, etag, status })),
   /** A silent system notification (the app plays the sound itself), e.g. a meeting reminder. */
   notify: (title: string, body: string) => invoke<void>("notify", { title, body }),
+  /** Do not disturb until this time (ms), or off: the core then shows no system notifications. */
+  setDnd: (until: number | null) => invoke<void>("set_dnd", { until }),
   /** Your own ringtone: saved in the app's data folder / read back. */
   saveRingtone: (data: Uint8Array) => invoke<void>("save_ringtone", data),
   ringtone: () => invoke<ArrayBuffer>("ringtone"),

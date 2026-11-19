@@ -44,6 +44,8 @@ export interface Settings {
   spellCheck: boolean;
   /** Minutes without input before "available" shows as away; 0 = never. */
   awayAfter: number;
+  /** Do not disturb until this time (ms; DND_FOREVER: until switched off), or off. */
+  dndUntil: number | null;
   /** Changed keyboard shortcuts (id -> combo); missing ids use the defaults. */
   shortcuts: Record<string, string>;
   /** Your own colour per account (org id -> colour) for the org switcher and badges. */
@@ -98,6 +100,7 @@ const defaults: Settings = {
   closeToTray: false,
   spellCheck: true,
   awayAfter: 5,
+  dndUntil: null,
   shortcuts: {},
   orgColors: {},
   micId: null,
