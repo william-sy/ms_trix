@@ -1179,3 +1179,14 @@ html.call-page .call-mini { left: 0; top: 0; right: 0; bottom: auto; width: auto
 .lp-warn { font-size: 12px; font-weight: 600; color: var(--warn); }
 a.link-warn { text-decoration: underline wavy var(--warn); }
 a.link-warn::after { content: " ⚠"; }
+
+/* Send later. */
+.send-later { font-size: 15px; }
+.menu.send-later-menu { top: auto; bottom: calc(100% + 6px); left: auto; right: 0; width: 270px; }
+.send-later-custom { display: flex; gap: 6px; align-items: center; padding: 6px 10px; }
+.send-later-custom input { flex: 1; min-width: 0; }
+.send-later-menu .hint { padding: 0 10px 6px; margin: 0; }
+.scheduled-msg { display: flex; flex-direction: column; align-items: flex-end; padding: 4px 16px; }
+.scheduled-bubble { max-width: 70%; padding: 8px 12px; border: 1px dashed var(--accent); border-radius: 8px; background: var(--bg-bubble-mine); opacity: 0.85; }
+.scheduled-meta { margin-top: 3px; font-size: 12px; color: var(--text-muted); }
+.scheduled-error { color: var(--warn); }

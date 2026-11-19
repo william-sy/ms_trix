@@ -1,5 +1,6 @@
 mod audio_out;
 mod links;
+mod scheduled;
 mod spell;
 mod accounts;
 mod search;
@@ -1869,6 +1870,33 @@ async fn link_preview(url: String) -> Option<links::LinkPreview> {
     links::preview(&url).await
 }
 
+/// Send later: the message goes out at `at` (ms since 1970), sent by this app. Its id.
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+fn schedule_message(app: AppHandle, key: String, at: u64, text: String, emote: bool, reply_to: Option<String>, thread_root: Option<String>, mentions: Vec<String>, html: Option<String>, msgtype: Option<String>, emotes: Option<Vec<(String, String)>>) -> CmdResult<String> {
+    conv(&key)?;
+    let id = format!("s{}-{}", now(), rand::random::<u32>());
+    scheduled::add(&app, scheduled::Scheduled { id: id.clone(), conversation: key, at, text, emote, reply_to, thread_root, mentions, html, msgtype, emotes: emotes.unwrap_or_default(), error: None, retry_at: 0 });
+    Ok(id)
+}
+
+#[tauri::command]
+fn scheduled_messages() -> Vec<scheduled::Scheduled> {
+    scheduled::list()
+}
+
+/// Takes a scheduled message off the list (deleted, or back in the composer to edit); returns it.
+#[tauri::command]
+fn cancel_scheduled(app: AppHandle, id: String) -> Option<scheduled::Scheduled> {
+    scheduled::remove(&app, &id)
+}
+
+#[tauri::command]
+async fn send_scheduled_now(app: AppHandle, id: String) {
+    scheduled::due_now(&app, &id);
+    scheduled::send_due(&app).await;
+}
+
 /// Do not disturb until `until` (ms since 1970), or off.
 #[tauri::command]
 fn set_dnd(state: State<'_, AppState>, until: Option<u64>) {
@@ -2112,6 +2140,15 @@ pub fn run() {
                 }
             });
             tauri::async_runtime::spawn(restore_all(app.handle().clone()));
+            // Send later: what's due goes out (also what came due while the app was closed).
+            scheduled::load(app.handle());
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                loop {
+                    tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+                    scheduled::send_due(&handle).await;
+                }
+            });
             Ok(())
         })
         .on_window_event(|window, event| match event {
@@ -2219,6 +2256,10 @@ pub fn run() {
             set_notify_prefs,
             set_dnd,
             link_preview,
+            schedule_message,
+            scheduled_messages,
+            cancel_scheduled,
+            send_scheduled_now,
             set_close_to_tray,
             set_tray_unread,
             set_texts,

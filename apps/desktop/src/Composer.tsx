@@ -4,6 +4,7 @@ import { EmojiPicker } from "./EmojiPicker";
 import { autoReplace } from "./emoticons";
 import { applyFormat, type Format } from "./format";
 import { AttachIcon, EmojiIcon, FormatIcon, MicIcon, PlusIcon, SendIcon } from "./Icons";
+import { sendLaterChoices } from "./scheduled";
 import { formatDuration, useVoiceRecorder, type Voice } from "./voice";
 import { backend, isLive, mediaUrl, type ImagePack, type PackImage } from "./backend";
 import type { Attachment, Member, Message, Outgoing } from "./types";
@@ -47,6 +48,8 @@ interface Props {
   replyTo?: Message | null;
   onCancelReply?: () => void;
   onSend: (m: Outgoing) => void;
+  /** Send later: the message is sent at `at` (ms) instead of now. */
+  onSchedule?: (m: Outgoing, at: number) => void;
   /** Record and send voice messages (main chat only). */
   onVoice?: (v: Voice) => void;
   /** Custom emoji and sticker packs for this chat, and sending a sticker. */
@@ -195,7 +198,8 @@ export function Composer(p: Props) {
     update(text.slice(0, a) + s + text.slice(b), a + s.length);
   };
 
-  const send = () => {
+  /** Sends now, or at `at` (send later). */
+  const send = (at?: number) => {
     const raw = text.trim();
     if (!canSend) return;
     // With files staged, the text is their caption, never a command.
@@ -221,7 +225,9 @@ export function Composer(p: Props) {
       mentions.push(userId);
     }
     const usedEmotes = Object.entries(emotes).filter(([code]) => out.includes(`:${code}:`));
-    onSend({ text: out, emotes: usedEmotes.length ? usedEmotes : undefined, emote: result.emote, html: "html" in result ? result.html : undefined, msgtype: "msgtype" in result ? result.msgtype : undefined, mentions, attachments: attachments.length ? attachments : undefined });
+    const message = { text: out, emotes: usedEmotes.length ? usedEmotes : undefined, emote: result.emote, html: "html" in result ? result.html : undefined, msgtype: "msgtype" in result ? result.msgtype : undefined, mentions, attachments: attachments.length ? attachments : undefined };
+    if (at !== undefined && p.onSchedule) p.onSchedule(message, at);
+    else onSend(message);
     setText("");
     setMentioned({});
     typing("");
@@ -396,9 +402,44 @@ export function Composer(p: Props) {
         {!canSend && p.onVoice ? (
           <button className="icon-btn send" title={t("composer.recordVoice")} onClick={() => void voice.start()}><MicIcon /></button>
         ) : (
-          <button className="icon-btn send" title={t("composer.send")} onClick={send} disabled={!canSend}><SendIcon /></button>
+          <>
+            {/* Files can't wait: they're sent from where they are now. */}
+            {p.onSchedule && canSend && !attachments.length && <SendLater onPick={(at) => send(at)} />}
+            <button className="icon-btn send" title={t("composer.send")} onClick={() => send()} disabled={!canSend}><SendIcon /></button>
+          </>
         )}
       </div>
     </div>
+  );
+}
+
+/** "Send later": quick choices, or a day and time of your own. */
+function SendLater({ onPick }: { onPick: (at: number) => void }) {
+  const [open, setOpen] = useState(false);
+  const [custom, setCustom] = useState("");
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    window.addEventListener("mousedown", close);
+    return () => window.removeEventListener("mousedown", close);
+  }, [open]);
+  const pick = (at: number) => { setOpen(false); setCustom(""); onPick(at); };
+  const customAt = custom ? new Date(custom).getTime() : NaN;
+  return (
+    <span className="bg-anchor" ref={ref}>
+      <button type="button" className={`icon-btn send-later ${open ? "on" : ""}`} title={t("schedule.title")} onClick={() => setOpen(!open)}>🕓</button>
+      {open && (
+        <div className="menu send-later-menu">
+          <div className="menu-title">{t("schedule.title")}</div>
+          {sendLaterChoices().map((c) => <button key={c.at} className="menu-item" onClick={() => pick(c.at)}>{c.label}</button>)}
+          <form className="send-later-custom" onSubmit={(e) => { e.preventDefault(); if (customAt > Date.now()) pick(customAt); }}>
+            <input type="datetime-local" value={custom} onChange={(e) => setCustom(e.target.value)} />
+            <button className="btn small" disabled={!(customAt > Date.now())}>{t("schedule.set")}</button>
+          </form>
+          <p className="hint small">{t("schedule.hint")}</p>
+        </div>
+      )}
+    </span>
   );
 }

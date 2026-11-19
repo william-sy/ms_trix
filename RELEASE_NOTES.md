@@ -18,6 +18,10 @@
 - **Repeating meetings:** every day, every weekday, every week on the days you pick, every two
   weeks, every month (on a date or e.g. the third Tuesday) or every year, ending never, on a
   date or after a number of times. They keep their local time when summer time starts or ends.
+- **Send later:** 🕓 next to Send schedules a message for later today, tomorrow morning, Monday
+  morning or a time you choose. This app sends it, so leave it running; if it's closed then, the
+  message goes out when you next open it. Waiting messages show at the bottom of the chat, where
+  you can send them now, edit or delete them.
 
 ## 1.1 (2026-11-18)
 

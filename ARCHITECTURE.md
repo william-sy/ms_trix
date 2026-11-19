@@ -123,6 +123,10 @@ that state to the UI through commands and events.
 * Background blur and pictures use MediaPipe's segmenter, bundled with the app. Moving
   backgrounds are drawn in code each frame (`movingBackgrounds.ts`); your own video or GIF is
   kept in the app's data folder (too big for the webview's local storage).
+* Send later is done by the app (`scheduled.rs`): the list is sealed with the search index's key
+  in the data folder, and a timer sends what's due through the normal adapter `send`.
+* Link previews are fetched by the app (`links.rs`), never through the homeserver; the phishing
+  check (`linkCheck.ts`) runs in the UI on this computer only.
 * Speaker choice: WebView2 (Windows) supports `setSinkId`; WebKit doesn't, so on
   macOS the call switches the system output through CoreAudio (`audio_out.rs`).
 

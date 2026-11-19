@@ -27,8 +27,10 @@
 - [x] Repeating meetings in the calendar: daily, weekdays, weekly on chosen days, every two weeks,
       monthly (date or "3rd Tuesday"), yearly; ends never, on a date or after N times. Stored in
       local time with the computer's time zone (VTIMEZONE), so they keep their time through summer time
-- [ ] Send later: write now, sent at a chosen time by this app (Matrix has no server-side
-      scheduling yet; a message whose time passed while the app was closed goes out at start)
+- [x] Send later (🕓 next to Send): later today, tomorrow or Monday morning, or a chosen time; sent
+      by this app (Matrix has no server-side scheduling yet), a message whose time passed while
+      the app was closed goes out at start. Waiting messages show at the bottom of the chat with
+      Send now / Edit / Delete; kept encrypted on disk like the search index. Not for files
 
 1.3 (candidates):
 - [ ] ntfy add-on: forward notifications to an ntfy topic (a webhook), e.g. to your phone while

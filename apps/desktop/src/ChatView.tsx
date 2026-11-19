@@ -1,6 +1,6 @@
 import { Fragment, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
 import { Avatar } from "./Avatar";
-import { backend, formatTime, isLive, type SearchHit, type UploadProgress } from "./backend";
+import { backend, formatTime, isLive, type ScheduledMessage, type SearchHit, type UploadProgress } from "./backend";
 import { Highlight } from "./TitleBar";
 import { Lightbox, MediaBody, MediaMenu, useMediaUi, type MediaActions } from "./Media";
 import { EmojiPicker } from "./EmojiPicker";
@@ -26,6 +26,7 @@ import { PollCard, PollDialog } from "./Poll";
 import { effectFor, type EffectName } from "./effects";
 import { RoomPanel } from "./RoomPanel";
 import { LinkPreview, previewLink } from "./LinkPreview";
+import { useScheduled, whenLabel } from "./scheduled";
 import { useOpenProfile } from "./Profile";
 import { summarize } from "./roomEvents";
 import { capabilities } from "./mock";
@@ -60,6 +61,10 @@ interface Props {
 export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLoadThread, onCommand, attachments, onPickFiles, onAddFiles, onRemoveAttachment, onAccept, onDecline, onLeave, focusMessage, upload, onPreview, allConvs }: Props) {
   const posts = conv.kind === "channel";
   const openProfile = useOpenProfile();
+  // Send later: what's waiting here, and a scheduled message put back in the composer to edit.
+  const scheduled = useScheduled(conv.id);
+  const [seed, setSeed] = useState<{ text: string; n: number } | null>(null);
+  useEffect(() => setSeed(null), [conv.id]);
   const [panel, setPanel] = useState(false);
   const [threadsOpen, setThreadsOpen] = useState(false);
   const [expandedRuns, setExpandedRuns] = useState<Set<string>>(new Set());
@@ -472,6 +477,10 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
               </Fragment>
             );
           })}
+          {scheduled.map((s) => (
+            <ScheduledItem key={s.id} message={s} account={conv.orgId}
+              onEdit={() => void backend.cancelScheduled(s.id).then((m) => m && setSeed({ text: m.text, n: Date.now() })).catch((e) => onNotice(String(e)))} />
+          ))}
         </div>
         {/* Outside the scroller (a zero-height strip just below it), so showing it
             doesn't change the scroll height and make the list jump. */}
@@ -486,7 +495,7 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
             <progress max={upload.total} value={upload.sent} />
           </div>
         )}
-        <Composer key={conv.id} initial={conv.draft} replyTo={replyTo} placeholder={posts ? t("chatView.newPost") : undefined} onCancelReply={() => setReplyTo(null)} onTyping={(t) => isLive && currentSettings().shareTyping && backend.setTyping(conv.id, t).catch(() => {})}
+        <Composer key={`${conv.id}:${seed?.n ?? 0}`} initial={seed?.text ?? conv.draft} replyTo={replyTo} placeholder={posts ? t("chatView.newPost") : undefined} onCancelReply={() => setReplyTo(null)} onTyping={(t) => isLive && currentSettings().shareTyping && backend.setTyping(conv.id, t).catch(() => {})}
           onCommand={(name, args) => {
             if (name === "jumptodate") return void jumpToDate(args);
             if (name === "poll") return setPollDialog(true);
@@ -499,6 +508,10 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
           }} getMembers={getMembers}
           attachments={attachments} onPickFiles={onPickFiles} onPickCloud={cloudAccounts.length && !isInvite ? () => setCloudPicker(true) : undefined} onAddFiles={onAddFiles} onRemoveAttachment={onRemoveAttachment}
           onSend={(m) => { send({ ...m, replyTo: replyTo?.id }); setReplyTo(null); }} onNotice={onNotice}
+          onSchedule={isLive ? (m, at) => {
+            backend.scheduleMessage(conv.id, { ...m, replyTo: replyTo?.id }, at).catch((e) => onNotice(String(e)));
+            setReplyTo(null);
+          } : undefined}
           onVoice={isLive ? (v) => backend.sendVoice(conv.id, v).catch((e) => onNotice(String(e))) : undefined}
           account={conv.orgId} getPacks={isLive && org.protocol === "matrix" ? () => backend.imagePacks(conv.id) : undefined}
           onSticker={isLive && org.protocol === "matrix" ? (img) => backend.sendSticker(conv.id, img.url, img.body ?? img.shortcode).catch((e) => onNotice(String(e))) : undefined} />
@@ -645,6 +658,24 @@ interface ItemProps {
 }
 
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
+
+/** A message waiting to be sent later, at the bottom of the chat. */
+function ScheduledItem({ message, account, onEdit }: { message: ScheduledMessage; account: string; onEdit: () => void }) {
+  // Mentions read as names, not as their markdown links.
+  const text = message.text.replace(/\[([^\]]+)\]\(https:\/\/matrix\.to\/[^)]+\)/g, "$1");
+  return (
+    <div className="scheduled-msg">
+      <div className="scheduled-bubble"><RichText body={text} account={account} /></div>
+      <div className="scheduled-meta">
+        🕓 {t("schedule.at", { time: whenLabel(message.at) })}
+        {message.error && <span className="scheduled-error" title={message.error}> · {t("schedule.retrying")}</span>}
+        {" · "}<button className="link" onClick={() => void backend.sendScheduledNow(message.id)}>{t("schedule.sendNow")}</button>
+        {" · "}<button className="link" onClick={onEdit}>{t("schedule.edit")}</button>
+        {" · "}<button className="link" onClick={() => void backend.cancelScheduled(message.id)}>{t("schedule.delete")}</button>
+      </div>
+    </div>
+  );
+}
 
 function MessageItem({ m, account, conversation, grouped, lastInRun = true, quoted, thread, onReply, onThread, onReact, onEdit, onDelete, onForward, media, onStatus, query, current, postMode, tick, onRetry, onDiscard }: ItemProps) {
   const keyHelp = useContext(KeyHelpContext)(account);

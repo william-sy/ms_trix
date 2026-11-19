@@ -283,6 +283,17 @@ const toOrg = (a: AccountWire): Org => ({
   presence: "available",
 });
 
+/** A message waiting to be sent later. */
+export interface ScheduledMessage {
+  id: string;
+  conversation: string;
+  at: number;
+  text: string;
+  html?: string;
+  /** Why the last attempt failed (it's tried again a minute later). */
+  error?: string;
+}
+
 /** A web page's title, description and picture, for a link's preview card. */
 export interface LinkPreviewData {
   /** Where the link ended up after redirects. */
@@ -437,6 +448,13 @@ export const backend = {
   notify: (title: string, body: string) => invoke<void>("notify", { title, body }),
   /** Do not disturb until this time (ms), or off: the core then shows no system notifications. */
   setDnd: (until: number | null) => invoke<void>("set_dnd", { until }),
+  /** Send later: the message goes out at `at` (ms), sent by this app. */
+  scheduleMessage: (key: string, m: Outgoing, at: number) =>
+    invoke<string>("schedule_message", { key, at, text: m.text, emote: !!m.emote, replyTo: m.replyTo ?? null, threadRoot: m.threadRoot ?? null, mentions: m.mentions ?? [], html: m.html ?? null, msgtype: m.msgtype ?? null, emotes: m.emotes ?? null }),
+  scheduledMessages: () => invoke<ScheduledMessage[]>("scheduled_messages"),
+  /** Takes a scheduled message off the list; returns it (to edit it again). */
+  cancelScheduled: (id: string) => invoke<ScheduledMessage | null>("cancel_scheduled", { id }),
+  sendScheduledNow: (id: string) => invoke<void>("send_scheduled_now", { id }),
   /** A link's preview, fetched by the app itself (not via the homeserver); null when there's none. */
   linkPreview: (url: string) => invoke<LinkPreviewData | null>("link_preview", { url }),
   /** Your own ringtone: saved in the app's data folder / read back. */
