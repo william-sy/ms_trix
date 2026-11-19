@@ -550,7 +550,9 @@ mark { background: rgba(255, 196, 0, 0.45); color: inherit; border-radius: 2px; 
 .verified { font-size: 11px; font-weight: 600; align-self: flex-start; padding: 0 6px; border-radius: 3px; }
 .verified.yes { background: rgba(107, 183, 0, 0.16); color: var(--ok); }
 .verified.no { background: var(--bg-hover); color: var(--text-muted); }
-.profile-actions { display: flex; gap: 8px; }
+/* Buttons keep their label on one line; the row wraps when they don't fit the card. */
+.profile-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.profile-actions .btn { white-space: nowrap; }
 .profile-shared h3 { font-size: 12px; font-weight: 600; color: var(--text-muted); margin: 0 0 4px; }
 .profile-shared { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
 .profile-shared .link { font-size: 13px; text-align: left; }

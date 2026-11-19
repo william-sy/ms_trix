@@ -1,5 +1,10 @@
 # Release notes
 
+## 1.4 (not released yet)
+
+### Fixed
+- The buttons in someone's profile card no longer break over two lines ("Copy user ID").
+
 ## 1.3 (2026-11-19)
 
 ### New
