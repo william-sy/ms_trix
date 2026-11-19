@@ -82,6 +82,32 @@ Talk meeting settings, right in the room's info panel:
 - The search index holds decrypted messages, so it is encrypted on disk with a key in the keychain
 - ms_trix talks only to the servers of the accounts you add
 
+## Installing
+
+The installers come from the [build workflow](https://github.com/william-sy/ms_trix/actions) on
+GitHub (open the latest run of `main`, then the artifact for your system; it downloads as a zip).
+They aren't signed yet, so your system asks once whether you trust the app.
+
+**macOS (Apple Silicon):** open the `.dmg` and drag ms_trix to Applications. macOS then says the
+app can't be opened; remove the "downloaded from the internet" mark once:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/ms_trix.app
+```
+
+**Windows 10 and 11:** run `ms_trix_<version>_x64-setup.exe` (installs for you only, no admin
+needed) or the `.msi` (for all users, needs admin).
+
+- The browser may warn that the file isn't commonly downloaded: choose *Keep*.
+- SmartScreen shows "Windows protected your PC": click *More info*, then *Run anyway*. To skip
+  that warning, unblock the file first: right-click it → *Properties* → tick *Unblock* → *OK*,
+  or in PowerShell `Unblock-File .\ms_trix_<version>_x64-setup.exe`.
+- The app needs Microsoft Edge WebView2, which Windows 10 and 11 normally have; if not, the
+  installer downloads it.
+
+**Linux:** install the `.deb` with `sudo apt install ./ms_trix_<version>_amd64.deb`, or make the
+`.AppImage` executable (`chmod +x ms_trix_*.AppImage`) and run it.
+
 ## Building
 
 You need [Rust](https://rustup.rs) (stable), [Node.js](https://nodejs.org) 20 or newer, and the
