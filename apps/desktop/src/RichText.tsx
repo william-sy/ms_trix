@@ -2,7 +2,7 @@ import DOMPurify from "dompurify";
 import { useMemo, type MouseEvent, type ReactNode } from "react";
 import { backend, isLive, mediaUrl } from "./backend";
 import { useOpenHashtag } from "./Hashtags";
-import { FENCE, highlightCode, highlightIn } from "./highlight";
+import { FENCE, highlightCode, highlightIn, useHighlightVersion } from "./highlight";
 import { checkLink } from "./linkCheck";
 import { mainWarning, useOpenLink, useOwnDomains, warningText } from "./LinkPreview";
 import { useOpenProfile } from "./Profile";
@@ -120,7 +120,8 @@ function highlight(text: string, query: string | undefined, key: string): ReactN
 
 /** A code block from a plain-text message (```lang …```), coloured when the language is known. */
 function CodeBlock({ code, language }: { code: string; language: string }) {
-  const html = useMemo(() => highlightCode(code, language), [code, language]);
+  const languages = useHighlightVersion();
+  const html = useMemo(() => highlightCode(code, language), [code, language, languages]); // eslint-disable-line react-hooks/exhaustive-deps
   return <pre className="code-block">{html ? <code className="hljs" dangerouslySetInnerHTML={{ __html: html }} /> : <code>{code}</code>}</pre>;
 }
 
@@ -159,7 +160,9 @@ function Linked({ text, query, own }: { text: string; query?: string; own: strin
 
 export function RichText({ body, html, account, query }: { body: string; html?: string; account: string; query?: string }) {
   const own = useOwnDomains();
-  const safe = useMemo(() => (html ? sanitize(html, account, own) : null), [html, account, own]);
+  // Again when a language loads that a code block here was waiting for.
+  const languages = useHighlightVersion();
+  const safe = useMemo(() => (html ? sanitize(html, account, own) : null), [html, account, own, languages]); // eslint-disable-line react-hooks/exhaustive-deps
   const openProfile = useOpenProfile();
   const openRoomLink = useOpenRoomLink();
   const openHashtag = useOpenHashtag();

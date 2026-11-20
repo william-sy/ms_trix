@@ -5,9 +5,9 @@
 ### New
 - **Share several Nextcloud files at once:** tick files and folders in the Nextcloud picker (also
   from different folders) and share them together; a folder is shared as a whole.
-- **Colours in code blocks:** a block written as ```yaml (or json, bash, python, rust, sql and
-  about twenty more languages) shows in that language's colours, in Matrix and Talk messages
-  and in the notes preview.
+- **Colours in code blocks:** a block written as ```yaml (or json, bash, python, rust, sql, …:
+  all of highlight.js's roughly 190 languages) shows in that language's colours, in Matrix and
+  Talk messages and in the notes preview. Rarely used languages load the first time they appear.
 
 ### Fixed
 - Talk calls in group chats rang only as a quiet pop-up; they ring now too (muted conversations
