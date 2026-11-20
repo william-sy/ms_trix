@@ -85,7 +85,9 @@ Talk meeting settings, right in the room's info panel:
 ## Installing
 
 The installers come from the [build workflow](https://github.com/william-sy/ms_trix/actions) on
-GitHub (open the latest run of `main`, then the artifact for your system; it downloads as a zip).
+GitHub: open the latest run of `main` and download the one you need (each downloads as a zip):
+`ms_trix-macOS-dmg`, `ms_trix-Windows-setup` (or `-msi`), `ms_trix-Linux-deb` or
+`ms_trix-Linux-AppImage`. They're kept for 30 days.
 They aren't signed yet, so your system asks once whether you trust the app.
 
 **macOS (Apple Silicon):** open the `.dmg` and drag ms_trix to Applications. macOS then says the

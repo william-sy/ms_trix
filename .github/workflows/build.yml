@@ -1,5 +1,5 @@
-# One build per desktop OS. Each job tests, builds the installer and uploads it
-# as a workflow artifact. Signing/notarization and releases come later.
+# One build per desktop OS. Each job tests, builds the installers and uploads each
+# as a workflow artifact of its own. Signing/notarization and releases come later.
 name: Build
 
 on:
@@ -69,14 +69,59 @@ jobs:
         working-directory: apps/desktop
         run: npm run tauri build -- ${{ matrix.args }}
 
-      - uses: actions/upload-artifact@v4
+      # One download per installer, so nobody gets the app twice (the .dmg already holds the .app;
+      # Windows and Linux each have two kinds of installer). Kept 30 days.
+      - name: Upload ms_trix-macOS-dmg
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
         with:
-          name: ms_trix-${{ matrix.name }}
-          path: |
-            ${{ matrix.bundle }}/dmg/*.dmg
-            ${{ matrix.bundle }}/macos/*.app
-            ${{ matrix.bundle }}/msi/*.msi
-            ${{ matrix.bundle }}/nsis/*.exe
-            ${{ matrix.bundle }}/deb/*.deb
-            ${{ matrix.bundle }}/appimage/*.AppImage
+          name: ms_trix-macOS-dmg
+          path: ${{ matrix.bundle }}/dmg/*.dmg
           if-no-files-found: error
+          retention-days: 30
+          # Installers are compressed already.
+          compression-level: 0
+
+      - name: Upload ms_trix-Windows-setup
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ms_trix-Windows-setup
+          path: ${{ matrix.bundle }}/nsis/*.exe
+          if-no-files-found: error
+          retention-days: 30
+          # Installers are compressed already.
+          compression-level: 0
+
+      - name: Upload ms_trix-Windows-msi
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ms_trix-Windows-msi
+          path: ${{ matrix.bundle }}/msi/*.msi
+          if-no-files-found: error
+          retention-days: 30
+          # Installers are compressed already.
+          compression-level: 0
+
+      - name: Upload ms_trix-Linux-deb
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ms_trix-Linux-deb
+          path: ${{ matrix.bundle }}/deb/*.deb
+          if-no-files-found: error
+          retention-days: 30
+          # Installers are compressed already.
+          compression-level: 0
+
+      - name: Upload ms_trix-Linux-AppImage
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ms_trix-Linux-AppImage
+          path: ${{ matrix.bundle }}/appimage/*.AppImage
+          if-no-files-found: error
+          retention-days: 30
+          # Installers are compressed already.
+          compression-level: 0
