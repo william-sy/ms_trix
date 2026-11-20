@@ -10,6 +10,9 @@
 - No signing certificates or GitHub repo yet: unsigned dev builds for now
 - First users: SURF (Matrix + Nextcloud Talk). Next protocols: Zulip and Mattermost (own roadmaps
   below); XMPP and IRC skipped. Languages: English + Dutch for now
+- Microsoft Teams chats (2026-11-20): not pursued. Through Microsoft Graph there are no calls,
+  organisations' admins must approve the app (verified publisher), and messages can only be
+  polled; Teams' web version inside the app would work but isn't integrated. Neither is worth it
 - Releases: GitHub repo + unsigned builds for all OSes first (acceptable for v1); signing follows
   once certificates are sorted (Apple fee waiver for education, GÉANT TCS / SignPath for Windows)
 
