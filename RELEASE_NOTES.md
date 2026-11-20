@@ -5,6 +5,9 @@
 ### New
 - **Share several Nextcloud files at once:** tick files and folders in the Nextcloud picker (also
   from different folders) and share them together; a folder is shared as a whole.
+- **Colours in code blocks:** a block written as ```yaml (or json, bash, python, rust, sql and
+  about twenty more languages) shows in that language's colours, in Matrix and Talk messages
+  and in the notes preview.
 
 ### Fixed
 - Replying with a file (a GIF, a picture): the reply was lost on sending; the file now goes as

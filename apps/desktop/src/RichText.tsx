@@ -2,6 +2,7 @@ import DOMPurify from "dompurify";
 import { useMemo, type MouseEvent, type ReactNode } from "react";
 import { backend, isLive, mediaUrl } from "./backend";
 import { useOpenHashtag } from "./Hashtags";
+import { FENCE, highlightCode, highlightIn } from "./highlight";
 import { checkLink } from "./linkCheck";
 import { mainWarning, useOpenLink, useOwnDomains, warningText } from "./LinkPreview";
 import { useOpenProfile } from "./Profile";
@@ -85,6 +86,8 @@ function sanitize(html: string, account: string, own: string[]): string {
     parts.append(value.slice(at));
     node.replaceWith(parts);
   }
+  // Code blocks with a language get its colours.
+  highlightIn(root);
   for (const el of root.querySelectorAll("[data-mx-color], [data-mx-bg-color], font[color]")) {
     const color = el.getAttribute("data-mx-color") ?? el.getAttribute("color");
     const bg = el.getAttribute("data-mx-bg-color");
@@ -115,8 +118,28 @@ function highlight(text: string, query: string | undefined, key: string): ReactN
   return out;
 }
 
-/** Plain text with clickable links and optional search highlighting. */
+/** A code block from a plain-text message (```lang …```), coloured when the language is known. */
+function CodeBlock({ code, language }: { code: string; language: string }) {
+  const html = useMemo(() => highlightCode(code, language), [code, language]);
+  return <pre className="code-block">{html ? <code className="hljs" dangerouslySetInnerHTML={{ __html: html }} /> : <code>{code}</code>}</pre>;
+}
+
+/** Plain text with ```fenced``` code blocks, clickable links and optional search highlighting. */
 function PlainText({ text, query, own }: { text: string; query?: string; own: string[] }) {
+  const out: ReactNode[] = [];
+  let at = 0;
+  for (const m of text.matchAll(FENCE)) {
+    if (m.index! > at) out.push(<Linked key={`t${at}`} text={text.slice(at, m.index)} query={query} own={own} />);
+    out.push(<CodeBlock key={`c${m.index}`} code={m[2]!} language={m[1]!} />);
+    at = m.index! + m[0].length;
+  }
+  if (!out.length) return <Linked text={text} query={query} own={own} />;
+  if (at < text.length) out.push(<Linked key={`t${at}`} text={text.slice(at)} query={query} own={own} />);
+  return <>{out}</>;
+}
+
+/** Text with clickable links, room addresses and hashtags. */
+function Linked({ text, query, own }: { text: string; query?: string; own: string[] }) {
   // split() puts the capture groups after each text part: [text, url, room, tag, text, …].
   const parts = text.split(URL_RE);
   const out: ReactNode[] = [];
