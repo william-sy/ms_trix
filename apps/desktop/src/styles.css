@@ -1266,3 +1266,10 @@ a.link-warn::after { content: " ⚠"; }
 .call-more { min-width: 20px; padding: 0 4px; font-size: 11px; }
 .menu.call-menu { top: calc(100% + 4px); right: 0; left: auto; width: max-content; }
 .call-menu .menu-item { display: flex; align-items: center; gap: 8px; }
+
+/* Table size picker in the format bar. */
+.menu.table-picker { top: auto; bottom: calc(100% + 6px); left: 0; width: auto; padding: 8px; }
+.table-grid { display: grid; grid-template-columns: repeat(6, 18px); gap: 3px; }
+.table-grid button { width: 18px; height: 18px; border: 1px solid var(--border); border-radius: 3px; background: var(--bg-main); }
+.table-grid button.on { background: var(--accent-soft, var(--bg-hover)); border-color: var(--accent); }
+.table-size { margin-top: 6px; font-size: 12px; color: var(--text-muted); text-align: center; }

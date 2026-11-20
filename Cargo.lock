@@ -6946,6 +6946,7 @@ dependencies = [
  "futures",
  "image",
  "percent-encoding",
+ "pulldown-cmark",
  "quick-xml",
  "rand 0.9.5",
  "reqwest",

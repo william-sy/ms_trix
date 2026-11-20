@@ -38,6 +38,35 @@ function sanitize(html: string, account: string, own: string[]): string {
   const clean = DOMPurify.sanitize(html, { ALLOWED_TAGS, ALLOWED_ATTR, ALLOW_DATA_ATTR: false, ALLOWED_URI_REGEXP: SAFE_URI });
   const doc = new DOMParser().parseFromString(`<div>${clean}</div>`, "text/html");
   const root = doc.body.firstElementChild!;
+  // Web links, room addresses and #hashtags in the text become links, as in plain messages (not
+  // inside links or code). Before the pass over links below, so new ones get checked too.
+  const texts: Text[] = [];
+  const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) if (!n.parentElement?.closest("a, code, pre")) texts.push(n as Text);
+  for (const node of texts) {
+    const value = node.nodeValue ?? "";
+    const found = [...value.matchAll(URL_RE)];
+    if (!found.length) continue;
+    const parts = doc.createDocumentFragment();
+    let at = 0;
+    for (const m of found) {
+      parts.append(value.slice(at, m.index));
+      const [whole, url, room, tag] = m;
+      const a = doc.createElement("a");
+      a.textContent = whole;
+      if (url) a.setAttribute("href", url);
+      else if (room) a.setAttribute("href", `https://matrix.to/#/${encodeURIComponent(room)}`);
+      else {
+        a.className = "hashtag";
+        a.setAttribute("href", "#");
+        a.dataset.tag = tag!.toLowerCase();
+      }
+      parts.append(a);
+      at = m.index! + whole.length;
+    }
+    parts.append(value.slice(at));
+    node.replaceWith(parts);
+  }
   for (const a of root.querySelectorAll("a")) {
     const href = a.getAttribute("href") ?? "";
     if (MENTION.test(href)) a.classList.add("mention");
@@ -63,29 +92,6 @@ function sanitize(html: string, account: string, own: string[]): string {
     if (url && img.hasAttribute("data-mx-emoticon")) img.setAttribute("data-mxc", src); // for "add to my emoji"
     else img.remove();
   }
-  // #hashtags open the messages that use them (not inside links or code).
-  const texts: Text[] = [];
-  const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  for (let n = walker.nextNode(); n; n = walker.nextNode()) if (!n.parentElement?.closest("a, code, pre")) texts.push(n as Text);
-  for (const node of texts) {
-    const value = node.nodeValue ?? "";
-    const found = [...value.matchAll(HASHTAG_RE)];
-    if (!found.length) continue;
-    const parts = doc.createDocumentFragment();
-    let at = 0;
-    for (const m of found) {
-      parts.append(value.slice(at, m.index));
-      const a = doc.createElement("a");
-      a.className = "hashtag";
-      a.setAttribute("href", "#");
-      a.dataset.tag = m[1]!.toLowerCase();
-      a.textContent = m[0];
-      parts.append(a);
-      at = m.index! + m[0].length;
-    }
-    parts.append(value.slice(at));
-    node.replaceWith(parts);
-  }
   // Code blocks with a language get its colours.
   highlightIn(root);
   for (const el of root.querySelectorAll("[data-mx-color], [data-mx-bg-color], font[color]")) {
@@ -97,7 +103,6 @@ function sanitize(html: string, account: string, own: string[]): string {
   return root.innerHTML;
 }
 
-const HASHTAG_RE = new RegExp(HASHTAG, "gu");
 
 // Web links, bare room addresses like #room:server.org (turned into matrix.to links), hashtags.
 const URL_RE = new RegExp(String.raw`\b(https?:\/\/[^\s<]+[^\s<.,:;"')\]!?])|(?<![\w#])(#[\w.=-]+:[\w-]+(?:\.[\w-]+)+)|` + HASHTAG, "gu");

@@ -20,6 +20,8 @@ image = { version = "0.25", default-features = false, features = ["png", "jpeg",
 percent-encoding = "2"
 # Same version the workspace already has; WebDAV/CalDAV replies.
 quick-xml = "0.42"
+# Same version the workspace already has (through ruma); Talk messages are Markdown.
+pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

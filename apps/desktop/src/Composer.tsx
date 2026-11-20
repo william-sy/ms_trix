@@ -198,6 +198,23 @@ export function Composer(p: Props) {
     update(text.slice(0, a) + s + text.slice(b), a + s.length);
   };
 
+  /**
+   * An empty Markdown table at the cursor, on its own lines; the first header cell is selected,
+   * so typing replaces it.
+   */
+  const insertTable = (columns: number, rows: number) => {
+    const el = input.current;
+    const [a, b] = el ? [el.selectionStart, el.selectionEnd] : [text.length, text.length];
+    const before = text.slice(0, a);
+    const lead = !before ? "" : before.endsWith("\n\n") ? "" : before.endsWith("\n") ? "\n" : "\n\n";
+    const header = Array.from({ length: columns }, (_, i) => t("composer.tableColumn", { n: i + 1 }));
+    const row = (cells: string[]) => `| ${cells.join(" | ")} |`;
+    const table = [row(header), row(header.map(() => "---")), ...Array.from({ length: rows }, () => row(header.map(() => "  ")))].join("\n");
+    const start = a + lead.length + 2;
+    update(before + lead + table + "\n" + text.slice(b), start);
+    requestAnimationFrame(() => el?.setSelectionRange(start, start + header[0]!.length));
+  };
+
   /** Sends now, or at `at` (send later). */
   const send = (at?: number) => {
     const raw = text.trim();
@@ -275,7 +292,7 @@ export function Composer(p: Props) {
             </button>
           ))}
           <span className="sep" />
-          <button className="fmt" disabled title={t("composer.tableSoon")}>{t("composer.table")}</button>
+          <TablePicker onPick={(columns, rows) => insertTable(columns, rows)} />
           {(() => {
             const hint = currentSettings().enterSends ? t("composer.markdownHintEnter") : t("composer.markdownHint", { key: isMac ? "⌘" : "Ctrl" });
             return <span className="soon-note" title={hint}>{hint}</span>;
@@ -441,6 +458,38 @@ function SendLater({ onPick }: { onPick: (at: number) => void }) {
             <button className="btn small" disabled={!(customAt > Date.now())}>{t("schedule.set")}</button>
           </form>
           <p className="hint small">{t("schedule.hint")}</p>
+        </div>
+      )}
+    </span>
+  );
+}
+
+/** The table button: pick a size on a grid (as in Word or Teams), up to 6 by 6. */
+function TablePicker({ onPick }: { onPick: (columns: number, rows: number) => void }) {
+  const [open, setOpen] = useState(false);
+  const [size, setSize] = useState({ columns: 2, rows: 2 });
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    window.addEventListener("mousedown", close);
+    return () => window.removeEventListener("mousedown", close);
+  }, [open]);
+  const max = 6;
+  return (
+    <span className="bg-anchor" ref={ref}>
+      <button className={`fmt ${open ? "on" : ""}`} title={t("composer.tableHint")} onMouseDown={(e) => e.preventDefault()} onClick={() => setOpen(!open)}>{t("composer.table")}</button>
+      {open && (
+        <div className="menu table-picker">
+          <div className="table-grid" onMouseLeave={() => setSize({ columns: 2, rows: 2 })}>
+            {Array.from({ length: max * max }, (_, i) => {
+              const columns = (i % max) + 1, rows = Math.floor(i / max) + 1;
+              const on = columns <= size.columns && rows <= size.rows;
+              return <button key={i} className={on ? "on" : ""} aria-label={`${columns} × ${rows}`} onMouseDown={(e) => e.preventDefault()}
+                onMouseEnter={() => setSize({ columns, rows })} onClick={() => { setOpen(false); onPick(columns, rows); }} />;
+            })}
+          </div>
+          <div className="table-size">{t("composer.tableSize", { columns: size.columns, rows: size.rows })}</div>
         </div>
       )}
     </span>

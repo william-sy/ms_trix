@@ -32,6 +32,30 @@ pub const PROTOCOL: &str = "talk";
 /// Nextcloud Notes' REST API.
 const NOTES: &str = "/index.php/apps/notes/api/v1/notes";
 
+/// Talk messages are Markdown, as Talk's own apps show them: as HTML when there's any formatting
+/// (a table, bold, a list, code), else None and the text stays plain. Line breaks stay line breaks,
+/// and HTML typed into a message stays text, as in Talk.
+fn markdown_html(text: &str) -> Option<String> {
+    use pulldown_cmark::{Event, Options, Parser, Tag};
+    let options = Options::ENABLE_TABLES | Options::ENABLE_STRIKETHROUGH | Options::ENABLE_TASKLISTS;
+    let formatted = Parser::new_ext(text, options).any(|e| match e {
+        Event::Start(tag) => !matches!(tag, Tag::Paragraph),
+        Event::Code(_) | Event::TaskListMarker(_) => true,
+        _ => false,
+    });
+    if !formatted {
+        return None;
+    }
+    let events = Parser::new_ext(text, options).map(|e| match e {
+        Event::SoftBreak => Event::HardBreak,
+        Event::Html(raw) | Event::InlineHtml(raw) => Event::Text(raw),
+        other => other,
+    });
+    let mut html = String::new();
+    pulldown_cmark::html::push_html(&mut html, events);
+    Some(html)
+}
+
 fn note_from(v: &Value) -> Option<Note> {
     Some(Note {
         id: v["id"].as_u64()?,
@@ -493,7 +517,9 @@ impl TalkAdapter {
                 voice: None,
             };
         }
-        MessageBody::Text { plain: render(m), html: None }
+        let plain = render(m);
+        let html = markdown_html(&plain);
+        MessageBody::Text { plain, html }
     }
 
     async fn room_list(&self, modified_since: Option<i64>) -> Result<(Vec<Value>, Option<i64>)> {
@@ -1644,6 +1670,15 @@ impl<T> futures::Stream for ReceiverStream<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn markdown_only_when_formatted() {
+        assert_eq!(markdown_html("just text\nwith https://example.org"), None);
+        let table = markdown_html("| a | b |\n| --- | --- |\n| 1 | 2 |").unwrap();
+        assert!(table.contains("<table>") && table.contains("<td>1</td>"), "{table}");
+        let mixed = markdown_html("**bold**\nnext line <b>not html</b>").unwrap();
+        assert!(mixed.contains("<strong>bold</strong><br />") && mixed.contains("&lt;b&gt;not html&lt;/b&gt;"), "{mixed}");
+    }
 
     #[test]
     fn reads_a_note_as_the_notes_api_sends_it() {

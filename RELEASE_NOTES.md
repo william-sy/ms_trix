@@ -8,11 +8,14 @@
 - **Colours in code blocks:** a block written as ```yaml (or json, bash, python, rust, sql, …:
   all of highlight.js's roughly 190 languages) shows in that language's colours, in Matrix and
   Talk messages and in the notes preview. Rarely used languages load the first time they appear.
+- **Tables:** the format bar's Table button picks a size on a grid and inserts an empty table.
+- **Talk messages show their formatting** (tables, bold, lists, code), as in Talk itself.
 - **Silent calls:** start a Talk call silently (▾ next to the call buttons), so nobody is rung.
   Calls others start silently don't ring you either, unless you turn on "Ring for silent calls
   too" (Settings → Notifications), the Teams way where nothing is silent.
 
 ### Fixed
+- Web links inside formatted messages (with bold, a list, …) weren't clickable.
 - After the computer was locked or asleep, messages took a while to come in (up to a minute):
   the app now reconnects every account as soon as the computer wakes, and on macOS it isn't
   napped while the screen is locked, so messages keep coming in meanwhile.
