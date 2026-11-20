@@ -10,6 +10,7 @@ import { backend, isLive, mediaUrl, type ImagePack, type PackImage } from "./bac
 import type { Attachment, Member, Message, Outgoing } from "./types";
 import { t, type Key } from "./i18n";
 import { currentSettings, isMac } from "./settings";
+import { useClickOutside } from "./hooks";
 
 // Markdown the format buttons insert; the adapter sends it as rich text.
 // `label` is a symbol shown as-is; `labelKey` is translated.
@@ -438,12 +439,7 @@ function SendLater({ onPick }: { onPick: (at: number) => void }) {
   const [open, setOpen] = useState(false);
   const [custom, setCustom] = useState("");
   const ref = useRef<HTMLSpanElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
-    window.addEventListener("mousedown", close);
-    return () => window.removeEventListener("mousedown", close);
-  }, [open]);
+  useClickOutside(ref, open, () => setOpen(false));
   const pick = (at: number) => { setOpen(false); setCustom(""); onPick(at); };
   const customAt = custom ? new Date(custom).getTime() : NaN;
   return (
@@ -469,12 +465,7 @@ function TablePicker({ onPick }: { onPick: (columns: number, rows: number) => vo
   const [open, setOpen] = useState(false);
   const [size, setSize] = useState({ columns: 2, rows: 2 });
   const ref = useRef<HTMLSpanElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
-    window.addEventListener("mousedown", close);
-    return () => window.removeEventListener("mousedown", close);
-  }, [open]);
+  useClickOutside(ref, open, () => setOpen(false));
   const max = 6;
   return (
     <span className="bg-anchor" ref={ref}>

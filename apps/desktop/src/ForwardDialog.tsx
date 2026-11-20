@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Avatar } from "./Avatar";
 import { backend } from "./backend";
 import { t } from "./i18n";
 import { OrgAvatar } from "./OrgSwitcher";
 import { useOrgs } from "./store";
 import type { Conversation, Message } from "./types";
+import { useEscape } from "./hooks";
 
 /** Forward a message to another chat, on any account (Teams' Forward, with "Add a message"). */
 export function ForwardDialog({ message, from, convs, onClose, onDone }: { message: Message; from: string; convs: Conversation[]; onClose: () => void; onDone: (name: string) => void }) {
@@ -15,11 +16,7 @@ export function ForwardDialog({ message, from, convs, onClose, onDone }: { messa
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  useEscape(onClose);
 
   const list = useMemo(() => {
     const q = term.trim().toLowerCase();

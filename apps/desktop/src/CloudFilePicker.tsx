@@ -3,6 +3,7 @@ import { backend, mediaUrl } from "./backend";
 import { formatSize } from "./Composer";
 import { t } from "./i18n";
 import type { CloudFile, Org } from "./types";
+import { useEscape } from "./hooks";
 
 interface Props {
   /** Nextcloud accounts to browse; the chat's own account first. */
@@ -33,11 +34,7 @@ export function CloudFilePicker({ accounts, onPick, onClose, single }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  useEscape(onClose);
 
   useEffect(() => {
     let live = true;

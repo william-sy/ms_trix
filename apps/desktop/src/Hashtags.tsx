@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { backend, formatTime, type SearchHit } from "./backend";
 import { t } from "./i18n";
 import { Highlight } from "./TitleBar";
+import { useEscape } from "./hooks";
 
 /** Opens the list of messages with a #hashtag (the tag lowercased, without the #). */
 export const HashtagContext = createContext<(tag: string) => void>(() => {});
@@ -21,11 +22,7 @@ export function HashtagPanel({ tag, conversation, conversationName, onOpen, onCl
     setHits(null);
     backend.searchMessages(`#${tag}`, scope === "chat" ? conversation ?? null : null).then(setHits).catch(() => setHits([]));
   }, [tag, scope, conversation]);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  useEscape(onClose);
 
   return (
     <div className="login-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>

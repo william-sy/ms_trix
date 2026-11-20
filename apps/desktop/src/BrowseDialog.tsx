@@ -4,6 +4,7 @@ import { backend, type DirectoryRoom } from "./backend";
 import { useOrgs } from "./store";
 import type { Member } from "./types";
 import { t, t as tr } from "./i18n";
+import { useEscape } from "./hooks";
 
 type Tab = "rooms" | "spaces" | "people";
 
@@ -31,11 +32,7 @@ export function BrowseDialog({ orgId, initialSpace, onClose, onOpen }: Props) {
   const [error, setError] = useState<string | null>(null);
   const space = spaces[spaces.length - 1];
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  useEscape(onClose);
 
   // Default to the account's own server: that's where your organization's rooms live.
   useEffect(() => {

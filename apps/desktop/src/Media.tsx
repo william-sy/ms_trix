@@ -4,6 +4,7 @@ import { formatDuration } from "./voice";
 import { backend, isLive, mediaUrl } from "./backend";
 import type { Message } from "./types";
 import { t } from "./i18n";
+import { useEscape } from "./hooks";
 
 type Media = NonNullable<Message["media"]>;
 
@@ -47,11 +48,7 @@ export function MediaBody({ media, account, actions }: { media: Media; account: 
 }
 
 export function Lightbox({ media, account, onClose, onNotice }: { media: Media; account: string; onClose: () => void; onNotice: (m: string) => void }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  useEscape(onClose);
 
   return (
     <div className="lightbox" onClick={onClose}>

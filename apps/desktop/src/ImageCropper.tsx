@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { backend } from "./backend";
 import { t } from "./i18n";
+import { useEscape } from "./hooks";
 
 const VIEW = 280; // crop viewport, px
 const OUT = 512; // uploaded picture, px
@@ -26,11 +27,7 @@ export function ImageCropper({ title, onCrop, onClose }: Props) {
     backend.pickImageFile().then((url) => (url ? setSrc(url) : onClose())).catch((e) => setError(String(e)));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  useEscape(onClose);
 
   // Cover the viewport at zoom 1; zoom scales from there.
   const scale = img ? (VIEW / Math.min(img.naturalWidth, img.naturalHeight)) * zoom : 1;

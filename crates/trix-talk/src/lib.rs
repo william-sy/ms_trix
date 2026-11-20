@@ -88,6 +88,11 @@ struct Session {
     app_password: String,
 }
 
+/// A request that didn't get through (no network, server unreachable).
+fn net(e: reqwest::Error) -> AdapterError {
+    AdapterError::Network(e.to_string())
+}
+
 fn err(e: impl std::fmt::Display) -> AdapterError {
     AdapterError::Other(e.to_string())
 }
@@ -177,7 +182,7 @@ pub async fn login(server: &str, open_url: Box<dyn FnOnce(String) -> Result<()> 
         if std::time::Instant::now() > deadline {
             return Err(AdapterError::Auth("Sign-in timed out".into()));
         }
-        let response = http.post(endpoint).form(&[("token", token)]).send().await.map_err(|e| AdapterError::Network(e.to_string()))?;
+        let response = http.post(endpoint).form(&[("token", token)]).send().await.map_err(net)?;
         if response.status() == StatusCode::OK {
             break response.json().await.map_err(err)?;
         }
@@ -235,7 +240,7 @@ impl TalkAdapter {
         if let Some(mime) = mime {
             put = put.header("Content-Type", mime);
         }
-        let status = put.send().await.map_err(|e| AdapterError::Network(e.to_string()))?.status();
+        let status = put.send().await.map_err(net)?.status();
         if !status.is_success() {
             return Err(err(format!("upload failed: {status}")));
         }
@@ -264,7 +269,7 @@ impl TalkAdapter {
 
     /// Sends an OCS request and returns `ocs.data` plus the headers (None on 304).
     async fn ocs(&self, builder: reqwest::RequestBuilder) -> Result<Option<(Value, reqwest::header::HeaderMap)>> {
-        let response = builder.send().await.map_err(|e| AdapterError::Network(e.to_string()))?;
+        let response = builder.send().await.map_err(net)?;
         let status = response.status();
         if status == StatusCode::NOT_MODIFIED {
             return Ok(None);
@@ -295,7 +300,7 @@ impl TalkAdapter {
             .body(body)
             .send()
             .await
-            .map_err(|e| AdapterError::Network(e.to_string()))?;
+            .map_err(net)?;
         match response.status() {
             StatusCode::UNAUTHORIZED => Err(AdapterError::Auth("Nextcloud rejected the app password; sign in again".into())),
             StatusCode::NOT_FOUND => Err(err("not found")),
@@ -339,7 +344,7 @@ impl TalkAdapter {
             Some(etag) => put.header("If-Match", etag),
             None => put.header("If-None-Match", "*"),
         };
-        let status = put.body(ics).send().await.map_err(|e| AdapterError::Network(e.to_string()))?.status();
+        let status = put.body(ics).send().await.map_err(net)?.status();
         match status {
             StatusCode::PRECONDITION_FAILED => Err(err("the event was changed elsewhere; reload the calendar and try again")),
             s if !s.is_success() => Err(err(format!("Nextcloud refused the event: {s}"))),
@@ -981,7 +986,7 @@ impl ProtocolAdapter for TalkAdapter {
 
     async fn cloud_file_bytes(&self, path: &str) -> Result<Vec<u8>> {
         let encoded = dav::encode_path(path).ok_or_else(|| err("bad path"))?;
-        let response = self.request(Method::GET, &format!("{}{encoded}", self.files_root().await)).send().await.map_err(|e| AdapterError::Network(e.to_string()))?;
+        let response = self.request(Method::GET, &format!("{}{encoded}", self.files_root().await)).send().await.map_err(net)?;
         if !response.status().is_success() {
             return Err(err(response.status()));
         }
@@ -1062,7 +1067,7 @@ impl ProtocolAdapter for TalkAdapter {
                     // Talk gives the path in our own files without a leading slash ("Talk/x.jpg");
                     // the files root has our user id (not necessarily the login name).
                     let encoded = dav::encode_path(path).ok_or_else(|| err("bad path"))?;
-                    let response = self.request(Method::GET, &format!("{}{encoded}", self.files_root().await)).header("Accept", "*/*").send().await.map_err(|e| AdapterError::Network(e.to_string()))?;
+                    let response = self.request(Method::GET, &format!("{}{encoded}", self.files_root().await)).header("Accept", "*/*").send().await.map_err(net)?;
                     if response.status().is_success() {
                         return Ok(response.bytes().await.map_err(err)?.to_vec());
                     }
@@ -1078,7 +1083,7 @@ impl ProtocolAdapter for TalkAdapter {
         } else {
             return Err(err("unknown media"));
         };
-        let response = req.header("Accept", "*/*").send().await.map_err(|e| AdapterError::Network(e.to_string()))?;
+        let response = req.header("Accept", "*/*").send().await.map_err(net)?;
         if !response.status().is_success() {
             return Err(err(response.status()));
         }
@@ -1198,7 +1203,7 @@ impl ProtocolAdapter for TalkAdapter {
         let part = reqwest::multipart::Part::bytes(data).file_name("avatar.png").mime_str(mime).map_err(err)?;
         // Nextcloud's avatar endpoint is a web route; the OCS-APIRequest header
         // set by request() exempts it from the browser CSRF token.
-        let response = self.request(Method::POST, "/index.php/avatar/").multipart(reqwest::multipart::Form::new().part("files[]", part)).send().await.map_err(|e| AdapterError::Network(e.to_string()))?;
+        let response = self.request(Method::POST, "/index.php/avatar/").multipart(reqwest::multipart::Form::new().part("files[]", part)).send().await.map_err(net)?;
         let status = response.status();
         let body: Value = response.json().await.unwrap_or(Value::Null);
         if !status.is_success() || body["data"] == "notsquare" {
@@ -1429,7 +1434,7 @@ impl ProtocolAdapter for TalkAdapter {
     }
 
     async fn notes(&self) -> Result<Vec<Note>> {
-        let response = self.request(Method::GET, &format!("{NOTES}?exclude=content")).send().await.map_err(|e| AdapterError::Network(e.to_string()))?;
+        let response = self.request(Method::GET, &format!("{NOTES}?exclude=content")).send().await.map_err(net)?;
         // No Notes app on this server.
         if matches!(response.status(), StatusCode::NOT_FOUND | StatusCode::METHOD_NOT_ALLOWED) {
             return Err(AdapterError::Unsupported("notes"));
@@ -1442,7 +1447,7 @@ impl ProtocolAdapter for TalkAdapter {
     }
 
     async fn note(&self, id: u64) -> Result<Note> {
-        let response = self.request(Method::GET, &format!("{NOTES}/{id}")).send().await.map_err(|e| AdapterError::Network(e.to_string()))?;
+        let response = self.request(Method::GET, &format!("{NOTES}/{id}")).send().await.map_err(net)?;
         if !response.status().is_success() {
             return Err(err(response.status()));
         }
@@ -1471,7 +1476,7 @@ impl ProtocolAdapter for TalkAdapter {
         if let (Some(_), Some(etag)) = (id, etag.filter(|e| !e.is_empty())) {
             builder = builder.header("If-Match", format!("\"{}\"", etag.trim_matches('"')));
         }
-        let response = builder.json(&body).send().await.map_err(|e| AdapterError::Network(e.to_string()))?;
+        let response = builder.json(&body).send().await.map_err(net)?;
         if response.status() == StatusCode::PRECONDITION_FAILED {
             return Err(err("changed elsewhere"));
         }
@@ -1482,7 +1487,7 @@ impl ProtocolAdapter for TalkAdapter {
     }
 
     async fn delete_note(&self, id: u64) -> Result<()> {
-        let response = self.request(Method::DELETE, &format!("{NOTES}/{id}")).send().await.map_err(|e| AdapterError::Network(e.to_string()))?;
+        let response = self.request(Method::DELETE, &format!("{NOTES}/{id}")).send().await.map_err(net)?;
         if !response.status().is_success() && response.status() != StatusCode::NOT_FOUND {
             return Err(err(response.status()));
         }
@@ -1552,7 +1557,7 @@ impl ProtocolAdapter for TalkAdapter {
             return Err(err("bad time"));
         }
         let href = self.object_href(href).await?;
-        let response = self.request(Method::GET, &href).header("Accept", "text/calendar").send().await.map_err(|e| AdapterError::Network(e.to_string()))?;
+        let response = self.request(Method::GET, &href).header("Accept", "text/calendar").send().await.map_err(net)?;
         if !response.status().is_success() {
             return Err(err(response.status()));
         }
@@ -1576,7 +1581,7 @@ impl ProtocolAdapter for TalkAdapter {
     async fn delete_event(&self, href: &str, etag: Option<&str>, occurrence: Option<&str>) -> Result<()> {
         let href = self.object_href(href).await?;
         if let Some(occurrence) = occurrence.filter(|o| dav::valid_time(o)) {
-            let response = self.request(Method::GET, &href).header("Accept", "text/calendar").send().await.map_err(|e| AdapterError::Network(e.to_string()))?;
+            let response = self.request(Method::GET, &href).header("Accept", "text/calendar").send().await.map_err(net)?;
             if !response.status().is_success() {
                 return Err(err(response.status()));
             }
@@ -1589,7 +1594,7 @@ impl ProtocolAdapter for TalkAdapter {
         if let Some(etag) = etag {
             req = req.header("If-Match", etag);
         }
-        let status = req.send().await.map_err(|e| AdapterError::Network(e.to_string()))?.status();
+        let status = req.send().await.map_err(net)?.status();
         match status {
             StatusCode::PRECONDITION_FAILED => Err(err("the event was changed elsewhere; reload the calendar and try again")),
             s if !s.is_success() && s != StatusCode::NOT_FOUND => Err(err(s)),
@@ -1603,7 +1608,7 @@ impl ProtocolAdapter for TalkAdapter {
         }
         let href = self.object_href(href).await?;
         let me = self.whoami().await.1.ok_or_else(|| err("your Nextcloud profile has no email address"))?;
-        let response = self.request(Method::GET, &href).header("Accept", "text/calendar").send().await.map_err(|e| AdapterError::Network(e.to_string()))?;
+        let response = self.request(Method::GET, &href).header("Accept", "text/calendar").send().await.map_err(net)?;
         if !response.status().is_success() {
             return Err(err(response.status()));
         }

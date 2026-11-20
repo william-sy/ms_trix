@@ -5,6 +5,7 @@ import { backend } from "./backend";
 import { locale, t } from "./i18n";
 import { icalLocal, localZone, rrule, vtimezone, weekOfMonth, type Repeat, type RepeatEnd } from "./recurrence";
 import type { Attendee, Calendar, CalendarEvent, Conversation, Org } from "./types";
+import { useEscape } from "./hooks";
 
 interface Props {
   /** Nextcloud accounts in view. */
@@ -300,14 +301,6 @@ function layoutDay(items: Item[], day: Date) {
 }
 
 const STATUS_ICON: Record<string, string> = { ACCEPTED: "✅", DECLINED: "❌", TENTATIVE: "❔" };
-
-function useEscape(onClose: () => void) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-}
 
 function EventDialog({ item, chat, writable, onClose, onEdit, onDeleted, onOpenChat, onJoinCall }: {
   item: Item; chat?: Conversation; writable: boolean; onClose: () => void; onEdit: (series: boolean) => void; onDeleted: () => void;

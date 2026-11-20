@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Avatar } from "./Avatar";
 import { backend, type DirectoryRoom } from "./backend";
 import { t } from "./i18n";
+import { useEscape } from "./hooks";
 
 interface Props {
   account: string;
@@ -15,11 +16,7 @@ interface Props {
 export function JoinRoomDialog({ account, room, via, onJoined, onClose }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  useEscape(onClose);
 
   const join = () => {
     setBusy(true);

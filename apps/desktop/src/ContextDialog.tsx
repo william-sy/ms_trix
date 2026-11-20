@@ -4,6 +4,7 @@ import { backend } from "./backend";
 import { t } from "./i18n";
 import { RichText } from "./RichText";
 import type { Message } from "./types";
+import { useEscape } from "./hooks";
 
 interface Props {
   conversation: string;
@@ -22,11 +23,7 @@ export function ContextDialog({ conversation, message, title, onShowInChat, onCl
   useEffect(() => {
     backend.messageContext(conversation, message).then(setMessages).catch((e) => setError(String(e)));
   }, [conversation, message]);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  useEscape(onClose);
   useEffect(() => {
     if (messages) requestAnimationFrame(() => document.querySelector(".context-msg.target")?.scrollIntoView({ block: "center" }));
   }, [messages]);

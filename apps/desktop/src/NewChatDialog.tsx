@@ -4,6 +4,7 @@ import { backend } from "./backend";
 import { useOrgs } from "./store";
 import type { Member } from "./types";
 import { t } from "./i18n";
+import { useEscape } from "./hooks";
 
 interface Props {
   /** Preselected account (the org in view), else the first one. */
@@ -43,11 +44,7 @@ export function NewChatDialog({ orgId, initialMode = "chat", team, onClose, onOp
   const [error, setError] = useState<string | null>(null);
   const query = term.trim();
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  useEscape(onClose);
 
   // Search the server's user directory as you type (debounced).
   useEffect(() => {

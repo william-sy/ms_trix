@@ -31,6 +31,7 @@ import { parseQuery, queryMatches } from "./searchQuery";
 import { useOpenProfile } from "./Profile";
 import { summarize } from "./roomEvents";
 import { capabilities } from "./mock";
+import { useEscape } from "./hooks";
 
 interface Props {
   conv: Conversation;
@@ -590,11 +591,7 @@ function MessageStatus({ conv, message, onClose }: { conv: Conversation; message
   useEffect(() => {
     if (isLive) backend.members(conv.id).then(setMembers).catch(() => setMembers([]));
   }, [conv.id]);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  useEscape(onClose);
   const read = (conv.readers ?? []).filter((r) => message.pos !== undefined && r.pos >= message.pos && r.userId !== org.userId);
   const unread = (members ?? []).filter((p) => p.userId !== org.userId && !read.some((r) => r.userId === p.userId));
   const person = (p: { userId: string; name: string; avatar?: string | null }) => (
