@@ -56,7 +56,7 @@
       (nl/en; without a year: the first one after the message was sent) get a subtle underline;
       hover shows the weekday ("Thursday 9 December 2026, in 19 days"), click a mini month calendar
       with that day's meetings, "Open in calendar" and "Add to calendar" (date and time filled
-      in). Maybe a weekday hint while typing; "tomorrow" / "next Thursday" later
+      in). Maybe a weekday hint while typing. Words like "tomorrow" or "next Thursday": skipped
 - [ ] Phishing check against a downloaded list of known phishing sites (e.g. OpenPhish), checked
       locally, if the built-in checks turn out too limited
 
