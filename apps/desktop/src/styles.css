@@ -1043,7 +1043,10 @@ mark { background: rgba(255, 196, 0, 0.45); color: inherit; border-radius: 2px; 
 .talk-pager { display: inline-flex; align-items: center; gap: 2px; font-size: 13px; }
 .talk-speaker { flex: 1; display: flex; flex-direction: column; gap: 10px; padding: 0 18px; min-height: 0; }
 .talk-speaker-main { flex: 1; position: relative; display: flex; min-height: 0; }
-.talk-speaker-main > .talk-tile:not(.small) { flex: 1; }
+.talk-speaker-main > .talk-tile:not(.small) { flex: 1; animation: stage-in 0.3s ease-out; }
+/* A new person on stage fades in instead of cutting hard. */
+@keyframes stage-in { from { opacity: 0.35; } to { opacity: 1; } }
+.call-mini > .talk-tile { animation: stage-in 0.3s ease-out; }
 .talk-speaker-main .talk-tile.small { position: absolute; right: 12px; bottom: 12px; width: 220px; aspect-ratio: 16 / 9; z-index: 2; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5); }
 .talk-strip.row { width: auto; height: 124px; flex-direction: row; overflow-x: auto; overflow-y: hidden; flex: none; }
 .talk-strip.row .talk-tile { height: 100%; width: auto; }

@@ -125,6 +125,9 @@ type ShareView = "side" | "top" | "content";
 const SHARE_VIEW = "trix.callShareView";
 /** Your own video hidden from your screen (the others still see it). */
 const HIDE_SELF = "trix.callHideSelf";
+/** How long someone talks before taking the stage, and how long whoever has it keeps it (ms). */
+const TAKE_STAGE = 1500;
+const KEEP_STAGE = 3000;
 /** Tiles per page: Teams' gallery and large gallery. */
 const PER_PAGE = { gallery: 9, large: 49 };
 
@@ -171,8 +174,9 @@ export function TalkCallScreen({ calls, conversation, docked, onPopOut, onPopIn 
   const [layoutMenu, setLayoutMenu] = useState(false);
   const [page, setPage] = useState(0);
   const [pinned, setPinned] = useState<string | null>(null);
-  // The last person who spoke stays on stage until someone else talks.
-  const lastSpeaker = useRef<string | null>(null);
+  // Who's on stage, and since when; and since when each person has been talking (see below).
+  const stageOwner = useRef<{ sid: string; since: number } | null>(null);
+  const talkingSince = useRef(new Map<string, number>());
   const setLayout = (l: Layout) => { setLayoutState(l); setLayoutMenu(false); setPage(0); remember(LAYOUT, l); };
   const setShareView = (v: ShareView) => { setShareViewState(v); setLayoutMenu(false); remember(SHARE_VIEW, v); };
   useEffect(() => {
@@ -191,8 +195,21 @@ export function TalkCallScreen({ calls, conversation, docked, onPopOut, onPopIn 
   const name = conversation?.name ?? "";
   const status = call.phase === "joining" ? t("talkcall.joining") : call.phase === "ended" ? t("talkcall.ended") : formatDuration(now - (call.connectedAt ?? now));
   const sharer = call.peers.find((p) => p.screen);
-  const speakingNow = call.peers.find((p) => p.speaking);
-  if (speakingNow) lastSpeaker.current = speakingNow.sid;
+  // The stage moves calmly in banter: someone takes it after talking for a moment (TAKE_STAGE),
+  // and whoever has it keeps it a while (KEEP_STAGE) unless they've stopped talking. Short sounds
+  // ("mm", a laugh) don't move it at all. Checked on every update (at least once a second).
+  const clock = Date.now();
+  for (const p of call.peers) {
+    if (!p.speaking) talkingSince.current.delete(p.sid);
+    else if (!talkingSince.current.has(p.sid)) talkingSince.current.set(p.sid, clock);
+  }
+  if (stageOwner.current && !call.peers.some((p) => p.sid === stageOwner.current!.sid)) stageOwner.current = null;
+  const challenger = [...talkingSince.current].filter(([sid]) => sid !== stageOwner.current?.sid).sort((a, b) => a[1] - b[1])[0];
+  if (challenger) {
+    const onStageTalking = call.peers.some((p) => p.sid === stageOwner.current?.sid && p.speaking);
+    const settled = !stageOwner.current || clock - stageOwner.current.since >= KEEP_STAGE || !onStageTalking;
+    if (!stageOwner.current || (clock - challenger[1] >= TAKE_STAGE && settled)) stageOwner.current = { sid: challenger[0], since: clock };
+  }
   const pinnedPeer = call.peers.find((p) => p.sid === pinned);
   const self = { name: "", stream: call.local, videoOn: call.cameraOn, audioOn: !call.muted, speaking: call.speakingSelf };
   const pin = (sid: string) => setPinned(pinned === sid ? null : sid);
@@ -206,7 +223,7 @@ export function TalkCallScreen({ calls, conversation, docked, onPopOut, onPopIn 
   // People who aren't on screen (another page, content only, minimised) must still be heard.
   const sound = (peers: TalkPeerView[]) => peers.map((p) => p.stream && <Video key={`sound-${p.sid}`} stream={p.stream} className="hidden-audio" />);
   const effective = layout === "auto" ? (call.peers.length <= 1 || pinnedPeer ? "speaker" : "gallery") : layout;
-  const onStage = pinnedPeer ?? call.peers.find((p) => p.sid === lastSpeaker.current) ?? call.peers[0];
+  const onStage = pinnedPeer ?? call.peers.find((p) => p.sid === stageOwner.current?.sid) ?? call.peers[0];
   const perPage = effective === "large" ? PER_PAGE.large : PER_PAGE.gallery;
   const pages = Math.max(1, Math.ceil(call.peers.length / perPage));
   const shownPage = Math.min(page, pages - 1);
@@ -225,7 +242,7 @@ export function TalkCallScreen({ calls, conversation, docked, onPopOut, onPopIn 
   );
 
   if (call.minimized && docked) {
-    const speaker = call.peers.find((p) => p.speaking) ?? onStage;
+    const speaker = onStage;
     return (
       <div className="call-mini">
         {speaker ? tile(speaker) : selfTile()}
