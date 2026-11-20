@@ -74,6 +74,7 @@ interface ConversationWire {
   invitedBy: string | null;
   dmUser: string | null;
   callActive: boolean;
+  callSilent: boolean;
 }
 
 interface MessageWire {
@@ -339,6 +340,7 @@ const toConversation = (c: ConversationWire): Conversation => ({
   invitedBy: c.invitedBy,
   dmUser: c.dmUser,
   callActive: c.callActive,
+  callSilent: c.callSilent,
 });
 
 const toMessage = (m: MessageWire): Message => ({

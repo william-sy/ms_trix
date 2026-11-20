@@ -427,6 +427,15 @@ function Notifications({ settings, set }: Section) {
           <input type="checkbox" checked={notify.calls} onChange={(e) => setNotify({ calls: e.target.checked })} />
           <span>{t("settings.notify.calls")}</span>
         </label>
+        {notify.calls && (
+          <>
+            <label className="toggle-row">
+              <input type="checkbox" checked={notify.silentCalls} onChange={(e) => setNotify({ silentCalls: e.target.checked })} />
+              <span>{t("settings.notify.silentCalls")}</span>
+            </label>
+            <p className="hint">{t("settings.notify.silentCallsHint")}</p>
+          </>
+        )}
       </section>
       <section>
         <h2>{t("settings.notify.meetings")}</h2>

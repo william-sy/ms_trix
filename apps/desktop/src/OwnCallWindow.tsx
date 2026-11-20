@@ -53,7 +53,7 @@ export function CallWindow() {
   // and that unmount would end a call started right away (and close this webview).
   useEffect(() => {
     if (!p) return;
-    const timer = window.setTimeout(() => calls.start(p.conversation, p.video), 0);
+    const timer = window.setTimeout(() => calls.start(p.conversation, p.video, p.silent), 0);
     return () => window.clearTimeout(timer);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 

@@ -88,6 +88,10 @@ pub struct Conversation {
     pub team_id: Option<String>,
     /// Someone is in a call in this conversation right now.
     pub call_active: bool,
+    /// That call was started silently (Talk's "Start call silently"): it doesn't ring, unless the
+    /// user asks for silent calls to ring too.
+    #[serde(default)]
+    pub call_silent: bool,
     pub encrypted: bool,
 }
 

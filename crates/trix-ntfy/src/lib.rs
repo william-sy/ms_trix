@@ -137,6 +137,7 @@ impl NtfyAdapter {
             invited_by: None,
             team_id: None,
             call_active: false,
+            call_silent: false,
             encrypted: false,
         }
     }

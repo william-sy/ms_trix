@@ -2248,6 +2248,7 @@ async fn conversation_for(client: &Client, account: &AccountId, room_id: &RoomId
         invited_by,
         team_id,
         call_active: false,
+        call_silent: false,
         dm_user: if kind == ConversationKind::Direct { room.direct_targets().into_iter().find_map(|t| t.into_user_id()).map(|u| u.to_string()) } else { None },
         encrypted: room.encryption_state().is_encrypted(),
     })

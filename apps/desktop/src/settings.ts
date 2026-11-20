@@ -13,6 +13,8 @@ export interface NotifyPrefs {
   chats: NotifyLevel;
   channels: NotifyLevel;
   calls: boolean;
+  /** Calls started silently ring all the same. */
+  silentCalls: boolean;
   keywords: string[];
 }
 
@@ -97,7 +99,7 @@ const defaults: Settings = {
   accent: null,
   fontSize: "normal",
   language: "system",
-  notify: { chats: "all", channels: "mentions", calls: true, keywords: [] },
+  notify: { chats: "all", channels: "mentions", calls: true, silentCalls: false, keywords: [] },
   sounds: { message: "default", mention: "default", call: "default" },
   shareReceipts: true,
   shareTyping: true,

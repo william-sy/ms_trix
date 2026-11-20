@@ -8,8 +8,14 @@
 - **Colours in code blocks:** a block written as ```yaml (or json, bash, python, rust, sql, …:
   all of highlight.js's roughly 190 languages) shows in that language's colours, in Matrix and
   Talk messages and in the notes preview. Rarely used languages load the first time they appear.
+- **Silent calls:** start a Talk call silently (▾ next to the call buttons), so nobody is rung.
+  Calls others start silently don't ring you either, unless you turn on "Ring for silent calls
+  too" (Settings → Notifications), the Teams way where nothing is silent.
 
 ### Fixed
+- Speaker layout jumped from person to person in quick back-and-forth: someone now takes the big
+  picture after talking for a moment (1.5 s) and keeps it at least 3 s unless they stop; short
+  sounds don't move it, and a change fades in.
 - Talk calls in group chats rang only as a quiet pop-up; they ring now too (muted conversations
   stay quiet), and on an incoming call the Dock icon bounces (the taskbar button flashes on
   Windows) so it's noticed with another app in front.

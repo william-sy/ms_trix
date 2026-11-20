@@ -369,6 +369,10 @@ impl TalkAdapter {
             invited_by: None,
             team_id: None,
             call_active: room["hasCall"].as_bool().unwrap_or(false),
+            // Started with "Start call silently": its "call started" message is marked silent.
+            call_silent: room["hasCall"].as_bool().unwrap_or(false)
+                && room["lastMessage"]["systemMessage"].as_str() == Some("call_started")
+                && room["lastMessage"]["silent"].as_bool().unwrap_or(false),
             encrypted: false,
         })
     }

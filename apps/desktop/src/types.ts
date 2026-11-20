@@ -54,6 +54,8 @@ export interface Conversation {
   dmUser?: string | null;
   /** Someone is in a call in this conversation. */
   callActive?: boolean;
+  /** The running call was started silently (Talk). */
+  callSilent?: boolean;
 }
 
 export type PresenceState = "available" | "busy" | "away" | "offline";

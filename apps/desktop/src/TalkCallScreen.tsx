@@ -419,7 +419,8 @@ export function TalkRing({ convs, talkOrgs, busy, onJoin }: { convs: Conversatio
     // The first list (calls already going at start-up) doesn't ring.
     known.current = now.size ? now : before;
     if (!before) return;
-    const started = convs.find((c) => now.get(c.id) && before.get(c.id) === false && c.id !== busy && !c.muted);
+    // A call started silently doesn't ring, unless silent calls should ring too (Settings).
+    const started = convs.find((c) => now.get(c.id) && before.get(c.id) === false && c.id !== busy && !c.muted && (!c.callSilent || currentSettings().notify.silentCalls));
     if (started && currentSettings().notify.calls) {
       setRinging(started.id);
       if (!dndActive()) void backend.requestAttention().catch(() => {});

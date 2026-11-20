@@ -132,6 +132,8 @@ export class TalkCall {
   ownPending: Partial<Record<"video" | "screen", RTCIceCandidateInit[]>> = {};
   selfMeter?: () => void;
   closed = false;
+  /** Started with "Start call silently": the others aren't rung. */
+  silent = false;
 
   constructor(conversation: string, private update: (s: TalkCallState) => void) {
     const [account, token] = conversation.split("|") as [string, string];
@@ -217,7 +219,7 @@ export class TalkCall {
         ? this.internalSignaling()
         : await this.externalSignaling(settings);
       const flags = IN_CALL | WITH_AUDIO | (local.getVideoTracks().length && this.state.cameraOn ? WITH_VIDEO : 0);
-      await this.api("POST", `/v4/call/${this.token}`, { flags: String(flags), silent: "false" });
+      await this.api("POST", `/v4/call/${this.token}`, { flags: String(flags), silent: String(this.silent) });
       log(`in the call (flags ${flags}), ${this.sig.mcu ? "via the video server (MCU)" : "peer to peer"}`);
       await names;
       if (this.sig.mcu) await this.publish("video", local);
@@ -728,8 +730,8 @@ function connected(pc: RTCPeerConnection | undefined, ms: number): Promise<void>
 
 export interface TalkCalls {
   call: TalkCallState | null;
-  /** Opens the pre-join screen. */
-  start: (conversation: string, video: boolean) => void;
+  /** Opens the pre-join screen; `silent`: joining won't ring the others. */
+  start: (conversation: string, video: boolean, silent?: boolean) => void;
   /** Joins straight away with these choices (a call moved between windows). */
   join: () => void;
   cancel: () => void;
@@ -767,6 +769,8 @@ export interface CallWindowParams {
   name: string;
   avatar?: string;
   video: boolean;
+  /** Started silently: the others aren't rung. */
+  silent?: boolean;
   /** Starts in the app, rather than in a window of its own. */
   docked: boolean;
 }
@@ -774,7 +778,7 @@ export interface CallWindowParams {
 /** What the rest of the app sees of a Talk call: the call itself runs in a webview of its own. */
 export interface TalkCallHost {
   call: { conversation: string; phase: TalkCallState["phase"] } | null;
-  start: (conversation: string, video: boolean) => void;
+  start: (conversation: string, video: boolean, silent?: boolean) => void;
   /** Brings the call to the front (restored, when minimised). */
   show: () => void;
 }
@@ -792,10 +796,10 @@ export function useTalkCallHost(describe: (conversation: string) => { account: s
   }, []);
   return {
     call: inCall ? { conversation: inCall, phase: "connected" } : null,
-    start: (conversation, video) => {
+    start: (conversation, video, silent) => {
       if (inCall) return void backend.focusCallWindow();
       setInCall(conversation);
-      const params: CallWindowParams = { conversation, ...describe(conversation), video, docked: !callsInOwnWindow() };
+      const params: CallWindowParams = { conversation, ...describe(conversation), video, silent, docked: !callsInOwnWindow() };
       void backend.openCallWindow(JSON.stringify(params), params.name, params.docked).catch((e) => { setInCall(null); onError(String(e)); });
     },
     show: () => void backend.focusCallWindow(),
@@ -813,9 +817,10 @@ export function useTalkCallEngine(onError: (message: string) => void): TalkCalls
   }, [call?.error]); // eslint-disable-line react-hooks/exhaustive-deps
   return {
     call,
-    start: (conversation, video) => {
+    start: (conversation, video, silent) => {
       if (current.current && current.current.state.phase !== "ended") return;
       const c = new TalkCall(conversation, (s) => setCall({ ...s }));
+      c.silent = !!silent;
       current.current = c;
       setCall(c.state);
       void c.prepare(video);

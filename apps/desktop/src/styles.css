@@ -1261,3 +1261,8 @@ a.link-warn::after { content: " ⚠"; }
 .cloud-check { flex: none; display: grid; place-items: center; width: 18px; height: 18px; border: 1.5px solid var(--border); border-radius: 4px; font-size: 12px; line-height: 1; }
 .cloud-check.on { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
 .cloud-count { margin-right: auto; }
+
+/* The chat header's "▾" next to the call buttons (start silently). */
+.call-more { min-width: 20px; padding: 0 4px; font-size: 11px; }
+.menu.call-menu { top: calc(100% + 4px); right: 0; left: auto; width: max-content; }
+.call-menu .menu-item { display: flex; align-items: center; gap: 8px; }

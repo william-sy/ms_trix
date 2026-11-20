@@ -68,6 +68,7 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
   // Send later: what's waiting here, and a scheduled message put back in the composer to edit.
   const scheduled = useScheduled(conv.id);
   const [seed, setSeed] = useState<{ text: string; n: number } | null>(null);
+  const [callMenu, setCallMenu] = useState(false);
   useEffect(() => setSeed(null), [conv.id]);
   const [panel, setPanel] = useState(false);
   const [threadsOpen, setThreadsOpen] = useState(false);
@@ -379,6 +380,17 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
             <>
               <button className="icon-btn" title={t("mxcall.voice")} disabled={talkBusy} onClick={() => talkCalls?.start(conv.id, false)}><CallIcon /></button>
               <button className="icon-btn" title={t("mxcall.video")} disabled={talkBusy} onClick={() => talkCalls?.start(conv.id, true)}><CameraIcon /></button>
+              {/* Like Talk's "Start call ▾": a call that doesn't ring the others. */}
+              <span className="bg-anchor">
+                <button className="icon-btn call-more" title={t("call.moreCallOptions")} disabled={talkBusy} onClick={() => setCallMenu(!callMenu)}>▾</button>
+                {callMenu && (
+                  <div className="menu call-menu" onMouseLeave={() => setCallMenu(false)}>
+                    <button className="menu-item" title={t("call.startSilentlyHint")} onClick={() => { setCallMenu(false); talkCalls?.start(conv.id, lastCameraOn(), true); }}>
+                      <CallIcon /> {t("call.startSilently")}
+                    </button>
+                  </div>
+                )}
+              </span>
             </>
           ))}
           {isLive && org.protocol === "matrix" && !isInvite && (

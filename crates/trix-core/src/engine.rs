@@ -162,12 +162,14 @@ pub struct NotifyPrefs {
     /// Team channels; Teams only notifies on mentions there by default.
     pub channels: NotifyLevel,
     pub calls: bool,
+    /// Calls started silently ring all the same (Teams-like: nothing is silent).
+    pub silent_calls: bool,
     pub keywords: Vec<String>,
 }
 
 impl Default for NotifyPrefs {
     fn default() -> Self {
-        Self { chats: NotifyLevel::All, channels: NotifyLevel::Mentions, calls: true, keywords: vec![] }
+        Self { chats: NotifyLevel::All, channels: NotifyLevel::Mentions, calls: true, silent_calls: false, keywords: vec![] }
     }
 }
 
@@ -220,6 +222,7 @@ pub struct ConversationView {
     /// The other person in a 1:1 chat.
     pub dm_user: Option<String>,
     pub call_active: bool,
+    pub call_silent: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -516,7 +519,7 @@ impl Engine {
                 }
                 // A call that just started (not one already running when we connected).
                 let call_started = conv.call_active && entry.conv.as_ref().is_some_and(|c| !c.call_active);
-                if call_started && !conv.muted && self.notify.calls {
+                if call_started && !conv.muted && self.notify.calls && (!conv.call_silent || self.notify.silent_calls) {
                     out.notifications.push(Notification { conversation: id.key(), title: conv.name.clone(), body: self.texts.get("notify.call", &[]), kind: NotificationKind::Call });
                 }
                 entry.conv = Some(conv);
@@ -951,6 +954,7 @@ impl Engine {
             invited_by: conv.invited_by.clone(),
             dm_user: conv.dm_user.clone(),
             call_active: conv.call_active,
+            call_silent: conv.call_silent,
             presence: conv.dm_user.as_ref().and_then(|u| self.presence.get(u)).map(|(p, _)| *p),
             status: conv.dm_user.as_ref().and_then(|u| self.presence.get(u)).and_then(|(_, s)| s.clone()),
         })
@@ -1086,6 +1090,7 @@ mod tests {
             invited_by: None,
             team_id: None,
             call_active: false,
+            call_silent: false,
             encrypted: true,
         })
     }
@@ -1423,6 +1428,22 @@ mod tests {
         e.handle(with_call(false), 0);
         assert_eq!(e.handle(with_call(true), 0).notifications.len(), 1);
         assert!(e.view(&conv_id()).unwrap().call_active);
+    }
+
+    #[test]
+    fn a_silent_call_rings_only_when_asked() {
+        let call = |active: bool, silent: bool| match upsert() {
+            AdapterEvent::ConversationUpserted(c) => AdapterEvent::ConversationUpserted(Conversation { call_active: active, call_silent: silent, ..c }),
+            _ => unreachable!(),
+        };
+        let mut e = Engine::new();
+        e.handle(call(false, false), 0);
+        assert!(e.handle(call(true, true), 0).notifications.is_empty(), "silent: honoured by default");
+        assert!(e.view(&conv_id()).unwrap().call_silent);
+        let mut e = Engine::new();
+        e.set_notify_prefs(NotifyPrefs { silent_calls: true, ..Default::default() });
+        e.handle(call(false, false), 0);
+        assert_eq!(e.handle(call(true, true), 0).notifications.len(), 1, "rings anyway when asked");
     }
 
     #[test]
