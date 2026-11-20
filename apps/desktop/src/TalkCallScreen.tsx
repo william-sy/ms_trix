@@ -4,6 +4,8 @@ import { BackgroundPicker } from "./BackgroundPicker";
 import { rawCamera } from "./cameraEffects";
 import { useRingtone } from "./CallScreen";
 import { Avatar } from "./Avatar";
+import { backend } from "./backend";
+import { dndActive } from "./dnd";
 import { CallIcon, CameraIcon, CameraOffIcon, EmojiIcon, ExpandIcon, GearIcon, HandIcon, LayoutIcon, MicIcon, MicOffIcon, PinIcon, ShareScreenIcon, SparkleIcon, NewWindowIcon } from "./Icons";
 import { t } from "./i18n";
 import { currentSettings, onSettingsChanged, updateSettings } from "./settings";
@@ -388,8 +390,8 @@ function PreJoin({ calls, name, onPopOut }: { calls: TalkCalls; name: string; on
 
 
 /**
- * Someone started a Talk call: a ringing pop-up for 1:1 chats, a quiet one for groups
- * (like Teams). Talk has no "decline"; dismissing just stops the ringing here.
+ * Someone started a Talk call: a ringing pop-up (in group chats too; muted conversations stay
+ * quiet), and the Dock icon bounces. Talk has no "decline"; dismissing just stops the ringing here.
  */
 export function TalkRing({ convs, talkOrgs, busy, onJoin }: { convs: Conversation[]; talkOrgs: Set<string>; busy: string | null; onJoin: (key: string) => void }) {
   const known = useRef<Map<string, boolean> | null>(null);
@@ -401,7 +403,10 @@ export function TalkRing({ convs, talkOrgs, busy, onJoin }: { convs: Conversatio
     known.current = now.size ? now : before;
     if (!before) return;
     const started = convs.find((c) => now.get(c.id) && before.get(c.id) === false && c.id !== busy && !c.muted);
-    if (started && currentSettings().notify.calls) setRinging(started.id);
+    if (started && currentSettings().notify.calls) {
+      setRinging(started.id);
+      if (!dndActive()) void backend.requestAttention().catch(() => {});
+    }
     if (ringing && !now.get(ringing)) setRinging(null);
   }, [convs]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -411,7 +416,7 @@ export function TalkRing({ convs, talkOrgs, busy, onJoin }: { convs: Conversatio
   }, [ringing]);
   useEffect(() => { if (busy && busy === ringing) setRinging(null); }, [busy, ringing]);
   const conv = convs.find((c) => c.id === ringing);
-  useRingtone(!!conv && conv.kind === "direct", true);
+  useRingtone(!!conv, true);
   if (!conv) return null;
   return (
     <div className="call-ring" role="alertdialog" aria-label={t("talkcall.incoming", { name: conv.name })}>

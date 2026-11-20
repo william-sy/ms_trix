@@ -463,6 +463,8 @@ export const backend = {
   setDnd: (until: number | null) => invoke<void>("set_dnd", { until }),
   /** An incoming Matrix call's notification (none during do not disturb; also to ntfy). */
   notifyCall: (title: string, body: string) => invoke<void>("notify_call", { title, body }),
+  /** An incoming call: the Dock icon bounces (taskbar button flashes) until the app is in front. */
+  requestAttention: () => invoke<void>("request_attention"),
   /** ntfy add-on: its settings (null: off); the access token goes into the keychain. */
   setNtfy: (prefs: { server: string; topic: string; onlyAway: boolean; awayAfterSecs: number; includeText: boolean } | null) => invoke<void>("set_ntfy", { prefs }),
   setNtfyToken: (token: string | null) => invoke<void>("set_ntfy_token", { token }),

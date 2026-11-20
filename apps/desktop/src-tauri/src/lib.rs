@@ -1959,6 +1959,15 @@ async fn send_scheduled_now(app: AppHandle, id: String) {
     scheduled::send_due(&app).await;
 }
 
+/// An incoming call: the Dock icon bounces (the taskbar button flashes on Windows) until the app
+/// is brought to the front, so it's noticed with another app in front too.
+#[tauri::command]
+fn request_attention(app: AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.request_user_attention(Some(tauri::UserAttentionType::Critical));
+    }
+}
+
 /// An incoming Matrix call's notification (not during do not disturb; also to ntfy).
 #[tauri::command]
 fn notify_call(app: AppHandle, title: String, body: String) {
@@ -2347,6 +2356,7 @@ pub fn run() {
             set_notify_prefs,
             set_dnd,
             notify_call,
+            request_attention,
             set_ntfy,
             set_ntfy_token,
             has_ntfy_token,

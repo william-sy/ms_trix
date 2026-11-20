@@ -10,6 +10,9 @@
   and in the notes preview.
 
 ### Fixed
+- Talk calls in group chats rang only as a quiet pop-up; they ring now too (muted conversations
+  stay quiet), and on an incoming call the Dock icon bounces (the taskbar button flashes on
+  Windows) so it's noticed with another app in front.
 - Replying with a file (a GIF, a picture): the reply was lost on sending; the file now goes as
   the reply (Matrix; on Talk where the server supports it).
 

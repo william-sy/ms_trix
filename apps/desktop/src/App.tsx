@@ -122,6 +122,7 @@ export function App() {
   const calls = useMatrixCalls((e) => setNotice(String(e)), (conversation, peer, video) => {
     const name = convsRef.current.find((c) => c.id === conversation)?.name ?? peer;
     backend.notifyCall(name, video ? t("mxcall.incomingVideo") : t("mxcall.incomingVoice")).catch(() => {});
+    if (!dndActive()) backend.requestAttention().catch(() => {});
   });
   // Do not disturb shows you as busy everywhere (on Talk: "do not disturb"), with when it ends as
   // your status message unless you have one; when it ends, your own status comes back.
