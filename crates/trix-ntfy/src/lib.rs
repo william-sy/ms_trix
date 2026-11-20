@@ -310,6 +310,11 @@ impl ProtocolAdapter for NtfyAdapter {
         Ok(ReceiverStream(rx).boxed())
     }
 
+    /// A fresh connection, continuing after the last message seen (seen ones aren't repeated).
+    fn wake(&self) {
+        self.watch();
+    }
+
     async fn stop(&self) -> Result<()> {
         if let Some(task) = self.watcher.lock().unwrap().take() {
             task.abort();

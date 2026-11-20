@@ -1990,6 +1990,10 @@ impl ProtocolAdapter for MatrixAdapter {
         Ok(())
     }
 
+    fn wake(&self) {
+        self.rooms.nudge();
+    }
+
     /// With sliding sync the chat on screen gets its own subscription with more history.
     fn set_focus(&self, conversation: Option<&ConversationId>) {
         *self.rooms.focus.lock().unwrap() = conversation.and_then(|c| RoomId::parse(&c.remote).ok());
@@ -2793,6 +2797,16 @@ pub(crate) struct RoomSubscriptions {
 
 impl RoomSubscriptions {
     fn apply(&self) {
+        self.apply_with(false);
+    }
+
+    /// Drops the request waiting for news (it may hang on a connection that died while the
+    /// computer slept) and sends a fresh one.
+    pub(crate) fn nudge(&self) {
+        self.apply_with(true);
+    }
+
+    fn apply_with(&self, restart: bool) {
         use matrix_sdk::ruma::api::client::sync::sync_events::v5::request::RoomSubscription;
 
         let Some(sync) = self.sliding.lock().unwrap().clone() else { return };
@@ -2801,7 +2815,7 @@ impl RoomSubscriptions {
         rooms.sort();
         rooms.dedup();
         if rooms.is_empty() {
-            return sync.set_room_subscriptions(&[], None, false);
+            return sync.set_room_subscriptions(&[], None, restart);
         }
         let mut settings = RoomSubscription::default();
         settings.timeline_limit = matrix_sdk::ruma::UInt::from(FOCUS_TIMELINE);

@@ -13,6 +13,9 @@
   too" (Settings → Notifications), the Teams way where nothing is silent.
 
 ### Fixed
+- After the computer was locked or asleep, messages took a while to come in (up to a minute):
+  the app now reconnects every account as soon as the computer wakes, and on macOS it isn't
+  napped while the screen is locked, so messages keep coming in meanwhile.
 - Speaker layout jumped from person to person in quick back-and-forth: someone now takes the big
   picture after talking for a moment (1.5 s) and keeps it at least 3 s unless they stop; short
   sounds don't move it, and a change fades in.

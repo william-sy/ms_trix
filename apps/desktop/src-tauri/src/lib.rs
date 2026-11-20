@@ -2239,6 +2239,34 @@ pub fn run() {
                 }
             });
             tauri::async_runtime::spawn(restore_all(app.handle().clone()));
+            // macOS: no App Nap (as chat apps do), so messages keep coming in while the screen is
+            // locked or the window hidden; the display and the computer still sleep as usual.
+            #[cfg(target_os = "macos")]
+            {
+                use objc2_foundation::{NSActivityOptions, NSProcessInfo, NSString};
+                let activity = NSProcessInfo::processInfo().beginActivityWithOptions_reason(NSActivityOptions::UserInitiatedAllowingIdleSystemSleep, &NSString::from_str("Receiving messages"));
+                // For as long as the app runs.
+                std::mem::forget(activity);
+            }
+            // The computer slept: a jump in the clock. Every account reconnects at once rather
+            // than waiting out a connection that died meanwhile (up to a minute for Matrix).
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let mut last = SystemTime::now();
+                loop {
+                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                    let time = SystemTime::now();
+                    if let Ok(gap) = time.duration_since(last) {
+                        if gap > std::time::Duration::from_secs(20) {
+                            log::info!("woke up after {} s: reconnecting", gap.as_secs());
+                            let state = handle.state::<AppState>();
+                            let engine = state.engine.lock().unwrap();
+                            engine.accounts().iter().filter_map(|a| engine.adapter(&a.id)).for_each(|adapter| adapter.wake());
+                        }
+                    }
+                    last = time;
+                }
+            });
             // Send later: what's due goes out (also what came due while the app was closed).
             scheduled::load(app.handle());
             let handle = app.handle().clone();

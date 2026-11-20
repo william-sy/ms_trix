@@ -130,6 +130,9 @@ pub trait ProtocolAdapter: Send + Sync {
     /// Starts syncing. The stream ends when the adapter shuts down.
     async fn start(&self) -> Result<BoxStream<'static, AdapterEvent>>;
     async fn stop(&self) -> Result<()>;
+    /// The computer woke up (or the app was napped): reconnect now instead of waiting out a
+    /// connection that died meanwhile.
+    fn wake(&self) {}
     /// The conversation on screen (None: none of this account's), so polling
     /// protocols can watch it closely for new messages.
     fn set_focus(&self, _conversation: Option<&ConversationId>) {}

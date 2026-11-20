@@ -124,6 +124,8 @@ pub struct TalkAdapter {
     /// The Nextcloud user id for WebDAV paths (can differ from the login name, e.g. with SSO),
     /// and the user as a meeting organizer (when they have an email address).
     dav_user: Mutex<Option<(String, Option<Attendee>)>>,
+    /// Ends the wait between polls early (the computer woke up).
+    wake: Arc<tokio::sync::Notify>,
 }
 
 /// Sign in through the browser (Login Flow v2). `open_url` opens the sign-in page.
@@ -189,7 +191,7 @@ fn placeholder_account(id: AccountId, session: &Session) -> Account {
 
 impl TalkAdapter {
     fn new(account: Account, session: Session) -> Self {
-        Self { account: Mutex::new(account), session, http: client(), state: Default::default(), task: Mutex::new(None), watch_task: Mutex::new(None), dav_user: Mutex::new(None) }
+        Self { account: Mutex::new(account), session, http: client(), state: Default::default(), task: Mutex::new(None), watch_task: Mutex::new(None), dav_user: Mutex::new(None), wake: Default::default() }
     }
 
     pub fn restore(account: Account, blob: &[u8]) -> Result<Arc<Self>> {
@@ -729,7 +731,7 @@ impl ProtocolAdapter for TalkAdapter {
     async fn start(&self) -> Result<BoxStream<'static, AdapterEvent>> {
         let (tx, rx) = mpsc::unbounded_channel();
         let this = TalkAdapter::new(self.account(), self.session.clone());
-        let this = Arc::new(TalkAdapter { state: self.state.clone(), ..this });
+        let this = Arc::new(TalkAdapter { state: self.state.clone(), wake: self.wake.clone(), ..this });
         let (this_for_watch, tx_watch) = (this.clone(), tx.clone());
         let task = tokio::spawn(async move {
             let mut since = None;
@@ -755,7 +757,10 @@ impl ProtocolAdapter for TalkAdapter {
                 if tx.is_closed() {
                     break;
                 }
-                tokio::time::sleep(POLL_EVERY).await;
+                tokio::select! {
+                    _ = tokio::time::sleep(POLL_EVERY) => {}
+                    _ = this.wake.notified() => {}
+                }
             }
         });
         *self.task.lock().unwrap() = Some(task);
@@ -1391,6 +1396,10 @@ impl ProtocolAdapter for TalkAdapter {
     async fn cloud_apps(&self) -> Result<Vec<String>> {
         let data = self.ocs(self.request(Method::GET, "/ocs/v2.php/core/navigation/apps")).await?.map(|(d, _)| d).unwrap_or(Value::Null);
         Ok(data.as_array().map(|apps| apps.iter().filter_map(|a| a["id"].as_str().map(ToOwned::to_owned)).collect()).unwrap_or_default())
+    }
+
+    fn wake(&self) {
+        self.wake.notify_one();
     }
 
     async fn notes(&self) -> Result<Vec<Note>> {
