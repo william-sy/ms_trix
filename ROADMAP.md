@@ -320,7 +320,7 @@ built yet is visibly disabled in the UI with a "coming soon" tooltip.
         participants (CSV), poll drafts; Permissions: all / restricted / advanced;
         Danger zone: lock, archive, leave, delete conversation, delete chat messages
   - [ ] Talk: start/stop call recording (backlog; needs the recording server)
-- [ ] Talk follow-ups: typing (needs Talk's signaling), threads (Talk 22+), verify against SURF
+- [ ] Talk follow-ups: typing (needs Talk's signaling); threads (Talk 22+) done 2026-11-21
   - [ ] Talk: verify against the Nextcloud SURF uses (only tested sign-in start against a public server)
   - [x] Attach from Nextcloud Files (📎 menu): browse folders; in a Talk chat on the same Nextcloud
         the file is shared into the conversation, elsewhere a read-only public link is sent

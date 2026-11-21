@@ -9,6 +9,8 @@
   all of highlight.js's roughly 190 languages) shows in that language's colours, in Matrix and
   Talk messages and in the notes preview. Rarely used languages load the first time they appear.
 - **Tables:** the format bar's Table button picks a size on a grid and inserts an empty table.
+- **Talk threads** (Talk 22 and later): replies in a thread show in the thread pane instead of
+  the chat, replying there stays in the thread, and the Threads list works for Talk chats.
 - **Pinned messages** (Matrix, and Talk 23 and later): pin or unpin from a message's ⋯ menu. The
   latest pinned shows under the chat header (a click goes to it and on to the next), with
   "All pinned" for the list. Pins are for everyone in the chat: in Matrix they sync to Element and

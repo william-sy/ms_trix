@@ -155,6 +155,8 @@ pub struct TalkAdapter {
     dav_user: Mutex<Option<(String, Option<Attendee>)>>,
     /// Ends the wait between polls early (the computer woke up).
     wake: Arc<tokio::sync::Notify>,
+    /// Talk's features on this server (capabilities), once asked.
+    features: Mutex<Option<Vec<String>>>,
 }
 
 /// Sign in through the browser (Login Flow v2). `open_url` opens the sign-in page.
@@ -220,12 +222,24 @@ fn placeholder_account(id: AccountId, session: &Session) -> Account {
 
 impl TalkAdapter {
     fn new(account: Account, session: Session) -> Self {
-        Self { account: Mutex::new(account), session, http: client(), state: Default::default(), task: Mutex::new(None), watch_task: Mutex::new(None), dav_user: Mutex::new(None), wake: Default::default() }
+        Self { account: Mutex::new(account), session, http: client(), state: Default::default(), task: Mutex::new(None), watch_task: Mutex::new(None), dav_user: Mutex::new(None), wake: Default::default(), features: Mutex::new(None) }
     }
 
     pub fn restore(account: Account, blob: &[u8]) -> Result<Arc<Self>> {
         let session: Session = serde_json::from_slice(blob).map_err(err)?;
         Ok(Arc::new(Self::new(account, session)))
+    }
+
+    /// Whether this server's Talk has `name` (its capabilities, asked once).
+    async fn has_feature(&self, name: &str) -> bool {
+        if let Some(features) = self.features.lock().unwrap().as_ref() {
+            return features.iter().any(|f| f == name);
+        }
+        let Ok(Some((data, _))) = self.ocs(self.request(Method::GET, "/ocs/v2.php/cloud/capabilities")).await else { return false };
+        let features: Vec<String> = data["capabilities"]["spreed"]["features"].as_array().into_iter().flatten().filter_map(|f| f.as_str().map(ToOwned::to_owned)).collect();
+        let found = features.iter().any(|f| f == name);
+        *self.features.lock().unwrap() = Some(features);
+        found
     }
 
     /// Uploads to our "Talk" folder, then shares it into the conversation (with its caption, and
@@ -482,7 +496,8 @@ impl TalkAdapter {
             sender_name: display_name(m),
             sent_at: m["timestamp"].as_u64().unwrap_or(0) * 1000,
             body,
-            thread_root: None,
+            // Talk 22+ threads: a reply carries its thread's id, which is the first message's.
+            thread_root: m["threadId"].as_i64().filter(|&t| t > 0 && t != id).map(|t| MessageId(t.to_string())),
             reply_to: parent["id"].as_i64().map(|p| MessageId(p.to_string())),
             mentions_me,
         }));
@@ -724,7 +739,8 @@ impl ProtocolAdapter for TalkAdapter {
     fn capabilities(&self) -> Capabilities {
         Capabilities {
             e2ee: false,
-            threads: false,
+            // Talk 22+, once the server's features are known.
+            threads: self.features.lock().unwrap().as_ref().is_some_and(|f| f.iter().any(|x| x == "threads")),
             reactions: true,
             edits: true,
             read_receipts: true,
@@ -861,7 +877,16 @@ impl ProtocolAdapter for TalkAdapter {
         let text = talk_mentions(&message.text);
         let text = if message.emote { format!("_{text}_") } else { text };
         let mut form = vec![("message", text)];
-        // Talk has no threads; a thread reply becomes a normal reply.
+        // Talk 22+: in a thread, without quoting its first message. A message that doesn't start
+        // a thread (or a server without threads) gets a normal reply instead.
+        if let (Some(root), None, true) = (&message.thread_root, &message.reply_to, self.has_feature("threads").await) {
+            let mut in_thread = form.clone();
+            in_thread.push(("threadId", root.0.clone()));
+            if let Ok(data) = self.ocs(self.request(Method::POST, &format!("{CHAT}/{}", Self::token(conversation))).form(&in_thread)).await {
+                return Ok(MessageId(data.and_then(|(d, _)| d["id"].as_i64()).unwrap_or_default().to_string()));
+            }
+        }
+        // A reply to a message in a thread lands in that thread.
         if let Some(parent) = message.reply_to.or(message.thread_root) {
             form.push(("replyTo", parent.0));
         }
@@ -1040,6 +1065,65 @@ impl ProtocolAdapter for TalkAdapter {
         let mut messages = self.ocs(req).await?.and_then(|(d, _)| d.as_array().cloned()).unwrap_or_default();
         messages.sort_by_key(|m| m["id"].as_i64().unwrap_or(0));
         Ok(messages.iter().flat_map(|m| self.events_from(token, m)).filter_map(|e| if let AdapterEvent::Message(m) = e { Some(m) } else { None }).collect())
+    }
+
+    /// Talk 22+: a thread's messages (the chat history has them too, but maybe not this far back).
+    async fn load_thread(&self, conversation: &ConversationId, root: &MessageId) -> Result<History> {
+        if !self.has_feature("threads").await {
+            return Ok(History::default());
+        }
+        let token = Self::token(conversation);
+        let req = self.request(Method::GET, &format!("{CHAT}/{token}")).query(&[
+            ("lookIntoFuture", "0"),
+            ("limit", "200"),
+            ("setReadMarker", "0"),
+            ("markNotificationsAsRead", "0"),
+            ("threadId", root.0.as_str()),
+        ]);
+        let mut messages = self.ocs(req).await?.and_then(|(d, _)| d.as_array().cloned()).unwrap_or_default();
+        // The first message comes with the thread's own record.
+        if let Ok(Some((info, _))) = self.ocs(self.request(Method::GET, &format!("{CHAT}/{token}/threads/{}", root.0))).await {
+            if info["first"].is_object() {
+                messages.push(info["first"].clone());
+            }
+        }
+        messages.sort_by_key(|m| m["id"].as_i64().unwrap_or(0));
+        messages.dedup_by_key(|m| m["id"].as_i64().unwrap_or(0));
+        Ok(History { events: messages.iter().flat_map(|m| self.events_from(token, m)).collect(), has_more: false })
+    }
+
+    /// Talk 22+: the threads with recent activity.
+    async fn threads(&self, conversation: &ConversationId, mine: bool) -> Result<Vec<ThreadInfo>> {
+        if !self.has_feature("threads").await {
+            return Err(AdapterError::Unsupported("thread lists"));
+        }
+        let token = Self::token(conversation);
+        let data = self.ocs(self.request(Method::GET, &format!("{CHAT}/{token}/threads/recent")).query(&[("limit", "50")])).await?.map(|(d, _)| d).unwrap_or(Value::Null);
+        let me = self.me();
+        let by_me = |m: &Value| m["actorType"] == "users" && m["actorId"].as_str() == Some(me.as_str());
+        let mut out: Vec<ThreadInfo> = data
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|info| {
+                let (thread, first, last) = (&info["thread"], &info["first"], &info["last"]);
+                let preview = thread["title"].as_str().filter(|t| !t.is_empty()).map(ToOwned::to_owned).unwrap_or_else(|| render(first));
+                Some(ThreadInfo {
+                    root: thread["id"].as_i64()?.to_string(),
+                    sender_name: display_name(first),
+                    sender_avatar: (first["actorType"] == "users").then(|| format!("user:{}", first["actorId"].as_str().unwrap_or_default())),
+                    preview: preview.chars().take(140).collect(),
+                    sent_at: first["timestamp"].as_u64().unwrap_or(0) * 1000,
+                    replies: thread["numReplies"].as_u64().unwrap_or(0) as u32,
+                    latest_name: last.is_object().then(|| display_name(last)),
+                    latest_at: thread["lastActivity"].as_u64().map(|t| t * 1000),
+                    mine: by_me(first) || by_me(last),
+                })
+            })
+            .filter(|t| !mine || t.mine)
+            .collect();
+        out.sort_by_key(|t| std::cmp::Reverse(t.latest_at.unwrap_or(t.sent_at)));
+        Ok(out)
     }
 
     /// Talk 23+: pinned messages are a kind of shared item; each knows when it was pinned.
@@ -1772,6 +1856,24 @@ mod tests {
             MessageBody::File { name, caption, kind, .. } => assert_eq!((name.as_str(), caption.as_deref(), kind), ("shot.png", Some("Talk and Matrix in one client"), FileKind::Image)),
             other => panic!("{other:?}"),
         }
+    }
+
+    #[test]
+    fn thread_replies_know_their_thread() {
+        let adapter = TalkAdapter::new(
+            placeholder_account(AccountId("a".into()), &Session { server: "https://x".into(), login: "me".into(), app_password: String::new() }),
+            Session { server: "https://x".into(), login: "me".into(), app_password: String::new() },
+        );
+        let message = |id: i64, thread: i64| {
+            let m = serde_json::json!({ "id": id, "threadId": thread, "isThread": id == thread, "actorType": "users", "actorId": "ann", "message": "hi", "messageType": "comment", "timestamp": 1 });
+            match adapter.events_from("tok", &m).into_iter().next() {
+                Some(AdapterEvent::Message(m)) => m.thread_root.map(|r| r.0),
+                other => panic!("{other:?}"),
+            }
+        };
+        assert_eq!(message(10, 10), None, "the first message is the thread itself");
+        assert_eq!(message(12, 10).as_deref(), Some("10"));
+        assert_eq!(message(13, 0), None, "not in a thread");
     }
 
     #[test]
