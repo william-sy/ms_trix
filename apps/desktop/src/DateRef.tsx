@@ -14,8 +14,8 @@ export interface DateRefInfo {
   date: string;
   /** "14:00" when the message gave a time. */
   time?: string;
-  /** A starting point for a meeting's title (the message's first line). */
-  title: string;
+  /** The message, for a meeting's details. */
+  text: string;
   /** Where it was clicked. */
   x: number;
   y: number;
@@ -24,14 +24,14 @@ export interface DateRefInfo {
 export const DateRefContext = createContext<(info: DateRefInfo) => void>(() => {});
 export const useOpenDate = () => useContext(DateRefContext);
 
-const WIDTH = 280;
+const WIDTH = 300;
 
 export function DatePopover({ info, calendarOrgs, onOpenCalendar, onAdd, onClose }: {
   info: DateRefInfo;
   /** Accounts with a calendar; without any there's nothing to open or add to. */
   calendarOrgs: Org[];
   onOpenCalendar: (date: Date) => void;
-  onAdd: (date: Date, time: string | undefined, title: string) => void;
+  onAdd: (date: Date, time: string | undefined, details: string) => void;
   onClose: () => void;
 }) {
   const date = parseIsoDay(info.date)!;
@@ -92,7 +92,7 @@ export function DatePopover({ info, calendarOrgs, onOpenCalendar, onAdd, onClose
           </div>
           <div className="date-popover-actions">
             <button className="btn small" onClick={() => onOpenCalendar(date)}>{t("dates.openCalendar")}</button>
-            <button className="btn small primary" onClick={() => onAdd(date, info.time, info.title)}>{t("dates.addToCalendar")}</button>
+            <button className="btn small primary" onClick={() => onAdd(date, info.time, info.text)}>{t("dates.addToCalendar")}</button>
           </div>
         </>
       )}

@@ -100,7 +100,8 @@ export const firstUrl = (text?: string) => text?.match(/https?:\/\/[^\s<>"]+/)?.
 export interface CalendarRequest {
   date: Date;
   time?: string;
-  title?: string;
+  /** For the new meeting's details (the message the date was in). */
+  details?: string;
   create?: boolean;
   /** Changes with every request, so the same day can be asked for twice. */
   n: number;
@@ -505,7 +506,7 @@ function RepeatPicker({ date, repeat, onRepeat, days, onDays, endKind, onEndKind
 /** A new event (optionally with a Talk conversation as its online meeting, like Teams' "New meeting"), or an edit of one. */
 function MeetingDialog({ orgs, calendars, editing, series = false, prefill, onClose, onSaved }: {
   orgs: Org[]; calendars: Record<string, Calendar[]>; editing?: Item; series?: boolean; onClose: () => void; onSaved: (start: Date) => void;
-  /** A new meeting from a date in a message: that day (and time), the message as its title. */
+  /** A new meeting from a date in a message: that day (and time), the message in its details. */
   prefill?: CalendarRequest;
 }) {
   useEscape(onClose);
@@ -518,7 +519,7 @@ function MeetingDialog({ orgs, calendars, editing, series = false, prefill, onCl
   const startAt = editing?.start ?? planned;
   // All-day events end the next day (exclusive); the form shows the start date only.
   const endAt = editing?.end ?? new Date(planned.getTime() + 30 * 60_000);
-  const [title, setTitle] = useState(editing?.event.summary ?? prefill?.title ?? "");
+  const [title, setTitle] = useState(editing?.event.summary ?? "");
   const [date, setDate] = useState(dateField(startAt));
   const [from, setFrom] = useState(editing?.allDay ? timeField(next) : timeField(startAt));
   const [to, setTo] = useState(editing?.allDay ? timeField(new Date(next.getTime() + 30 * 60_000)) : timeField(endAt));
@@ -526,7 +527,7 @@ function MeetingDialog({ orgs, calendars, editing, series = false, prefill, onCl
   const [calendar, setCalendar] = useState(editing?.event.calendar ?? writable[0]?.calendar.id ?? "");
   const [online, setOnline] = useState(!editing);
   const [location, setLocation] = useState(editing?.event.location ?? "");
-  const [description, setDescription] = useState(editing?.event.description ?? "");
+  const [description, setDescription] = useState(editing?.event.description ?? prefill?.details ?? "");
   const [attendees, setAttendees] = useState<Attendee[]>(editing?.event.attendees ?? []);
   // Repeating (new meetings only; a series being edited keeps its rule).
   const [repeat, setRepeat] = useState<Repeat>("none");

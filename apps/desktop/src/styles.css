@@ -1301,4 +1301,5 @@ a.link-warn::after { content: " ⚠"; }
 .date-popover-grid .on { background: var(--accent); color: #fff; font-weight: 600; }
 .date-popover-events { display: flex; flex-direction: column; gap: 3px; border-top: 1px solid var(--border); padding-top: 8px; }
 .date-popover-events span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.date-popover-actions { display: flex; justify-content: flex-end; gap: 6px; }
+.date-popover-actions { display: flex; gap: 6px; }
+.date-popover-actions .btn { flex: 1; white-space: nowrap; }

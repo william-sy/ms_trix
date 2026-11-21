@@ -12,7 +12,7 @@
 - **Dates in messages** (2026-12-09, 9-12-2026, "9 december", "December 9", with a time too) get a
   dotted underline: hover for the weekday and how far away it is, click for that month with the
   day marked, what's in your calendar then, and Open in calendar / Add to calendar (day and time
-  filled in, the message as title). A weekday that doesn't fit ("Thursday 9 December" on a
+  filled in, the message in its details). A weekday that doesn't fit ("Thursday 9 December" on a
   Wednesday) gets a wavy line, and the composer says so before you send.
 - **Activity:** Clear empties the feed (with Undo), and ✕ on an item removes just that one. Only on
   this computer; new activity still shows up.

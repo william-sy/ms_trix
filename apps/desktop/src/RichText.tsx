@@ -238,8 +238,7 @@ export function RichText({ body, html, account, query, sent }: {
     const day = (e.target as HTMLElement).closest<HTMLElement>(".date-ref");
     if (day?.dataset.date) {
       e.preventDefault();
-      const title = body.split("\n").map((l) => l.trim()).find(Boolean)?.slice(0, 80) ?? "";
-      return openDate({ date: day.dataset.date, time: day.dataset.time, title, x: e.clientX, y: e.clientY });
+      return openDate({ date: day.dataset.date, time: day.dataset.time, text: body.trim(), x: e.clientX, y: e.clientY });
     }
     // Someone's custom emoji: offer to add it to your own pack.
     const emote = (e.target as HTMLElement).closest("img[data-mx-emoticon]") as HTMLImageElement | null;

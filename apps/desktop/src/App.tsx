@@ -781,7 +781,7 @@ export function App() {
       {dateRef && (
         <DatePopover info={dateRef} calendarOrgs={calendarOrgs} onClose={() => setDateRef(null)}
           onOpenCalendar={(date) => { setDateRef(null); setCalendarRequest({ date, n: Date.now() }); openView("calendar"); }}
-          onAdd={(date, time, title) => { setDateRef(null); setCalendarRequest({ date, time, title, create: true, n: Date.now() }); openView("calendar"); }} />
+          onAdd={(date, time, details) => { setDateRef(null); setCalendarRequest({ date, time, details, create: true, n: Date.now() }); openView("calendar"); }} />
       )}
       {hashtag && <HashtagPanel tag={hashtag} conversation={selected?.id} conversationName={selected?.name} onOpen={openMessage} onClose={() => setHashtag(null)} />}
       {preview && (
