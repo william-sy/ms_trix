@@ -9,6 +9,8 @@
   all of highlight.js's roughly 190 languages) shows in that language's colours, in Matrix and
   Talk messages and in the notes preview. Rarely used languages load the first time they appear.
 - **Tables:** the format bar's Table button picks a size on a grid and inserts an empty table.
+- **Activity:** Clear empties the feed (with Undo), and ✕ on an item removes just that one. Only on
+  this computer; new activity still shows up.
 - **Notes:** search looks in the text of your notes too (with the same search syntax as messages),
   showing the line that matched; the format bar has the Table button.
 - **Talk messages show their formatting** (tables, bold, lists, code), as in Talk itself.

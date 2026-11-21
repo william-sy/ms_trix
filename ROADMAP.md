@@ -52,7 +52,7 @@
 - [x] Nextcloud Notes (rail → Notes, for Nextcloud accounts with the Notes app): list by category
       with favourites and search, Markdown editor with preview, saves as you type; a change made
       elsewhere in between isn't overwritten (keep mine / load theirs)
-- [ ] Activity: a way to clear it (empty the feed, or remove single items)
+- [x] Activity: a way to clear it (empty the feed, or remove single items)
 - [x] Tables in the composer (size grid, 6 × 6 at most); Talk messages rendered from Markdown;
       links in formatted messages clickable
 - [ ] Dates in messages (idea 2026-11-20): 2026-12-09, 9-12-2026, "9 december", "December 9"

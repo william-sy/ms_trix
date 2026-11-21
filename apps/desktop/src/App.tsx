@@ -181,6 +181,14 @@ export function App() {
     const keep = (ids: string[]) => ids.filter((id) => id !== a.id && known.has(id));
     setActivityRead({ at: activityRead.at, read: read ? [...keep(activityRead.read), a.id] : keep(activityRead.read), unread: read ? keep(activityRead.unread) : [...keep(activityRead.unread), a.id] });
   };
+  // Cleared from the feed, on this computer: everything up to `at`, plus single items.
+  const [activityCleared, setActivityCleared] = useStored<{ at: number; ids: string[] }>("ms_trix.activity.cleared", () => ({ at: 0, ids: [] }));
+  const [undoClear, setUndoClear] = useState<{ at: number; ids: string[] } | null>(null);
+  const activityShown = (a: ActivityItem) => a.at > activityCleared.at && !activityCleared.ids.includes(a.id);
+  const removeActivity = (a: ActivityItem) => {
+    const known = new Set(activity.map((x) => x.id));
+    setActivityCleared({ at: activityCleared.at, ids: [...activityCleared.ids.filter((id) => known.has(id)), a.id] });
+  };
   // Missed calls newer than this count on the Calls rail badge.
   const [callsSeenAt, setCallsSeenAt] = useStored("ms_trix.calls.seenAt", Date.now());
   const openView = (v: typeof view) => {
@@ -687,7 +695,7 @@ export function App() {
       <div className="app">
         <nav className="rail">
           <OrgSwitcher current={state.orgFilter} unread={unread} onSelect={selectOrg} onAddAccount={addAccount} />
-          <RailItem icon={<BellIcon />} label={t("rail.activity")} active={view === "activity"} badge={activity.filter((a) => a.at > seenAt && inOrg(a.conversation)).length} onClick={() => openView("activity")} />
+          <RailItem icon={<BellIcon />} label={t("rail.activity")} active={view === "activity"} badge={activity.filter((a) => a.at > seenAt && inOrg(a.conversation) && activityShown(a)).length} onClick={() => openView("activity")} />
           <RailItem icon={<ChatIcon />} label={t("rail.chat")} active={view === "chat"} badge={chatBadge} onClick={() => openView("chat")} />
           {can("teams") && <RailItem icon={<TeamsIcon />} label={t("rail.teams")} active={view === "teams"} badge={teamsBadge} onClick={() => openView("teams")} />}
           {/* A calls overview (history, ongoing calls) comes later; calls start from a chat. */}
@@ -729,8 +737,11 @@ export function App() {
             {view === "notes" && <NotesPane orgs={notesOrgs} />}
             {view === "calls" && <CallsPane convs={state.convs} onOpen={(id) => { setView("chat"); act({ type: "select", id }); }} />}
             {view === "activity" && (
-              <ActivityPane items={activity.filter((a) => inOrg(a.conversation))} isUnread={activityUnread} selected={activitySelected}
+              <ActivityPane items={activity.filter((a) => inOrg(a.conversation) && activityShown(a))} isUnread={activityUnread} selected={activitySelected}
                 onMarkAllRead={() => setActivityRead({ at: Date.now(), read: [], unread: [] })} onSetRead={setActivityItemRead}
+                onRemove={removeActivity}
+                onClear={() => { setUndoClear(activityCleared); setActivityCleared({ at: Date.now(), ids: [] }); setActivityRead({ at: Date.now(), read: [], unread: [] }); }}
+                onUndoClear={undoClear ? () => { setActivityCleared(undoClear); setUndoClear(null); } : undefined}
                 onOpen={(a) => { setActivitySelected(a.id); if (activityUnread(a)) setActivityItemRead(a, true); setFocusMessage(a.conversation, a.message); act({ type: "select", id: a.conversation }); }} />
             )}
             {teamInfo && view === "teams" && (

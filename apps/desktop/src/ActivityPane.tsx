@@ -22,10 +22,16 @@ interface Props {
   onOpen: (item: ActivityItem) => void;
   onSetRead: (item: ActivityItem, read: boolean) => void;
   onMarkAllRead: () => void;
+  /** Takes one item out of the feed (on this computer). */
+  onRemove: (item: ActivityItem) => void;
+  /** Empties the feed (on this computer); new activity shows up again. */
+  onClear: () => void;
+  /** Right after clearing: brings it back. */
+  onUndoClear?: () => void;
 }
 
 /** Teams-style Activity feed: mentions, replies, reactions and keywords aimed at you. */
-export function ActivityPane({ items, isUnread: unseen, selected, onOpen, onSetRead, onMarkAllRead }: Props) {
+export function ActivityPane({ items, isUnread: unseen, selected, onOpen, onSetRead, onMarkAllRead, onRemove, onClear, onUndoClear }: Props) {
   const [filter, setFilter] = useState<Filter>("all");
   const shown = items.filter((a) => filter === "all" || (filter === "unread" ? unseen(a) : a.kind === filter));
   const anyUnseen = items.some(unseen);
@@ -36,8 +42,10 @@ export function ActivityPane({ items, isUnread: unseen, selected, onOpen, onSetR
         <h1>{t("activity.title")}</h1>
         <div className="head-actions">
           <button className="btn small" disabled={!anyUnseen} onClick={onMarkAllRead}>{t("activity.markAllRead")}</button>
+          <button className="btn small" disabled={!items.length} title={t("activity.clearHint")} onClick={onClear}>{t("activity.clear")}</button>
         </div>
       </header>
+      {onUndoClear && <div className="activity-cleared">{t("activity.cleared")} <button className="link" onClick={onUndoClear}>{t("activity.undo")}</button></div>}
       <div className="filters">
         {filters.map((f) => (
           <button key={f} className={`pill ${filter === f ? "on" : ""}`} onClick={() => setFilter(f)}>{t(`activity.filter.${f}`)}</button>
@@ -58,6 +66,7 @@ export function ActivityPane({ items, isUnread: unseen, selected, onOpen, onSetR
               </span>
               <span className="row-preview">{a.preview}</span>
             </span>
+            <span className="activity-remove" role="button" title={t("activity.remove")} onClick={(e) => { e.stopPropagation(); onRemove(a); }}>✕</span>
             <span className="activity-toggle" role="button" title={unseen(a) ? t("activity.markRead") : t("activity.markUnread")}
               onClick={(e) => { e.stopPropagation(); onSetRead(a, unseen(a)); }} />
           </button>
