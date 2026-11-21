@@ -24,7 +24,8 @@ function Video({ stream, muted, mirror, className }: { stream?: MediaStream; mut
     if (!stream || muted) return;
     // Sound that may not start on its own (no click on this page yet) plays on the next click.
     const play = () => void el.play().catch((e) => {
-      callLog(`playback blocked (${String(e)}); retrying on the next click`);
+      // Aborted: this element got another stream or left the screen; not a block worth logging.
+      if (e?.name !== "AbortError") callLog(`playback blocked (${String(e)}); retrying on the next click`);
       window.addEventListener("pointerdown", play, { once: true, capture: true });
     });
     play();

@@ -220,7 +220,8 @@ export class TalkCall {
         : await this.externalSignaling(settings);
       const flags = IN_CALL | WITH_AUDIO | (local.getVideoTracks().length && this.state.cameraOn ? WITH_VIDEO : 0);
       await this.api("POST", `/v4/call/${this.token}`, { flags: String(flags), silent: String(this.silent) });
-      log(`in the call (flags ${flags}), ${this.sig.mcu ? "via the video server (MCU)" : "peer to peer"}`);
+      log(`in the call (flags ${flags}${this.state.muted ? ", muted" : ""}), ${this.sig.mcu ? "via the video server (MCU)" : "peer to peer"}`);
+      void logSpeaker();
       await names;
       if (this.sig.mcu) await this.publish("video", local);
       this.set({ phase: "connected", connectedAt: Date.now() });
@@ -414,6 +415,9 @@ export class TalkCall {
     await pc.setLocalDescription(offer);
     sig.send(sig.ownSid, { to: sig.ownSid, type: "offer", roomType, sid: String(Date.now()), payload: { type: "offer", sdp: offer.sdp, nick: this.nick } });
     log(`publishing ${roomType} to the video server`);
+    if (roomType === "video") {
+      void connected(pc, 15000).then(() => soundCheck(pc, (s) => `sound check, you: ${s.sent ? `sending (${kb(s.sent)})` : "nothing sent"}${this.state.muted ? ", muted in the call" : ""}${level(s.outLevel)}`));
+    }
   }
 
   /** Peer to peer: offer our media to one participant. */
@@ -434,9 +438,14 @@ export class TalkCall {
     const sig = this.sig!;
     const pc = this.newPc((c) => sig.send(peer.sid, this.candidateData(peer.sid, roomType, c)));
     pc.ontrack = (e) => {
-      const stream = e.streams[0] ?? new MediaStream([e.track]);
-      if (roomType === "screen") peer.screen = stream;
+      const given = e.streams[0];
+      if (roomType === "screen") peer.screen = given ?? new MediaStream([e.track]);
       else {
+        // Sound and picture normally come as one stream. Some senders split them, or send no
+        // stream at all: keep the kind we already have, or the picture replaces the sound.
+        const other = (peer.stream?.getTracks() ?? []).filter((t) => t.kind !== e.track.kind && t.readyState === "live" && !given?.getTracks().some((g) => g.kind === t.kind));
+        if (other.length) log(`${peer.name}: sound and picture came separately; kept together`);
+        const stream = other.length ? new MediaStream([...(given?.getTracks() ?? [e.track]), ...other]) : given ?? new MediaStream([e.track]);
         peer.stream = stream;
         peer.meter?.();
         peer.meter = speakingMeter(stream, (speaking) => { peer.speaking = speaking; this.set({}); });
@@ -445,6 +454,10 @@ export class TalkCall {
     };
     pc.onconnectionstatechange = () => {
       log(`${peer.name} ${roomType}: ${pc.connectionState}`);
+      if (pc.connectionState === "connected" && roomType === "video") {
+        soundCheck(pc, (s) => `sound check, ${peer.name}: ${s.received ? `arriving (${kb(s.received)})` : "nothing arriving"}${peer.stream?.getAudioTracks().length ? "" : ", no sound in their stream"}${level(s.inLevel)}`
+          + (this.sig?.mcu ? "" : `; you: ${s.sent ? `sending (${kb(s.sent)})` : "nothing sent"}`));
+      }
       if (pc.connectionState === "failed" && roomType === "screen") { peer.screen = undefined; this.set({}); }
     };
     peer.pcs[roomType] = pc;
@@ -716,6 +729,38 @@ async function openMedia(video: boolean, micId?: string | null, cameraId?: strin
   for (const t of cam?.getVideoTracks() ?? []) mic.addTrack(effects ? await processCamera(t) : t);
   return mic;
 }
+
+/** In the log, for "I can't hear them": where their sound goes. */
+async function logSpeaker() {
+  const id = currentSettings().speakerId;
+  const devices = id ? await navigator.mediaDevices.enumerateDevices().catch(() => []) : [];
+  log(`speaker: ${id ? devices.find((d) => d.kind === "audiooutput" && d.deviceId === id)?.label ?? "the one picked (not listed now)" : "system default"}`);
+}
+
+interface SoundStats { sent: number; received: number; outLevel?: number; inLevel?: number }
+
+/**
+ * In the log, for "I can't hear them" / "they can't hear me": a few seconds after connecting,
+ * how much sound went each way, and how loud (0–1) it was.
+ */
+function soundCheck(pc: RTCPeerConnection, describe: (s: SoundStats) => string) {
+  window.setTimeout(async () => {
+    if (pc.connectionState === "closed") return;
+    const report = await pc.getStats().catch(() => null);
+    if (!report) return;
+    const s: SoundStats = { sent: 0, received: 0 };
+    report.forEach((r) => {
+      if ((r.kind ?? r.mediaType) !== "audio") return;
+      if (r.type === "outbound-rtp") s.sent += r.bytesSent ?? 0;
+      if (r.type === "inbound-rtp") { s.received += r.bytesReceived ?? 0; if (typeof r.audioLevel === "number") s.inLevel = r.audioLevel; }
+      if (r.type === "media-source" && typeof r.audioLevel === "number") s.outLevel = r.audioLevel;
+    });
+    log(describe(s));
+  }, 6000);
+}
+
+const kb = (bytes: number) => `${Math.round(bytes / 1024)} kB`;
+const level = (l?: number) => (l === undefined ? "" : `, level ${l.toFixed(2)}`);
 
 /** Resolves when `pc` is connected, fails or `ms` have passed. */
 function connected(pc: RTCPeerConnection | undefined, ms: number): Promise<void> {

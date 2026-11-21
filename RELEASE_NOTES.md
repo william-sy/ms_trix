@@ -15,6 +15,8 @@
   too" (Settings → Notifications), the Teams way where nothing is silent.
 
 ### Fixed
+- Talk calls: someone whose app sends sound and picture separately could be seen but not heard.
+  The log now also notes, a few seconds in, how much sound goes each way.
 - Web links inside formatted messages (with bold, a list, …) weren't clickable.
 - After the computer was locked or asleep, messages took a while to come in (up to a minute):
   the app now reconnects every account as soon as the computer wakes, and on macOS it isn't
