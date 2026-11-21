@@ -9,6 +9,8 @@
   all of highlight.js's roughly 190 languages) shows in that language's colours, in Matrix and
   Talk messages and in the notes preview. Rarely used languages load the first time they appear.
 - **Tables:** the format bar's Table button picks a size on a grid and inserts an empty table.
+- **Pictures sent together** show as one message with a small grid (Matrix and Talk send each
+  picture separately); deleting it deletes all of them.
 - **Talk threads** (Talk 22 and later): replies in a thread show in the thread pane instead of
   the chat, replying there stays in the thread, and the Threads list works for Talk chats.
 - **Pinned messages** (Matrix, and Talk 23 and later): pin or unpin from a message's ⋯ menu. The
@@ -30,6 +32,7 @@
   too" (Settings → Notifications), the Teams way where nothing is silent.
 
 ### Fixed
+- A wide picture made its bubble stretch across the chat; bubbles now fit their picture.
 - Home and End typed a box in text fields on macOS: they move to the start or end of the line now
   (with ⌘ of the whole text, with Shift selecting).
 - Talk calls: someone whose app sends sound and picture separately could be seen but not heard.

@@ -148,6 +148,7 @@
   "chat.unmute": "Dempen opheffen",
   "chatView.beginning": "Dit is het begin van het gesprek.",
   "chatView.closeThread": "Gesprek sluiten",
+  "chatView.deleteGalleryConfirm": "Deze {count} afbeeldingen voor iedereen verwijderen?",
   "chatView.deleteConfirm": "Dit bericht voor iedereen verwijderen?",
   "chatView.encrypted": "End-to-end versleuteld",
   "chatView.inviteChat": "een chat",

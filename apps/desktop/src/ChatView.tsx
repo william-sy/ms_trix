@@ -495,8 +495,11 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
                 </div>
               );
             }
+            // Pictures sent together show as one message (Matrix and Talk send one per picture).
+            if (galleryPart(mainList, i)) return null;
+            const gallery = galleryFrom(mainList, i);
             const prev = mainList[i - 1];
-            const next = mainList[i + 1];
+            const next = mainList[i + gallery.length];
             // Like Teams: messages from the same person within a few minutes form one block
             // with one header; a post that has replies always stands on its own.
             const grouped = !!prev && follows(prev, m) && !(posts && replies.get(prev.id)?.length);
@@ -505,8 +508,13 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
               <Fragment key={m.id}>
               {newDay(prev, m) && <div className="day-divider"><span>{dayLabel(m.ts!)}</span></div>}
               <MessageItem m={m} account={conv.orgId} conversation={conv.id} grouped={grouped} lastInRun={!runContinues} quoted={m.replyTo ? byId.get(m.replyTo) ?? null : undefined}
-                thread={replies.get(m.id)} onReply={m.local ? undefined : () => setReplyTo(m)} onThread={m.local ? undefined : () => openThread(m.id)} media={mediaUi.actions} {...localActions(m)} tick={tickOf(m)}
-                query={q || undefined} current={currentHit?.id === m.id} postMode={posts} />
+                thread={replies.get(m.id)} onReply={m.local ? undefined : () => setReplyTo(m)} onThread={m.local ? undefined : () => openThread(m.id)} media={mediaUi.actions} {...localActions(m)} tick={tickOf(gallery[gallery.length - 1]!)}
+                query={q || undefined} current={currentHit?.id === m.id} postMode={posts}
+                {...(gallery.length > 1 ? {
+                  gallery,
+                  pinned: gallery.some((g) => pinnedIds.has(g.id)),
+                  onDelete: m.local ? undefined : () => confirm(t("chatView.deleteGalleryConfirm", { count: gallery.length })) && gallery.forEach((g) => dispatch({ type: "delete", id: conv.id, target: g.id })),
+                } : {})} />
               </Fragment>
             );
           })}
@@ -645,6 +653,21 @@ const sameDay = (a: number, b: number) => new Date(a).toDateString() === new Dat
 const follows = (prev: Message, m: Message) =>
   !prev.system && !m.system && prev.sender === m.sender && !m.replyTo && !!prev.ts && !!m.ts && m.ts - prev.ts < GROUP_GAP && sameDay(prev.ts, m.ts);
 
+/** Pictures that go together: same person, within a minute, no reply, no thread replies;
+ *  only the last may have a caption. */
+const GALLERY_GAP = 60_000;
+const plainPicture = (m: Message) => m.media?.kind === "image" && !m.deleted && !m.encrypted && !m.system && !m.replyTo;
+const joins = (prev: Message, m: Message) =>
+  plainPicture(prev) && plainPicture(m) && !prev.media!.caption && prev.sender === m.sender && !!prev.ts && !!m.ts && m.ts - prev.ts < GALLERY_GAP && !m.reactions?.length;
+/** The pictures shown together starting at `i` (just that message when it isn't one). */
+function galleryFrom(list: Message[], i: number): Message[] {
+  const out = [list[i]!];
+  while (list[i + out.length] && joins(out[out.length - 1]!, list[i + out.length]!)) out.push(list[i + out.length]!);
+  return out;
+}
+/** Shown inside the gallery of a message before it. */
+const galleryPart = (list: Message[], i: number) => i > 0 && joins(list[i - 1]!, list[i]!);
+
 const newDay = (prev: Message | undefined, m: Message) => !!m.ts && (!prev?.ts || !sameDay(prev.ts, m.ts));
 
 const shortTime = (ts: number) => new Date(ts).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
@@ -684,6 +707,8 @@ interface ItemProps {
   /** Pins it for everyone, or unpins it. */
   onPin?: () => void;
   pinned?: boolean;
+  /** Pictures sent together, shown in this one bubble (this message first). */
+  gallery?: Message[];
   media: MediaActions;
   /** Your own message: who has read it. */
   onStatus?: () => void;
@@ -712,7 +737,7 @@ function ScheduledItem({ message, account, onEdit }: { message: ScheduledMessage
   );
 }
 
-function MessageItem({ m, account, conversation, grouped, lastInRun = true, quoted, thread, onReply, onThread, onReact, onEdit, onDelete, onForward, onPin, pinned, media, onStatus, query, current, postMode, tick, onRetry, onDiscard }: ItemProps) {
+function MessageItem({ m, account, conversation, grouped, lastInRun = true, quoted, thread, onReply, onThread, onReact, onEdit, onDelete, onForward, onPin, pinned, gallery, media, onStatus, query, current, postMode, tick, onRetry, onDiscard }: ItemProps) {
   const keyHelp = useContext(KeyHelpContext)(account);
   const visual = m.media?.kind === "image" || m.media?.kind === "sticker";
   const previewUrl = useMemo(() => (m.deleted || m.media || m.poll ? undefined : previewLink(m.body, m.html)), [m.deleted, m.media, m.poll, m.body, m.html]);
@@ -803,6 +828,15 @@ function MessageItem({ m, account, conversation, grouped, lastInRun = true, quot
                   {keyHelp && <> · <button className="link" onClick={keyHelp.fix}>{keyHelp.label}</button></>}</span>
                 : m.deleted ? <span>{t("message.deleted")}</span>
                 : m.poll ? <PollCard conversation={conversation ?? ""} poll={m.poll} question={m.body} />
+                : gallery && gallery.length > 1 ? (() => {
+                    const caption = gallery[gallery.length - 1]!.media?.caption;
+                    return <>
+                      <div className={`msg-gallery ${gallery.length > 4 ? "three" : ""}`}>
+                        {gallery.map((g) => <span key={g.id} data-msg={g.id === m.id ? undefined : g.id}><MediaBody media={g.media!} account={account} actions={media} cell /></span>)}
+                      </div>
+                      {caption && <div className="caption"><RichText body={caption} account={account} query={query} sent={m.ts} /></div>}
+                    </>;
+                  })()
                 : m.media ? <>
                     <MediaBody media={m.media} account={account} actions={media} />
                     {m.media.caption && <div className="caption"><RichText body={m.media.caption} account={account} query={query} sent={m.ts} /></div>}

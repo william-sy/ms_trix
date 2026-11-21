@@ -13,9 +13,15 @@ export interface MediaActions {
   menu: (media: Media, x: number, y: number) => void;
 }
 
-/** Image, sticker or file chip inside a message bubble. */
-export function MediaBody({ media, account, actions }: { media: Media; account: string; actions: MediaActions }) {
+/** The most a picture takes in a bubble. */
+const MAX_W = 360, MAX_H = 320;
+
+/** Image, sticker or file chip inside a message bubble; `cell`: one picture in a gallery. */
+export function MediaBody({ media, account, actions, cell }: { media: Media; account: string; actions: MediaActions; cell?: boolean }) {
   const src = mediaUrl(account, media.id);
+  // Once loaded, its own width (scaled to fit): the bubble then wraps the picture, instead of
+  // stretching to the full size of, say, a wide screenshot.
+  const [width, setWidth] = useState<number | null>(null);
   const onContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     actions.menu(media, e.clientX, e.clientY);
@@ -23,6 +29,11 @@ export function MediaBody({ media, account, actions }: { media: Media; account: 
   if ((media.kind === "image" || media.kind === "sticker") && src) {
     return (
       <img className={media.kind === "sticker" ? "msg-sticker" : "msg-image"} src={src} alt={media.name} loading="lazy"
+        style={!cell && width ? { width } : undefined}
+        onLoad={(e) => {
+          const img = e.currentTarget;
+          if (!cell && media.kind === "image" && img.naturalWidth) setWidth(Math.round(img.naturalWidth * Math.min(1, MAX_W / img.naturalWidth, MAX_H / img.naturalHeight)));
+        }}
         onClick={() => actions.view(media)} onContextMenu={onContextMenu} />
     );
   }
