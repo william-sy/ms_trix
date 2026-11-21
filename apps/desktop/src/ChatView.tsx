@@ -32,6 +32,7 @@ import { useOpenProfile } from "./Profile";
 import { summarize } from "./roomEvents";
 import { capabilities } from "./mock";
 import { useEscape } from "./hooks";
+import { PinnedBar, PinnedDialog, usePinned } from "./Pinned";
 
 interface Props {
   conv: Conversation;
@@ -240,6 +241,13 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
 
   // Jump target: a search hit picked here, or a message opened from Activity / global search.
   const [jump, setJump] = useState<string | null>(null);
+  /** Scrolls to a message (again, when it's the one jumped to last). */
+  const goTo = (id: string) => { setTab("chat"); setJump(null); requestAnimationFrame(() => setJump(id)); };
+  // Pinned messages, for everyone here.
+  const { pinned, reload: reloadPins } = usePinned(conv);
+  const [pinsOpen, setPinsOpen] = useState(false);
+  const pinnedIds = new Set(pinned.map((m) => m.id));
+  const setPin = (m: Message, on: boolean) => backend.setPinned(conv.id, m.id, on).then(reloadPins, (e) => onNotice(String(e)));
   const [tab, setTab] = useState<"chat" | "shared">("chat");
   const [pollDialog, setPollDialog] = useState(false);
   const [cloudPicker, setCloudPicker] = useState(false);
@@ -337,6 +345,8 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
     onEdit: (text: string) => dispatch({ type: "edit", id: conv.id, target: m.id, text }),
     onDelete: () => confirm(t("chatView.deleteConfirm")) && dispatch({ type: "delete", id: conv.id, target: m.id }),
     onForward: () => setForwarding(m),
+    onPin: conv.canPin && !m.system ? () => void setPin(m, !pinnedIds.has(m.id)) : undefined,
+    pinned: pinnedIds.has(m.id),
   });
   const threadRoot = threadId ? byId.get(threadId) : undefined;
 
@@ -417,6 +427,7 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
             )}
           </span>
         </header>
+        {tab === "chat" && <PinnedBar pinned={pinned} onGoTo={(m) => goTo(m.id)} onAll={() => setPinsOpen(true)} />}
 
         {search !== null && (
           <div className="chat-search">
@@ -565,6 +576,7 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
       {cloudPicker && <CloudFilePicker accounts={cloudAccounts} onPick={attachCloud} onClose={() => setCloudPicker(false)} />}
       {statusOf && <MessageStatus conv={conv} message={statusOf} onClose={() => setStatusOf(null)} />}
       {pollDialog && <PollDialog conversation={conv.id} onClose={() => setPollDialog(false)} onError={onNotice} />}
+      {pinsOpen && <PinnedDialog pinned={pinned} account={conv.orgId} canPin={!!conv.canPin} onGoTo={(m) => goTo(m.id)} onUnpin={(m) => void setPin(m, false)} onClose={() => setPinsOpen(false)} />}
       {forwarding && <ForwardDialog message={forwarding} from={conv.id} convs={allConvs} onClose={() => setForwarding(null)}
         onDone={(name) => { setForwarding(null); onNotice(t("forward.done", { name })); }} />}
       {mediaUi.viewing && <Lightbox media={mediaUi.viewing} account={conv.orgId} onClose={() => mediaUi.setViewing(null)} onNotice={onNotice} />}
@@ -669,6 +681,9 @@ interface ItemProps {
   onRetry?: () => void;
   onDiscard?: () => void;
   onForward?: () => void;
+  /** Pins it for everyone, or unpins it. */
+  onPin?: () => void;
+  pinned?: boolean;
   media: MediaActions;
   /** Your own message: who has read it. */
   onStatus?: () => void;
@@ -697,7 +712,7 @@ function ScheduledItem({ message, account, onEdit }: { message: ScheduledMessage
   );
 }
 
-function MessageItem({ m, account, conversation, grouped, lastInRun = true, quoted, thread, onReply, onThread, onReact, onEdit, onDelete, onForward, media, onStatus, query, current, postMode, tick, onRetry, onDiscard }: ItemProps) {
+function MessageItem({ m, account, conversation, grouped, lastInRun = true, quoted, thread, onReply, onThread, onReact, onEdit, onDelete, onForward, onPin, pinned, media, onStatus, query, current, postMode, tick, onRetry, onDiscard }: ItemProps) {
   const keyHelp = useContext(KeyHelpContext)(account);
   const visual = m.media?.kind === "image" || m.media?.kind === "sticker";
   const previewUrl = useMemo(() => (m.deleted || m.media || m.poll ? undefined : previewLink(m.body, m.html)), [m.deleted, m.media, m.poll, m.body, m.html]);
@@ -797,6 +812,7 @@ function MessageItem({ m, account, conversation, grouped, lastInRun = true, quot
                     {previewUrl && <LinkPreview url={previewUrl} />}
                   </>}
               {m.edited && !m.deleted && <span className="edited" title={t("message.editedTitle")}>{t("message.edited")}</span>}
+              {pinned && <span className="pinned-mark" title={t("pins.pinned")}>📌</span>}
               {tick && tick !== "failed" && <span className={`msg-tick ${tick}`} title={t(`message.tick.${tick}`)}>{tick === "sending" ? "⏱" : tick === "seen" ? "✓✓" : "✓"}</span>}
             </div>
           )}
@@ -825,6 +841,7 @@ function MessageItem({ m, account, conversation, grouped, lastInRun = true, quot
                   <div className="menu more-menu" style={popupStyle} onClick={(e) => e.stopPropagation()}>
                     {canEdit && <button className="menu-item" onClick={() => { setDraft(m.body); setEditing(true); setPopup(null); }}>{t("message.edit")}</button>}
                     {onForward && !m.poll && <button className="menu-item" onClick={() => { setPopup(null); onForward(); }}>{t("forward.action")}</button>}
+                    {onPin && <button className="menu-item" onClick={() => { setPopup(null); onPin(); }}>{pinned ? t("pins.unpin") : t("pins.pin")}</button>}
                     {!m.media && <button className="menu-item" onClick={() => { navigator.clipboard.writeText(m.body).catch(() => {}); setPopup(null); }}>{t("message.copy")}</button>}
                     {onStatus && <button className="menu-item" onClick={() => { setPopup(null); onStatus(); }}>{t("status.title")}</button>}
                     {canDelete && <button className="menu-item danger" onClick={() => { setPopup(null); onDelete?.(); }}>{t("message.delete")}</button>}

@@ -75,6 +75,8 @@ interface ConversationWire {
   dmUser: string | null;
   callActive: boolean;
   callSilent: boolean;
+  canPin: boolean;
+  pins: string | null;
 }
 
 interface MessageWire {
@@ -341,6 +343,8 @@ const toConversation = (c: ConversationWire): Conversation => ({
   dmUser: c.dmUser,
   callActive: c.callActive,
   callSilent: c.callSilent,
+  canPin: c.canPin,
+  pins: c.pins,
 });
 
 const toMessage = (m: MessageWire): Message => ({
@@ -556,6 +560,9 @@ export const backend = {
   loadOlder: (key: string, limit: number | null = null) => invoke<boolean>("load_older", { key, limit }),
   /** First loaded message at/after `ts` (ms) and the oldest loaded time, for /jumptodate. */
   messageContext: async (key: string, message: string) => (await invoke<MessageWire[]>("message_context", { key, message })).map(toMessage),
+  /** The pinned messages, the latest pinned first. */
+  pinnedMessages: async (key: string) => (await invoke<MessageWire[]>("pinned_messages", { key })).map(toMessage),
+  setPinned: (key: string, message: string, pinned: boolean) => invoke<void>("set_pinned", { key, message, pinned }),
   messageAt: (key: string, ts: number) => invoke<[string | null, number | null]>("message_at", { key, ts }),
   loadThread: (key: string, root: string) => invoke<void>("load_thread", { key, root }),
   openUrl: (url: string) => invoke<void>("open_url", { url }),

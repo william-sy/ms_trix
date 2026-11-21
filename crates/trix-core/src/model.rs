@@ -93,6 +93,13 @@ pub struct Conversation {
     #[serde(default)]
     pub call_silent: bool,
     pub encrypted: bool,
+    /// Messages can be pinned here (Matrix; Talk 23 and later).
+    #[serde(default)]
+    pub can_pin: bool,
+    /// Changes whenever the pinned messages change, so the chat loads them again; None when
+    /// nothing is pinned.
+    #[serde(default)]
+    pub pins: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

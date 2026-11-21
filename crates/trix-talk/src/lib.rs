@@ -405,6 +405,9 @@ impl TalkAdapter {
                 && room["lastMessage"]["systemMessage"].as_str() == Some("call_started")
                 && room["lastMessage"]["silent"].as_bool().unwrap_or(false),
             encrypted: false,
+            // Talk 23 and later: the conversation says which message was pinned last.
+            can_pin: room.get("lastPinnedId").is_some(),
+            pins: room["lastPinnedId"].as_i64().filter(|&id| id > 0).map(|id| id.to_string()),
         })
     }
 
@@ -1037,6 +1040,28 @@ impl ProtocolAdapter for TalkAdapter {
         let mut messages = self.ocs(req).await?.and_then(|(d, _)| d.as_array().cloned()).unwrap_or_default();
         messages.sort_by_key(|m| m["id"].as_i64().unwrap_or(0));
         Ok(messages.iter().flat_map(|m| self.events_from(token, m)).filter_map(|e| if let AdapterEvent::Message(m) = e { Some(m) } else { None }).collect())
+    }
+
+    /// Talk 23+: pinned messages are a kind of shared item; each knows when it was pinned.
+    async fn pinned(&self, conversation: &ConversationId) -> Result<Vec<Message>> {
+        let token = Self::token(conversation);
+        let req = self.request(Method::GET, &format!("{CHAT}/{token}/share")).query(&[("objectType", "pinned"), ("limit", "50")]);
+        let data = self.ocs(req).await?.map(|(d, _)| d).unwrap_or(Value::Null);
+        // Keyed by message id (a list when empty).
+        let mut list: Vec<&Value> = match &data {
+            Value::Object(map) => map.values().collect(),
+            Value::Array(items) => items.iter().collect(),
+            _ => vec![],
+        };
+        list.sort_by_key(|m| std::cmp::Reverse(m["metaData"]["pinnedAt"].as_i64().unwrap_or(0)));
+        Ok(list.into_iter().flat_map(|m| self.events_from(token, m)).filter_map(|e| if let AdapterEvent::Message(m) = e { Some(m) } else { None }).collect())
+    }
+
+    async fn set_pinned(&self, conversation: &ConversationId, message: &MessageId, pinned: bool) -> Result<()> {
+        let token = Self::token(conversation);
+        let method = if pinned { Method::POST } else { Method::DELETE };
+        self.ocs(self.request(method, &format!("{CHAT}/{token}/{}/pin", message.0))).await?;
+        Ok(())
     }
 
     /// Pages back by message id; the token is the oldest id seen so far.
@@ -1693,6 +1718,17 @@ mod tests {
         assert_eq!((note.id, note.title.as_str(), note.category.as_str(), note.favorite, note.readonly), (76, "Shopping", "Home/Lists", true, false));
         assert_eq!(note.content.as_deref(), Some("# Shopping\n- milk"));
         assert!(note_from(&serde_json::json!({"title": "no id"})).is_none());
+    }
+
+    #[test]
+    fn pins_need_talk_23() {
+        let talk = TalkAdapter::new(placeholder_account(AccountId("a".into()), &Session { server: "https://cloud.example.org".into(), login: "me".into(), app_password: String::new() }), Session { server: "https://cloud.example.org".into(), login: "me".into(), app_password: String::new() });
+        let old = talk.conversation(&serde_json::json!({ "token": "t1", "type": 2 })).unwrap();
+        assert!(!old.can_pin && old.pins.is_none(), "Talk 22: no pinning");
+        let none = talk.conversation(&serde_json::json!({ "token": "t1", "type": 2, "lastPinnedId": 0 })).unwrap();
+        assert!(none.can_pin && none.pins.is_none());
+        let some = talk.conversation(&serde_json::json!({ "token": "t1", "type": 2, "lastPinnedId": 42 })).unwrap();
+        assert_eq!(some.pins.as_deref(), Some("42"));
     }
 
     #[test]

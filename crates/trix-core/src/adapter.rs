@@ -152,6 +152,14 @@ pub trait ProtocolAdapter: Send + Sync {
     async fn context(&self, _conversation: &ConversationId, _message: &MessageId, _size: u32) -> Result<Vec<Message>> {
         Err(AdapterError::Unsupported("message context"))
     }
+    /// The pinned messages, the latest pinned first.
+    async fn pinned(&self, _conversation: &ConversationId) -> Result<Vec<Message>> {
+        Err(AdapterError::Unsupported("pinned messages"))
+    }
+    /// Pins a message for everyone in the conversation, or unpins it.
+    async fn set_pinned(&self, _conversation: &ConversationId, _message: &MessageId, _pinned: bool) -> Result<()> {
+        Err(AdapterError::Unsupported("pinned messages"))
+    }
     /// Pages backwards through history from `from` (None = newest) for the search
     /// index. None when the protocol doesn't support it.
     async fn crawl(&self, _conversation: &ConversationId, _from: Option<String>, _limit: u32) -> Result<Option<CrawlPage>> {

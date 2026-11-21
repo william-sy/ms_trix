@@ -223,6 +223,8 @@ pub struct ConversationView {
     pub dm_user: Option<String>,
     pub call_active: bool,
     pub call_silent: bool,
+    pub can_pin: bool,
+    pub pins: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -955,6 +957,8 @@ impl Engine {
             dm_user: conv.dm_user.clone(),
             call_active: conv.call_active,
             call_silent: conv.call_silent,
+            can_pin: conv.can_pin,
+            pins: conv.pins.clone(),
             presence: conv.dm_user.as_ref().and_then(|u| self.presence.get(u)).map(|(p, _)| *p),
             status: conv.dm_user.as_ref().and_then(|u| self.presence.get(u)).and_then(|(_, s)| s.clone()),
         })
@@ -1091,6 +1095,8 @@ mod tests {
             team_id: None,
             call_active: false,
             call_silent: false,
+            can_pin: false,
+            pins: None,
             encrypted: true,
         })
     }

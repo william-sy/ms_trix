@@ -722,6 +722,35 @@ impl ProtocolAdapter for MatrixAdapter {
         Ok(out)
     }
 
+    async fn pinned(&self, conversation: &ConversationId) -> Result<Vec<Message>> {
+        let room = self.room(conversation)?;
+        let me = self.client.user_id().ok_or_else(|| AdapterError::Auth("not logged in".into()))?.to_owned();
+        let mut out = vec![];
+        // The list is in pinning order: the latest pinned first, a few dozen at most.
+        for id in pinned_ids(&self.client, &room).await?.iter().rev().take(50) {
+            if let Ok(event) = room.load_or_fetch_event(id, None).await {
+                if let Some(AdapterEvent::Message(m)) = convert(&room, &event, &me, &self.account().id, &self.index).await {
+                    out.push(m);
+                }
+            }
+        }
+        Ok(out)
+    }
+
+    async fn set_pinned(&self, conversation: &ConversationId, message: &MessageId, pinned: bool) -> Result<()> {
+        use matrix_sdk::ruma::events::room::pinned_events::RoomPinnedEventsEventContent;
+        let room = self.room(conversation)?;
+        let id = OwnedEventId::try_from(message.0.as_str()).map_err(err)?;
+        // The server's list, not our copy: that can be behind, and this replaces the whole list.
+        let mut ids = pinned_ids(&self.client, &room).await?;
+        ids.retain(|e| e != &id);
+        if pinned {
+            ids.push(id);
+        }
+        room.send_state_event(RoomPinnedEventsEventContent::new(ids)).await.map_err(err)?;
+        Ok(())
+    }
+
     async fn crawl(&self, conversation: &ConversationId, from: Option<String>, limit: u32) -> Result<Option<CrawlPage>> {
         let room = self.room(conversation)?;
         let me = self.client.user_id().ok_or_else(|| AdapterError::Auth("not logged in".into()))?.to_owned();
@@ -2253,9 +2282,31 @@ async fn conversation_for(client: &Client, account: &AccountId, room_id: &RoomId
         team_id,
         call_active: false,
         call_silent: false,
+        can_pin: match (room.power_levels().await, client.user_id()) {
+            (Ok(levels), Some(me)) => levels.user_can_send_state(me, matrix_sdk::ruma::events::StateEventType::RoomPinnedEvents),
+            _ => false,
+        },
+        // The number pinned and the latest: changes with every pin and unpin.
+        pins: room.pinned_event_ids().filter(|ids| !ids.is_empty()).map(|ids| format!("{}:{}", ids.len(), ids.last().unwrap())),
         dm_user: if kind == ConversationKind::Direct { room.direct_targets().into_iter().find_map(|t| t.into_user_id()).map(|u| u.to_string()) } else { None },
         encrypted: room.encryption_state().is_encrypted(),
     })
+}
+
+/// A room's pinned events as the server has them, in pinning order (Element's m.room.pinned_events).
+async fn pinned_ids(client: &Client, room: &Room) -> Result<Vec<OwnedEventId>> {
+    use matrix_sdk::ruma::api::{client::state::get_state_event_for_key, error::ErrorKind};
+    use matrix_sdk::ruma::events::StateEventType;
+    let request = get_state_event_for_key::v3::Request::new(room.room_id().to_owned(), StateEventType::RoomPinnedEvents, String::new());
+    match client.send(request).await {
+        Ok(response) => {
+            let content: serde_json::Value = serde_json::from_str(response.event_or_content.get()).map_err(err)?;
+            Ok(content["pinned"].as_array().into_iter().flatten().filter_map(|v| v.as_str()).filter_map(|s| OwnedEventId::try_from(s).ok()).collect())
+        }
+        // Nothing was ever pinned here.
+        Err(e) if e.client_api_error_kind() == Some(&ErrorKind::NotFound) => Ok(vec![]),
+        Err(e) => Err(err(e)),
+    }
 }
 
 async fn member_profile(room: &Room, user: &UserId) -> (String, Option<String>) {
@@ -2819,8 +2870,10 @@ impl RoomSubscriptions {
         }
         let mut settings = RoomSubscription::default();
         settings.timeline_limit = matrix_sdk::ruma::UInt::from(FOCUS_TIMELINE);
-        // Members stay lazy (big rooms); the member list loads them when opened.
+        // Members stay lazy (big rooms); the member list loads them when opened. The chat on
+        // screen shows its pinned messages.
         settings.required_state = list_required_state();
+        settings.required_state.push((matrix_sdk::ruma::events::StateEventType::RoomPinnedEvents, String::new()));
         let ids: Vec<&RoomId> = rooms.iter().map(|r| r.as_ref()).collect();
         sync.set_room_subscriptions(&ids, Some(settings), true);
     }

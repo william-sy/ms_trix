@@ -1303,3 +1303,13 @@ a.link-warn::after { content: " ⚠"; }
 .date-popover-events span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .date-popover-actions { display: flex; gap: 6px; }
 .date-popover-actions .btn { flex: 1; white-space: nowrap; }
+
+/* Pinned messages: one under the chat header, the rest in a list. */
+.pinned-bar { display: flex; align-items: center; gap: 10px; padding: 6px 18px; border-bottom: 1px solid var(--border); font-size: 13px; }
+.pinned-current { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; text-align: left; }
+.pinned-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pinned-text b { color: var(--accent); }
+.pinned-mark { font-size: 11px; margin-left: 4px; }
+.pinned-item { padding: 8px 0; border-bottom: 1px solid var(--border); }
+.pinned-body { margin: 4px 0; }
+.pinned-actions { display: flex; gap: 12px; font-size: 13px; }

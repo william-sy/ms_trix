@@ -56,6 +56,10 @@ export interface Conversation {
   callActive?: boolean;
   /** The running call was started silently (Talk). */
   callSilent?: boolean;
+  /** Messages can be pinned here (Matrix; Talk 23 and later). */
+  canPin?: boolean;
+  /** Changes whenever the pinned messages change; null when nothing is pinned. */
+  pins?: string | null;
 }
 
 export type PresenceState = "available" | "busy" | "away" | "offline";

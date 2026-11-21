@@ -811,6 +811,22 @@ async fn message_context(state: State<'_, AppState>, key: String, message: Strin
     Ok(messages.iter().map(MessageView::standalone).collect())
 }
 
+/// The pinned messages, the latest pinned first.
+#[tauri::command]
+async fn pinned_messages(state: State<'_, AppState>, key: String) -> CmdResult<Vec<MessageView>> {
+    let id = conv(&key)?;
+    let adapter = state.engine.lock().unwrap().adapter(&id.account).ok_or("account not signed in")?;
+    let messages = adapter.pinned(&id).await.map_err(|e| e.to_string())?;
+    Ok(messages.iter().map(MessageView::standalone).collect())
+}
+
+#[tauri::command]
+async fn set_pinned(state: State<'_, AppState>, key: String, message: String, pinned: bool) -> CmdResult<()> {
+    let id = conv(&key)?;
+    let adapter = state.engine.lock().unwrap().adapter(&id.account).ok_or("account not signed in")?;
+    adapter.set_pinned(&id, &MessageId(message), pinned).await.map_err(|e| e.to_string())
+}
+
 /// /jumptodate: first loaded message at or after `ts`, and the oldest loaded time.
 #[tauri::command]
 async fn message_at(app: AppHandle, key: String, ts: u64) -> CmdResult<(Option<String>, Option<u64>)> {
@@ -2326,6 +2342,8 @@ pub fn run() {
             set_archived,
             message_at,
             message_context,
+            pinned_messages,
+            set_pinned,
             create_room,
             enable_encryption,
             set_team_room,

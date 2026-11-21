@@ -138,6 +138,8 @@ impl NtfyAdapter {
             team_id: None,
             call_active: false,
             call_silent: false,
+            can_pin: false,
+            pins: None,
             encrypted: false,
         }
     }
