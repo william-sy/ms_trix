@@ -1088,8 +1088,8 @@ async fn attach_cloud_file(state: State<'_, AppState>, account: String, path: St
 }
 
 #[tauri::command]
-async fn notes(state: State<'_, AppState>, account: String) -> CmdResult<Vec<trix_core::Note>> {
-    adapter_for(&state, &account)?.notes().await.map_err(|e| {
+async fn notes(state: State<'_, AppState>, account: String, content: Option<bool>) -> CmdResult<Vec<trix_core::Note>> {
+    adapter_for(&state, &account)?.notes(content.unwrap_or(false)).await.map_err(|e| {
         log::info!("notes for {account}: {e}");
         e.to_string()
     })

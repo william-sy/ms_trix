@@ -9,12 +9,16 @@
   all of highlight.js's roughly 190 languages) shows in that language's colours, in Matrix and
   Talk messages and in the notes preview. Rarely used languages load the first time they appear.
 - **Tables:** the format bar's Table button picks a size on a grid and inserts an empty table.
+- **Notes:** search looks in the text of your notes too (with the same search syntax as messages),
+  showing the line that matched; the format bar has the Table button.
 - **Talk messages show their formatting** (tables, bold, lists, code), as in Talk itself.
 - **Silent calls:** start a Talk call silently (▾ next to the call buttons), so nobody is rung.
   Calls others start silently don't ring you either, unless you turn on "Ring for silent calls
   too" (Settings → Notifications), the Teams way where nothing is silent.
 
 ### Fixed
+- Home and End typed a box in text fields on macOS: they move to the start or end of the line now
+  (with ⌘ of the whole text, with Shift selecting).
 - Talk calls: someone whose app sends sound and picture separately could be seen but not heard.
   The log now also notes, a few seconds in, how much sound goes each way.
 - Web links inside formatted messages (with bold, a list, …) weren't clickable.

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { commandList, runCommand } from "./commands";
 import { EmojiPicker } from "./EmojiPicker";
 import { autoReplace } from "./emoticons";
-import { applyFormat, type Format } from "./format";
+import { applyFormat, insertTable as tableEdit, type Format } from "./format";
 import { AttachIcon, EmojiIcon, FormatIcon, MicIcon, PlusIcon, SendIcon } from "./Icons";
 import { sendLaterChoices } from "./scheduled";
 import { formatDuration, useVoiceRecorder, type Voice } from "./voice";
@@ -199,21 +199,13 @@ export function Composer(p: Props) {
     update(text.slice(0, a) + s + text.slice(b), a + s.length);
   };
 
-  /**
-   * An empty Markdown table at the cursor, on its own lines; the first header cell is selected,
-   * so typing replaces it.
-   */
+  /** An empty table at the cursor, its first header cell selected. */
   const insertTable = (columns: number, rows: number) => {
     const el = input.current;
     const [a, b] = el ? [el.selectionStart, el.selectionEnd] : [text.length, text.length];
-    const before = text.slice(0, a);
-    const lead = !before ? "" : before.endsWith("\n\n") ? "" : before.endsWith("\n") ? "\n" : "\n\n";
-    const header = Array.from({ length: columns }, (_, i) => t("composer.tableColumn", { n: i + 1 }));
-    const row = (cells: string[]) => `| ${cells.join(" | ")} |`;
-    const table = [row(header), row(header.map(() => "---")), ...Array.from({ length: rows }, () => row(header.map(() => "  ")))].join("\n");
-    const start = a + lead.length + 2;
-    update(before + lead + table + "\n" + text.slice(b), start);
-    requestAnimationFrame(() => el?.setSelectionRange(start, start + header[0]!.length));
+    const edit = tableEdit(text, a, b, tableHeader(columns), rows);
+    update(edit.text, edit.start);
+    requestAnimationFrame(() => el?.setSelectionRange(edit.start, edit.end));
   };
 
   /** Sends now, or at `at` (send later). */
@@ -460,8 +452,11 @@ function SendLater({ onPick }: { onPick: (at: number) => void }) {
   );
 }
 
+/** Column names for a new table: "Column 1", "Column 2", … */
+export const tableHeader = (columns: number) => Array.from({ length: columns }, (_, i) => t("composer.tableColumn", { n: i + 1 }));
+
 /** The table button: pick a size on a grid (as in Word or Teams), up to 6 by 6. */
-function TablePicker({ onPick }: { onPick: (columns: number, rows: number) => void }) {
+export function TablePicker({ onPick }: { onPick: (columns: number, rows: number) => void }) {
   const [open, setOpen] = useState(false);
   const [size, setSize] = useState({ columns: 2, rows: 2 });
   const ref = useRef<HTMLSpanElement>(null);

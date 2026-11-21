@@ -1433,8 +1433,9 @@ impl ProtocolAdapter for TalkAdapter {
         self.wake.notify_one();
     }
 
-    async fn notes(&self) -> Result<Vec<Note>> {
-        let response = self.request(Method::GET, &format!("{NOTES}?exclude=content")).send().await.map_err(net)?;
+    async fn notes(&self, with_content: bool) -> Result<Vec<Note>> {
+        let url = if with_content { NOTES.to_owned() } else { format!("{NOTES}?exclude=content") };
+        let response = self.request(Method::GET, &url).send().await.map_err(net)?;
         // No Notes app on this server.
         if matches!(response.status(), StatusCode::NOT_FOUND | StatusCode::METHOD_NOT_ALLOWED) {
             return Err(AdapterError::Unsupported("notes"));

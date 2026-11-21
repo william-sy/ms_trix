@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { backend, formatTime } from "./backend";
-import { formats } from "./Composer";
-import { applyFormat, type Format } from "./format";
+import { formats, TablePicker, tableHeader } from "./Composer";
+import { applyFormat, insertTable, type Format } from "./format";
+import { parseQuery, queryMatches } from "./searchQuery";
+import { Highlight } from "./TitleBar";
 import { t, type Key } from "./i18n";
 import { RichText } from "./RichText";
 import type { Note, Org } from "./types";
@@ -40,15 +42,29 @@ export function NotesPane({ orgs }: { orgs: Org[] }) {
   const [loaded, setLoaded] = useState(false);
   const [target, setTarget] = useState(orgs[0]?.id ?? "");
   const [error, setError] = useState<string | null>(null);
+  // Every note's text, fetched the first time something is searched (the list comes without).
+  const [texts, setTexts] = useState<Record<string, Map<number, string>>>({});
   const ids = orgs.map((o) => o.id).join("|");
 
   const load = () => {
     for (const o of orgs) backend.notes(o.id).then((list) => { setNotes((n) => ({ ...n, [o.id]: list })); setLoaded(true); }, (e) => { setError(String(e)); setLoaded(true); });
   };
   useEffect(load, [ids]); // eslint-disable-line react-hooks/exhaustive-deps
+  const searching = query.trim() !== "";
+  useEffect(() => {
+    if (!searching) return;
+    for (const o of orgs) {
+      if (texts[o.id]) continue;
+      setTexts((m) => ({ ...m, [o.id]: new Map() }));
+      backend.notes(o.id, true).then((list) => setTexts((m) => ({ ...m, [o.id]: new Map(list.map((n) => [n.id, n.content ?? ""])) })), () => {});
+    }
+  }, [searching, ids]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (!orgs.some((o) => o.id === target)) setTarget(orgs[0]?.id ?? ""); }, [ids]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const put = (account: string, note: Note) => setNotes((n) => ({ ...n, [account]: [note, ...(n[account] ?? []).filter((x) => x.id !== note.id)] }));
+  const put = (account: string, note: Note) => {
+    setNotes((n) => ({ ...n, [account]: [note, ...(n[account] ?? []).filter((x) => x.id !== note.id)] }));
+    if (note.content != null) setTexts((m) => (m[account] ? { ...m, [account]: new Map(m[account]).set(note.id, note.content!) } : m));
+  };
   const create = async () => {
     if (!target) return;
     try {
@@ -99,11 +115,20 @@ export function NotesPane({ orgs }: { orgs: Org[] }) {
     }
   };
 
-  const q = query.trim().toLowerCase();
+  const q = query.trim();
+  const parsed = parseQuery(q);
+  const textOf = (n: Listed) => texts[n.account]?.get(n.id) ?? n.content ?? "";
+  // Title, category and text, with the search syntax of messages ("phrase", wild*cards, #tags).
+  const matches = (n: Listed) => !q || queryMatches(parsed, `${n.title}\n${n.category}\n${textOf(n)}`);
+  /** The line of the text that matched, for under the title (not when the title matched). */
+  const snippet = (n: Listed) => {
+    if (!q || queryMatches(parsed, `${n.title}\n${n.category}`)) return null;
+    return textOf(n).split("\n").find((line) => queryMatches(parsed, line))?.trim().slice(0, 120) ?? null;
+  };
   const every: Listed[] = orgs.flatMap((o) => (notes[o.id] ?? []).map((n) => ({ ...n, account: o.id })));
   const categories = [...new Set(every.map((n) => n.category).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const count = (c: string) => every.filter((n) => n.category === c).length;
-  const all = every.filter((n) => (filter === ALL || n.category === filter) && (!q || n.title.toLowerCase().includes(q) || n.category.toLowerCase().includes(q)));
+  const all = every.filter((n) => (filter === ALL || n.category === filter) && matches(n));
   // By category (none first), favourites on top, then the latest changed.
   const groups = new Map<string, Listed[]>();
   for (const n of all) {
@@ -157,6 +182,7 @@ export function NotesPane({ orgs }: { orgs: Org[] }) {
                 onClick={() => setSelected({ account: n.account, id: n.id })}>
                 <span className="note-title">{n.favorite && "★ "}{n.title || t("notes.untitled")}</span>
                 <span className="note-time">{formatTime(n.modified * 1000)}</span>
+                {(() => { const line = snippet(n); return line && <span className="note-snippet"><Highlight text={line} query={q} /></span>; })()}
               </button>
             ))}
           </div>
@@ -228,6 +254,13 @@ function NoteEditor({ account, id, categories, onSaved, onDeleted }: {
     change(() => setText(edit.text));
     requestAnimationFrame(() => { el.focus(); el.setSelectionRange(edit.start, edit.end); });
   };
+  const table = (columns: number, rows: number) => {
+    const el = area.current;
+    if (!el || note?.readonly) return;
+    const edit = insertTable(text, el.selectionStart, el.selectionEnd, tableHeader(columns), rows);
+    change(() => setText(edit.text));
+    requestAnimationFrame(() => { el.focus(); el.setSelectionRange(edit.start, edit.end); });
+  };
   // A second after the last change; and whatever is left when the note is closed.
   useEffect(() => {
     if (!dirty.current || state === "conflict") return;
@@ -274,6 +307,7 @@ function NoteEditor({ account, id, categories, onSaved, onDeleted }: {
               {f.labelKey ? t(f.labelKey) : f.label}
             </button>
           ))}
+          <TablePicker onPick={table} />
         </div>
       )}
       {preview ? (

@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { ErrorBoundary } from "./ErrorBoundary";
 import "./styles.css";
+import "./keys";
 import { applySettings, loadSettings } from "./settings";
 import { ShareOverlay, isShareOverlay } from "./ShareOverlay";
 import { CallWindow, isCallWindow } from "./OwnCallWindow";

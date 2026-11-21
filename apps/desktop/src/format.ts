@@ -42,3 +42,16 @@ export function applyFormat(text: string, start: number, end: number, format: Fo
   const changed = lines.map((line, i) => (removing ? line.replace(format.numbered ? /^\d+\. / : marker(i), "") : marker(i) + line)).join("\n");
   return { text: text.slice(0, lineStart) + changed + text.slice(lineEnd), start: lineStart + changed.length, end: lineStart + changed.length };
 }
+
+/**
+ * An empty Markdown table at the cursor, on its own lines, with `header` as column names; the
+ * first header cell ends up selected, so typing replaces it.
+ */
+export function insertTable(text: string, start: number, end: number, header: string[], rows: number): Edit {
+  const before = text.slice(0, start);
+  const lead = !before ? "" : before.endsWith("\n\n") ? "" : before.endsWith("\n") ? "\n" : "\n\n";
+  const row = (cells: string[]) => `| ${cells.join(" | ")} |`;
+  const table = [row(header), row(header.map(() => "---")), ...Array.from({ length: rows }, () => row(header.map(() => "  ")))].join("\n");
+  const at = start + lead.length + 2;
+  return { text: before + lead + table + "\n" + text.slice(end), start: at, end: at + (header[0]?.length ?? 0) };
+}

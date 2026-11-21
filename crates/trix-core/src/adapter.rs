@@ -434,8 +434,9 @@ pub trait ProtocolAdapter: Send + Sync {
     async fn cloud_apps(&self) -> Result<Vec<String>> {
         Err(AdapterError::Unsupported("apps"))
     }
-    /// Notes (Nextcloud Notes), without their text; Unsupported where the server has no Notes app.
-    async fn notes(&self) -> Result<Vec<Note>> {
+    /// Notes (Nextcloud Notes), with their text or (quicker) without; Unsupported where the server
+    /// has no Notes app.
+    async fn notes(&self, _with_content: bool) -> Result<Vec<Note>> {
         Err(AdapterError::Unsupported("notes"))
     }
     async fn note(&self, _id: u64) -> Result<Note> {

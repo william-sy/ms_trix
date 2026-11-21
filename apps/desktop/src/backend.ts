@@ -443,7 +443,8 @@ export const backend = {
   calendars: (account: string) => invoke<Calendar[]>("calendars", { account }),
   calendarEvents: (account: string, from: string, to: string) => invoke<CalendarEvent[]>("calendar_events", { account, from, to }),
   /** Nextcloud Notes (fails where the server has no Notes app). */
-  notes: (account: string) => invoke<Note[]>("notes", { account }),
+  /** `content`: with each note's text (slower; for searching in them). */
+  notes: (account: string, content = false) => invoke<Note[]>("notes", { account, content }),
   note: (account: string, id: number) => invoke<Note>("note", { account, id }),
   /** Creates (no id) or saves a note; with the etag, a change made elsewhere isn't overwritten. */
   saveNote: (account: string, id: number | null, etag: string | null, change: NoteChange) => invoke<Note>("save_note", { account, id, etag, change }),
