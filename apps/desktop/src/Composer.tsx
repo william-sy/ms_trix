@@ -8,9 +8,10 @@ import { sendLaterChoices } from "./scheduled";
 import { formatDuration, useVoiceRecorder, type Voice } from "./voice";
 import { backend, isLive, mediaUrl, type ImagePack, type PackImage } from "./backend";
 import type { Attachment, Member, Message, Outgoing } from "./types";
-import { t, type Key } from "./i18n";
+import { locale, t, type Key } from "./i18n";
 import { currentSettings, isMac } from "./settings";
 import { useClickOutside } from "./hooks";
+import { findDates, longDate } from "./dates";
 
 // Markdown the format buttons insert; the adapter sends it as rich text.
 // `label` is a symbol shown as-is; `labelKey` is translated.
@@ -292,6 +293,11 @@ export function Composer(p: Props) {
           })()}
         </div>
       )}
+      {(() => {
+        // "donderdag 9 december" while that's a Wednesday: said before it goes out.
+        const wrong = findDates(text, new Date()).find((f) => f.wrongWeekday);
+        return wrong && <div className="date-warning">{t("dates.composerWrongWeekday", { date: longDate(wrong.date, locale()) })}</div>;
+      })()}
       {attachments.length > 0 && (
         <div className="attachments">
           {attachments.map((a) => (

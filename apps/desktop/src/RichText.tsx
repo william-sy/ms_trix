@@ -2,13 +2,15 @@ import DOMPurify from "dompurify";
 import { useMemo, type MouseEvent, type ReactNode } from "react";
 import { backend, isLive, mediaUrl } from "./backend";
 import { useOpenHashtag } from "./Hashtags";
+import { findDates, fromToday, isoDay, longDate, type FoundDate } from "./dates";
+import { useOpenDate } from "./DateRef";
 import { FENCE, highlightCode, highlightIn, useHighlightVersion } from "./highlight";
 import { checkLink } from "./linkCheck";
 import { mainWarning, useOpenLink, useOwnDomains, warningText } from "./LinkPreview";
 import { useOpenProfile } from "./Profile";
 import { HASHTAG, markTerm } from "./searchQuery";
 import { parseRoomLink, useOpenRoomLink } from "./roomLinks";
-import { t } from "./i18n";
+import { locale, t } from "./i18n";
 
 /** Adds someone's custom emoji to your own pack (same image, a free name). */
 async function addToMyEmoji(account: string, name: string, url: string) {
@@ -32,7 +34,7 @@ const SAFE_URI = /^(?:(?:https?|mailto|mxc|matrix):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-
 
 const MENTION = /^https:\/\/matrix\.to\/#\/[@!#]/;
 
-function sanitize(html: string, account: string, own: string[]): string {
+function sanitize(html: string, account: string, own: string[], sent: Date): string {
   // DOMPurify drops URL schemes it doesn't know; Matrix images use mxc:// (turned into
   // our own media URLs below), so allow that next to the usual web/mail links.
   const clean = DOMPurify.sanitize(html, { ALLOWED_TAGS, ALLOWED_ATTR, ALLOW_DATA_ATTR: false, ALLOWED_URI_REGEXP: SAFE_URI });
@@ -92,6 +94,7 @@ function sanitize(html: string, account: string, own: string[]): string {
     if (url && img.hasAttribute("data-mx-emoticon")) img.setAttribute("data-mxc", src); // for "add to my emoji"
     else img.remove();
   }
+  markDates(doc, root, sent);
   // Code blocks with a language get its colours.
   highlightIn(root);
   for (const el of root.querySelectorAll("[data-mx-color], [data-mx-bg-color], font[color]")) {
@@ -103,6 +106,59 @@ function sanitize(html: string, account: string, own: string[]): string {
   return root.innerHTML;
 }
 
+
+/** On hover: "Thursday 9 December 2026 · 14:00 · in 19 days", and a weekday that doesn't fit. */
+function dateTitle(f: FoundDate): string {
+  const when = `${longDate(f.date, locale())}${f.time ? ` · ${f.time}` : ""} · ${fromToday(f.date, locale())}`;
+  return f.wrongWeekday ? `${when}\n${t("dates.wrongWeekday", { weekday: f.date.toLocaleDateString(locale(), { weekday: "long" }) })}` : when;
+}
+const dateClass = (f: FoundDate) => `date-ref${f.wrongWeekday ? " wrong-weekday" : ""}`;
+
+/** Dates get a dotted underline: their weekday on hover, a small calendar on click. */
+function markDates(doc: Document, root: Element, sent: Date) {
+  const texts: Text[] = [];
+  const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) if (!n.parentElement?.closest("a, code, pre")) texts.push(n as Text);
+  for (const node of texts) {
+    const value = node.nodeValue ?? "";
+    const found = findDates(value, sent);
+    if (!found.length) continue;
+    const parts = doc.createDocumentFragment();
+    let at = 0;
+    for (const f of found) {
+      parts.append(value.slice(at, f.index));
+      const span = doc.createElement("span");
+      span.className = dateClass(f);
+      span.dataset.date = isoDay(f.date);
+      if (f.time) span.dataset.time = f.time;
+      span.title = dateTitle(f);
+      span.textContent = value.slice(f.index, f.index + f.length);
+      parts.append(span);
+      at = f.index + f.length;
+    }
+    parts.append(value.slice(at));
+    node.replaceWith(parts);
+  }
+}
+
+/** Plain text with its dates marked (see markDates), and search highlighting. */
+function dated(text: string, sent: Date, query: string | undefined, key: string): ReactNode[] {
+  const found = findDates(text, sent);
+  if (!found.length) return highlight(text, query, key);
+  const out: ReactNode[] = [];
+  let at = 0;
+  for (const f of found) {
+    if (f.index > at) out.push(...highlight(text.slice(at, f.index), query, `${key}-${at}`));
+    out.push(
+      <span key={`${key}-d${f.index}`} className={dateClass(f)} data-date={isoDay(f.date)} data-time={f.time} title={dateTitle(f)}>
+        {highlight(text.slice(f.index, f.index + f.length), query, `${key}-d${f.index}`)}
+      </span>,
+    );
+    at = f.index + f.length;
+  }
+  if (at < text.length) out.push(...highlight(text.slice(at), query, `${key}-${at}`));
+  return out;
+}
 
 // Web links, bare room addresses like #room:server.org (turned into matrix.to links), hashtags.
 const URL_RE = new RegExp(String.raw`\b(https?:\/\/[^\s<]+[^\s<.,:;"')\]!?])|(?<![\w#])(#[\w.=-]+:[\w-]+(?:\.[\w-]+)+)|` + HASHTAG, "gu");
@@ -131,26 +187,26 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
 }
 
 /** Plain text with ```fenced``` code blocks, clickable links and optional search highlighting. */
-function PlainText({ text, query, own }: { text: string; query?: string; own: string[] }) {
+function PlainText({ text, query, own, sent }: { text: string; query?: string; own: string[]; sent: Date }) {
   const out: ReactNode[] = [];
   let at = 0;
   for (const m of text.matchAll(FENCE)) {
-    if (m.index! > at) out.push(<Linked key={`t${at}`} text={text.slice(at, m.index)} query={query} own={own} />);
+    if (m.index! > at) out.push(<Linked key={`t${at}`} text={text.slice(at, m.index)} query={query} own={own} sent={sent} />);
     out.push(<CodeBlock key={`c${m.index}`} code={m[2]!} language={m[1]!} />);
     at = m.index! + m[0].length;
   }
-  if (!out.length) return <Linked text={text} query={query} own={own} />;
-  if (at < text.length) out.push(<Linked key={`t${at}`} text={text.slice(at)} query={query} own={own} />);
+  if (!out.length) return <Linked text={text} query={query} own={own} sent={sent} />;
+  if (at < text.length) out.push(<Linked key={`t${at}`} text={text.slice(at)} query={query} own={own} sent={sent} />);
   return <>{out}</>;
 }
 
-/** Text with clickable links, room addresses and hashtags. */
-function Linked({ text, query, own }: { text: string; query?: string; own: string[] }) {
+/** Text with clickable links, room addresses, hashtags and dates. */
+function Linked({ text, query, own, sent }: { text: string; query?: string; own: string[]; sent: Date }) {
   // split() puts the capture groups after each text part: [text, url, room, tag, text, …].
   const parts = text.split(URL_RE);
   const out: ReactNode[] = [];
   for (let i = 0; i < parts.length; i += 4) {
-    if (parts[i]) out.push(<span key={i}>{highlight(parts[i]!, query, `t${i}`)}</span>);
+    if (parts[i]) out.push(<span key={i}>{dated(parts[i]!, sent, query, `t${i}`)}</span>);
     const url = parts[i + 1];
     const room = parts[i + 2];
     const tag = parts[i + 3];
@@ -163,16 +219,28 @@ function Linked({ text, query, own }: { text: string; query?: string; own: strin
 }
 
 
-export function RichText({ body, html, account, query }: { body: string; html?: string; account: string; query?: string }) {
+export function RichText({ body, html, account, query, sent }: {
+  body: string; html?: string; account: string; query?: string;
+  /** When the message was sent (ms): a date without a year is the first one from then. */
+  sent?: number;
+}) {
   const own = useOwnDomains();
   // Again when a language loads that a code block here was waiting for.
   const languages = useHighlightVersion();
-  const safe = useMemo(() => (html ? sanitize(html, account, own) : null), [html, account, own, languages]); // eslint-disable-line react-hooks/exhaustive-deps
+  const sentAt = useMemo(() => new Date(sent ?? Date.now()), [sent]);
+  const safe = useMemo(() => (html ? sanitize(html, account, own, sentAt) : null), [html, account, own, languages, sentAt]); // eslint-disable-line react-hooks/exhaustive-deps
   const openProfile = useOpenProfile();
   const openRoomLink = useOpenRoomLink();
   const openHashtag = useOpenHashtag();
   const openLink = useOpenLink();
+  const openDate = useOpenDate();
   const onLinkClick = (e: MouseEvent) => {
+    const day = (e.target as HTMLElement).closest<HTMLElement>(".date-ref");
+    if (day?.dataset.date) {
+      e.preventDefault();
+      const title = body.split("\n").map((l) => l.trim()).find(Boolean)?.slice(0, 80) ?? "";
+      return openDate({ date: day.dataset.date, time: day.dataset.time, title, x: e.clientX, y: e.clientY });
+    }
     // Someone's custom emoji: offer to add it to your own pack.
     const emote = (e.target as HTMLElement).closest("img[data-mx-emoticon]") as HTMLImageElement | null;
     if (emote && isLive) {
@@ -202,5 +270,5 @@ export function RichText({ body, html, account, query }: { body: string; html?: 
   };
   // Search highlights only work on plain text; formatted messages still match, they just aren't marked.
   if (safe && !query) return <div className="rich" onClick={onLinkClick} dangerouslySetInnerHTML={{ __html: safe }} />;
-  return <span className="plain" onClick={onLinkClick}><PlainText text={body} query={query} own={own} /></span>;
+  return <span className="plain" onClick={onLinkClick}><PlainText text={body} query={query} own={own} sent={sentAt} /></span>;
 }

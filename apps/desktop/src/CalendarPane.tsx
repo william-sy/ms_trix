@@ -13,6 +13,8 @@ interface Props {
   convs: Conversation[];
   onOpenChat: (key: string) => void;
   onJoinCall: (key: string) => void;
+  /** Show a day, or plan a meeting on it (a date clicked in a message). */
+  request?: CalendarRequest | null;
 }
 
 interface Item {
@@ -94,15 +96,31 @@ const statusClass = (e: CalendarEvent) =>
 export const firstUrl = (text?: string) => text?.match(/https?:\/\/[^\s<>"]+/)?.[0];
 
 /** Teams-like week view of the Nextcloud calendars. */
-export function CalendarPane({ orgs, convs, onOpenChat, onJoinCall }: Props) {
+/** From elsewhere (a date in a message): show this day, or plan a meeting on it. */
+export interface CalendarRequest {
+  date: Date;
+  time?: string;
+  title?: string;
+  create?: boolean;
+  /** Changes with every request, so the same day can be asked for twice. */
+  n: number;
+}
+
+export function CalendarPane({ orgs, convs, onOpenChat, onJoinCall, request }: Props) {
   // The day the view is built around (the week, or month, that contains it).
-  const [week, setWeek] = useState(() => new Date());
+  const [week, setWeek] = useState(() => request?.date ?? new Date());
+  const [prefill, setPrefill] = useState<CalendarRequest | null>(request?.create ? request : null);
   const [calendars, setCalendars] = useState<Record<string, Calendar[]>>({});
   const [events, setEvents] = useState<{ account: string; event: CalendarEvent }[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [hidden, setHidden] = useState<Set<string>>(() => { try { return new Set(JSON.parse(localStorage.getItem(HIDDEN) ?? "[]")); } catch { return new Set(); } });
   const [open, setOpen] = useState<Item | null>(null);
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState(!!request?.create);
+  useEffect(() => {
+    if (!request) return;
+    setWeek(request.date);
+    if (request.create) { setPrefill(request); setCreating(true); }
+  }, [request?.n]); // eslint-disable-line react-hooks/exhaustive-deps
   const [editing, setEditing] = useState<Item | null>(null);
   // Editing a repeating meeting: the whole series, or just the occurrence that was opened.
   const [series, setSeries] = useState(false);
@@ -238,7 +256,8 @@ export function CalendarPane({ orgs, convs, onOpenChat, onJoinCall }: Props) {
         writable={!!calendars[open.account]?.find((c) => c.id === open.event.calendar)?.writable}
         onEdit={(wholeSeries) => { setSeries(wholeSeries); setEditing(open); setOpen(null); }} onDeleted={() => { setOpen(null); setReload((r) => r + 1); }}
         onOpenChat={(key) => { setOpen(null); onOpenChat(key); }} onJoinCall={(key) => { setOpen(null); onJoinCall(key); }} />}
-      {(creating || editing) && <MeetingDialog orgs={orgs} calendars={calendars} editing={editing ?? undefined} series={series} onClose={() => { setCreating(false); setEditing(null); }}
+      {(creating || editing) && <MeetingDialog orgs={orgs} calendars={calendars} editing={editing ?? undefined} series={series} prefill={editing ? undefined : prefill ?? undefined}
+        onClose={() => { setCreating(false); setEditing(null); setPrefill(null); }}
         onSaved={(start) => { setCreating(false); setEditing(null); setWeek(start); setReload((r) => r + 1); }} />}
     </div>
   );
@@ -484,17 +503,22 @@ function RepeatPicker({ date, repeat, onRepeat, days, onDays, endKind, onEndKind
 }
 
 /** A new event (optionally with a Talk conversation as its online meeting, like Teams' "New meeting"), or an edit of one. */
-function MeetingDialog({ orgs, calendars, editing, series = false, onClose, onSaved }: {
+function MeetingDialog({ orgs, calendars, editing, series = false, prefill, onClose, onSaved }: {
   orgs: Org[]; calendars: Record<string, Calendar[]>; editing?: Item; series?: boolean; onClose: () => void; onSaved: (start: Date) => void;
+  /** A new meeting from a date in a message: that day (and time), the message as its title. */
+  prefill?: CalendarRequest;
 }) {
   useEscape(onClose);
   const writable = orgs.flatMap((o) => (calendars[o.id] ?? []).filter((c) => c.writable).map((c) => ({ account: o.id, calendar: c })));
   const next = new Date();
   next.setMinutes(next.getMinutes() < 30 ? 30 : 60, 0, 0);
-  const startAt = editing?.start ?? next;
+  // From a message: its day, at its time or else the next half hour's time.
+  const [ph, pm] = (prefill?.time ?? timeField(next)).split(":").map(Number) as [number, number];
+  const planned = prefill ? new Date(prefill.date.getFullYear(), prefill.date.getMonth(), prefill.date.getDate(), ph, pm) : next;
+  const startAt = editing?.start ?? planned;
   // All-day events end the next day (exclusive); the form shows the start date only.
-  const endAt = editing?.end ?? new Date(next.getTime() + 30 * 60_000);
-  const [title, setTitle] = useState(editing?.event.summary ?? "");
+  const endAt = editing?.end ?? new Date(planned.getTime() + 30 * 60_000);
+  const [title, setTitle] = useState(editing?.event.summary ?? prefill?.title ?? "");
   const [date, setDate] = useState(dateField(startAt));
   const [from, setFrom] = useState(editing?.allDay ? timeField(next) : timeField(startAt));
   const [to, setTo] = useState(editing?.allDay ? timeField(new Date(next.getTime() + 30 * 60_000)) : timeField(endAt));

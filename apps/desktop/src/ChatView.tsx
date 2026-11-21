@@ -790,10 +790,10 @@ function MessageItem({ m, account, conversation, grouped, lastInRun = true, quot
                 : m.poll ? <PollCard conversation={conversation ?? ""} poll={m.poll} question={m.body} />
                 : m.media ? <>
                     <MediaBody media={m.media} account={account} actions={media} />
-                    {m.media.caption && <div className="caption"><RichText body={m.media.caption} account={account} query={query} /></div>}
+                    {m.media.caption && <div className="caption"><RichText body={m.media.caption} account={account} query={query} sent={m.ts} /></div>}
                   </>
                 : <>
-                    <RichText body={m.body} html={m.html} account={account} query={query} />
+                    <RichText body={m.body} html={m.html} account={account} query={query} sent={m.ts} />
                     {previewUrl && <LinkPreview url={previewUrl} />}
                   </>}
               {m.edited && !m.deleted && <span className="edited" title={t("message.editedTitle")}>{t("message.edited")}</span>}

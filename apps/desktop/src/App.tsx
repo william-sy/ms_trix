@@ -35,7 +35,8 @@ import { CallScreen } from "./CallScreen";
 import { TalkRing } from "./TalkCallScreen";
 import { lastCameraOn, TalkCallsContext, useTalkCallHost } from "./talkCalls";
 import { CallsPane } from "./CallsPane";
-import { CalendarPane } from "./CalendarPane";
+import { CalendarPane, type CalendarRequest } from "./CalendarPane";
+import { DatePopover, DateRefContext, type DateRefInfo } from "./DateRef";
 import { MeetingReminder } from "./MeetingReminder";
 import { ContextDialog } from "./ContextDialog";
 import { HashtagContext, HashtagPanel } from "./Hashtags";
@@ -439,6 +440,9 @@ export function App() {
   // A result that isn't loaded yet opens as a quick preview first; paging back to it can take a while.
   const [preview, setPreview] = useState<{ conversation: string; message: string } | null>(null);
   // A #hashtag clicked in a message: the messages that use it.
+  // A date clicked in a message, and what it asked of the calendar.
+  const [dateRef, setDateRef] = useState<DateRefInfo | null>(null);
+  const [calendarRequest, setCalendarRequest] = useState<CalendarRequest | null>(null);
   const [hashtag, setHashtag] = useState<string | null>(null);
   const openMessage = (conversation: string, message: string) =>
     isLive && !(state.messages[conversation] ?? []).some((m) => m.id === message) ? setPreview({ conversation, message }) : showInChat(conversation, message);
@@ -682,6 +686,7 @@ export function App() {
     <RoomLinkContext.Provider value={openRoomLink}>
     <HashtagContext.Provider value={setHashtag}>
     <InAppLinkContext.Provider value={openInApp}>
+    <DateRefContext.Provider value={setDateRef}>
     <CallsContext.Provider value={calls}>
     <TalkCallsContext.Provider value={talkCalls}>
     <KeyHelpContext.Provider value={(orgId) => {
@@ -731,7 +736,7 @@ export function App() {
                 onBrowseTeam={(t) => openBrowse({ id: t.spaceId, alias: null, name: t.name, topic: t.topic, members: 0, avatar: t.avatar, isSpace: true, joined: t.key, joinRule: null })} />
             )}
             {view === "calendar" && (
-              <CalendarPane orgs={calendarOrgs} convs={state.convs} onOpenChat={(id) => { setView("chat"); act({ type: "select", id }); }}
+              <CalendarPane orgs={calendarOrgs} convs={state.convs} request={calendarRequest} onOpenChat={(id) => { setView("chat"); act({ type: "select", id }); }}
                 onJoinCall={(id) => { setView("chat"); act({ type: "select", id }); talkCalls.start(id, lastCameraOn()); }} />
             )}
             {view === "notes" && <NotesPane orgs={notesOrgs} />}
@@ -773,6 +778,11 @@ export function App() {
           onCrop={(png) => (cropFor.kind === "me" ? backend.setAvatar(cropFor.account, png)
             : cropFor.kind === "room" ? backend.setRoomAvatar(cropFor.key, png) : backend.setRoomMemberAvatar(cropFor.key, png))} />
       )}
+      {dateRef && (
+        <DatePopover info={dateRef} calendarOrgs={calendarOrgs} onClose={() => setDateRef(null)}
+          onOpenCalendar={(date) => { setDateRef(null); setCalendarRequest({ date, n: Date.now() }); openView("calendar"); }}
+          onAdd={(date, time, title) => { setDateRef(null); setCalendarRequest({ date, time, title, create: true, n: Date.now() }); openView("calendar"); }} />
+      )}
       {hashtag && <HashtagPanel tag={hashtag} conversation={selected?.id} conversationName={selected?.name} onOpen={openMessage} onClose={() => setHashtag(null)} />}
       {preview && (
         <ContextDialog {...preview} title={state.convs.find((c) => c.id === preview.conversation)?.name ?? ""}
@@ -809,6 +819,7 @@ export function App() {
       )}
     </TalkCallsContext.Provider>
     </CallsContext.Provider>
+    </DateRefContext.Provider>
     </InAppLinkContext.Provider>
     </HashtagContext.Provider>
     </RoomLinkContext.Provider>

@@ -41,7 +41,7 @@ export function ContextDialog({ conversation, message, title, onShowInChat, onCl
               <Avatar account={account} media={m.avatar} name={m.sender} className="small" />
               <div className="context-body">
                 <span className="context-meta"><b>{m.fromMe ? t("search.you") : m.sender}</b> <span className="muted">{m.time}</span></span>
-                {m.media ? <span className="muted">📎 {m.media.name}</span> : <RichText body={m.body} html={m.html} account={account} />}
+                {m.media ? <span className="muted">📎 {m.media.name}</span> : <RichText body={m.body} html={m.html} account={account} sent={m.ts} />}
               </div>
             </div>
           ))}

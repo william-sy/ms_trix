@@ -55,7 +55,7 @@
 - [x] Activity: a way to clear it (empty the feed, or remove single items)
 - [x] Tables in the composer (size grid, 6 × 6 at most); Talk messages rendered from Markdown;
       links in formatted messages clickable
-- [ ] Dates in messages (idea 2026-11-20): 2026-12-09, 9-12-2026, "9 december", "December 9"
+- [x] Dates in messages (idea 2026-11-20): 2026-12-09, 9-12-2026, "9 december", "December 9"
       (nl/en; without a year: the first one after the message was sent) get a subtle underline;
       hover shows the weekday ("Thursday 9 December 2026, in 19 days"), click a mini month calendar
       with that day's meetings, "Open in calendar" and "Add to calendar" (date and time filled
