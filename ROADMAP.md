@@ -89,6 +89,12 @@
       your account data (syncs between your own devices), Talk through its reminder API
 - [ ] Status from your calendar: busy ("In a meeting") during meetings; out of office from
       Nextcloud's absence setting (Nextcloud 28+), shown on profiles
+- [ ] Links to chats (idea 2026-11-22; clicking room links works already): typing # suggests your
+      chats after a letter or two, picking one inserts a link shown as the chat's name (Matrix:
+      matrix.to, a pill in Element and Element X too, others are offered to join; Talk: the
+      conversation link on the same Nextcloud, a card in Talk). No pick: it stays a #hashtag. Room
+      links show as a pill with name and picture for chats you know. "Copy link to this chat" in
+      the chat header for both. Only chats of the same platform are suggested
 - To test (from 1.5 and before): emoji verification with a colleague; a silent call started from
   Talk; replying with a file in Talk; Talk group calls and screen sharing at SURF; whether SURF's
   Talk has threads (22+) and pinning (23+); Talk 1:1 call sound (the log's sound check); away
