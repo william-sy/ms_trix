@@ -181,8 +181,9 @@ export function App() {
     if (!isLive || !navigator.mediaDevices) return;
     const timer = window.setTimeout(() => {
       const asked = performance.now();
+      // Not counted: until this page has used the camera itself, WebKit lists one per kind.
       navigator.mediaDevices.enumerateDevices().then(
-        (list) => void backend.logUi(`devices ready after ${Math.round(performance.now() - asked)} ms (warm-up for calls, ${list.filter((d) => d.kind === "videoinput").length} camera(s))`).catch(() => {}),
+        () => void backend.logUi(`devices ready after ${Math.round(performance.now() - asked)} ms (warm-up for calls)`).catch(() => {}),
         () => {},
       );
     }, 6000);

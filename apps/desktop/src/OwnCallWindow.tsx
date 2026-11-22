@@ -17,6 +17,9 @@ export const isCallWindow = location.hash.startsWith(PREFIX);
 // See-through around the minimised card in the corner of the app.
 if (isCallWindow) document.documentElement.classList.add("call-page");
 
+/** Logged once (in development React mounts twice). */
+let shownLogged = false;
+
 function params(): CallWindowParams | null {
   try { return JSON.parse(decodeURIComponent(location.hash.slice(PREFIX.length).replace(/\+/g, " "))); } catch { return null; }
 }
@@ -51,7 +54,8 @@ export function CallWindow() {
   // background's person detection loads side by side with the camera, once the screen is shown.
   useEffect(() => {
     if (!p) return;
-    log(`call page shown after ${Math.round(performance.now())} ms`);
+    if (!shownLogged) log(`call page shown after ${Math.round(performance.now())} ms`);
+    shownLogged = true;
     const timer = window.setTimeout(() => { calls.start(p.conversation, p.video, p.silent); warmUpEffects(); }, 0);
     return () => window.clearTimeout(timer);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
