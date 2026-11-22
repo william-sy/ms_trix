@@ -32,6 +32,8 @@
   too" (Settings → Notifications), the Teams way where nothing is silent.
 
 ### Fixed
+- Starting the first call after a restart or sleep showed nothing for seconds: the call screen now
+  says "Starting the call…" at once, then "Starting your camera and microphone…" until they're on.
 - A wide picture made its bubble stretch across the chat; bubbles now fit their picture.
 - Home and End typed a box in text fields on macOS: they move to the start or end of the line now
   (with ⌘ of the whole text, with Shift selecting).

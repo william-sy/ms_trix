@@ -4,9 +4,25 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ms_trix</title>
+    <style>
+      /* A call's page shows this until the app has loaded (a new webview takes a moment). */
+      .boot-call { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+        background: #111318; color: #c9ccd3; font: 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .boot-call i { width: 28px; height: 28px; border-radius: 50%; border: 3px solid rgba(255, 255, 255, 0.2); border-top-color: #fff; animation: boot-spin 0.9s linear infinite; }
+      @keyframes boot-spin { to { transform: rotate(360deg); } }
+    </style>
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // In the app's language (Settings), else the system's; React replaces it when it renders.
+      if (location.hash.startsWith("#talk-call=")) {
+        var lang = "system";
+        try { lang = JSON.parse(localStorage.getItem("ms_trix.settings") || "{}").language || "system"; } catch (e) {}
+        if (lang === "system") lang = navigator.language;
+        document.getElementById("root").innerHTML = '<div class="boot-call"><i></i><span>' + (/^nl/.test(lang) ? "Gesprek starten…" : "Starting the call…") + "</span></div>";
+      }
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

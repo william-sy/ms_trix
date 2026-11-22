@@ -869,6 +869,8 @@
   "shortcuts.settings": "Instellingen openen",
   "shortcuts.teams": "Naar Teams",
   "talkcall.alone": "Je bent de enige hier. Anderen kunnen vanuit de chat deelnemen.",
+  "talkcall.startingCamera": "Camera en microfoon starten…",
+  "talkcall.startingMic": "Microfoon starten…",
   "talkcall.cameraOff": "Camera staat uit",
   "talkcall.ended": "Je hebt het gesprek verlaten",
   "talkcall.joinNow": "Nu deelnemen",

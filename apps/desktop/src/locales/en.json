@@ -869,6 +869,8 @@
   "shortcuts.settings": "Open settings",
   "shortcuts.teams": "Go to Teams",
   "talkcall.alone": "You're the only one here. Others can join from the chat.",
+  "talkcall.startingCamera": "Starting your camera and microphone…",
+  "talkcall.startingMic": "Starting your microphone…",
   "talkcall.cameraOff": "Camera is off",
   "talkcall.ended": "You left the call",
   "talkcall.joinNow": "Join now",

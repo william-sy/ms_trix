@@ -1318,3 +1318,7 @@ a.link-warn::after { content: " ⚠"; }
 .pinned-item { padding: 8px 0; border-bottom: 1px solid var(--border); }
 .pinned-body { margin: 4px 0; }
 .pinned-actions { display: flex; gap: 12px; font-size: 13px; }
+
+/* Pre-join: while the camera and microphone start. */
+.prejoin-starting { display: flex; flex-direction: column; align-items: center; gap: 12px; color: #c9ccd3; font-size: 14px; }
+.prejoin-starting .spinner { margin: 0; border-color: rgba(255, 255, 255, 0.2); border-top-color: #fff; }

@@ -46,6 +46,8 @@ export interface TalkCallState {
   account: string;
   /** "prejoin": preview and device check before actually joining (like Teams). */
   phase: "prejoin" | "joining" | "connected" | "ended";
+  /** The microphone (and camera) are being opened: the first time can take seconds. */
+  starting?: "audio" | "video";
   peers: TalkPeerView[];
   local?: MediaStream;
   screen?: MediaStream;
@@ -166,24 +168,26 @@ export class TalkCall {
 
   private async openPreview(video: boolean, micId?: string | null, cameraId?: string | null) {
     if (this.closed || this.state.phase === "connected") return;
+    const asked = performance.now();
     try {
       this.selfMeter?.();
       this.state.local?.getTracks().forEach((t) => t.stop());
+      this.set({ starting: video ? "video" : "audio" });
       // The preview shows the plain camera at once; the background follows when it's ready.
       const local = await openMedia(video, micId, cameraId, false);
       local.getAudioTracks().forEach((t) => (t.enabled = !this.state.muted));
       local.getAudioTracks().forEach(watchMic);
       this.selfMeter = speakingMeter(local, (speakingSelf) => this.set({ speakingSelf }));
-      this.set({ local, cameraOn: local.getVideoTracks().length > 0 });
-      // In the log, for "the camera is slow": milliseconds since this call's page opened.
-      log(`camera ready after ${Math.round(performance.now())} ms`);
+      this.set({ local, cameraOn: local.getVideoTracks().length > 0, starting: undefined });
+      // In the log, for "the camera is slow": how long the devices took, and since the page opened.
+      log(`${local.getVideoTracks().length ? "camera" : "microphone"} ready after ${Math.round(performance.now() - asked)} ms (page open ${Math.round(performance.now())} ms)`);
       this.effectReady = switchEffect(local, [], currentEffect()).then((changed) => {
         if (changed) this.set({ local });
         if (changed) log(`background ready after ${Math.round(performance.now())} ms`);
       }, () => {});
     } catch (e) {
       log(`couldn't open the microphone or camera: ${String(e)}`);
-      this.set({ error: String(e) });
+      this.set({ error: String(e), starting: undefined });
     }
   }
 

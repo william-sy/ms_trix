@@ -3,7 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { backend } from "./backend";
 import { warmUpEffects } from "./cameraEffects";
 import { t } from "./i18n";
-import { setCallsInOwnWindow, useTalkCallEngine, type CallWindowParams } from "./talkCalls";
+import { callLog as log, setCallsInOwnWindow, useTalkCallEngine, type CallWindowParams } from "./talkCalls";
 import { TalkCallScreen } from "./TalkCallScreen";
 import type { Conversation } from "./types";
 
@@ -16,9 +16,6 @@ export const isCallWindow = location.hash.startsWith(PREFIX);
 
 // See-through around the minimised card in the corner of the app.
 if (isCallWindow) document.documentElement.classList.add("call-page");
-// This page is a process of its own: the background's person detection loads here right away,
-// side by side with the camera, instead of after it.
-if (isCallWindow) warmUpEffects();
 
 function params(): CallWindowParams | null {
   try { return JSON.parse(decodeURIComponent(location.hash.slice(PREFIX.length).replace(/\+/g, " "))); } catch { return null; }
@@ -50,10 +47,12 @@ export function CallWindow() {
   }, []);
 
   // Started a moment after mounting: in development React mounts, unmounts and mounts again,
-  // and that unmount would end a call started right away (and close this webview).
+  // and that unmount would end a call started right away (and close this webview). The
+  // background's person detection loads side by side with the camera, once the screen is shown.
   useEffect(() => {
     if (!p) return;
-    const timer = window.setTimeout(() => calls.start(p.conversation, p.video, p.silent), 0);
+    log(`call page shown after ${Math.round(performance.now())} ms`);
+    const timer = window.setTimeout(() => { calls.start(p.conversation, p.video, p.silent); warmUpEffects(); }, 0);
     return () => window.clearTimeout(timer);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 

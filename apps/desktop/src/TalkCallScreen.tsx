@@ -378,7 +378,10 @@ function PreJoin({ calls, name, onPopOut }: { calls: TalkCalls; name: string; on
         {onPopOut && <button className="icon-btn" title={t("call.ownWindow")} onClick={onPopOut}><NewWindowIcon /></button>}</header>
       <div className="prejoin-body">
         <div className={`prejoin-preview ${call.speakingSelf && !call.muted ? "speaking" : ""}`}>
-          {hasCamera && call.cameraOn ? <Video key={call.local?.getVideoTracks()[0]?.id} stream={call.local} muted mirror className="talk-tile-video" /> : <span className="muted">{t("talkcall.cameraOff")}</span>}
+          {call.starting ? (
+            // The first time (after a restart or sleep) the camera can take a few seconds.
+            <span className="prejoin-starting"><i className="spinner" />{t(call.starting === "video" ? "talkcall.startingCamera" : "talkcall.startingMic")}</span>
+          ) : hasCamera && call.cameraOn ? <Video key={call.local?.getVideoTracks()[0]?.id} stream={call.local} muted mirror className="talk-tile-video" /> : <span className="muted">{t("talkcall.cameraOff")}</span>}
         </div>
         <div className="prejoin-side">
           {/* The device in use (saved in Settings, or the system's) until another is picked. */}
