@@ -69,51 +69,78 @@
 - [x] Pinned messages (Matrix; Talk 23+), Talk threads (Talk 22+), pictures sent together in one
       bubble, notes search in the text, Home/End, a loading screen and camera warm-up for calls
 
-1.6 (planned 2026-11-22; theme: easy to get and keep, and usable by everyone):
-- [ ] Releases and auto-update: a tag builds a GitHub Release with its notes and the installers;
-      the app checks for updates and installs them (Tauri updater with our own update key, free,
-      separate from OS code signing), "Update available" with what's new, Settings → About shows
-      the version with Check now. After the first install, nobody needs the quarantine command again
-- [ ] Accessibility (screen readers and keyboard): a label on every icon button; the message list
-      as a list, new messages announced; arrow keys through messages, F6 between panes; focus kept
-      in dialogs and given back after; "reduce motion" respected (moving backgrounds, fades);
-      contrast of both themes checked; tested with VoiceOver (and NVDA on Windows if possible).
-      High contrast: a light and a dark high-contrast theme (strong borders, no faint grey text, no
-      see-through surfaces), switched on by macOS "Increase contrast" (prefers-contrast) and
-      Windows contrast themes (forced-colors, system colours); an extra-large text size with the
-      layout holding up; a clear focus outline for keyboard use
-- [ ] Files in the rail (Nextcloud, like OneDrive in Teams): folders, recent files and search;
-      upload by drag and drop; open, download, share a link or into a chat; documents open in
-      Nextcloud Office
-- [ ] Saved messages and "remind me about this": Save in a message's ⋯ menu, a Saved list; Matrix in
-      your account data (syncs between your own devices), Talk through its reminder API
-- [ ] Status from your calendar: busy ("In a meeting") during meetings; out of office from
-      Nextcloud's absence setting (Nextcloud 28+), shown on profiles
-- [ ] Links to chats (idea 2026-11-22; clicking room links works already): typing # suggests your
-      chats after a letter or two, picking one inserts a link shown as the chat's name (Matrix:
-      matrix.to, a pill in Element and Element X too, others are offered to join; Talk: the
-      conversation link on the same Nextcloud, a card in Talk). No pick: it stays a #hashtag. Room
-      links show as a pill with name and picture for chats you know. "Copy link to this chat" in
-      the chat header for both. Only chats of the same platform are suggested
-- To test (from 1.5 and before): emoji verification with a colleague; a silent call started from
-  Talk; replying with a file in Talk; Talk group calls and screen sharing at SURF; whether SURF's
-  Talk has threads (22+) and pinning (23+); Talk 1:1 call sound (the log's sound check); away
-  status on Windows and Linux; signing in through the browser on a server that offers it
+To do, from low to high effort (ordered 2026-11-22; the 1.6 plan and the later ideas together,
+plus the open items further down). S: a few hours, M: a day or two, L: several days, XL: weeks.
+1.6 ("easy to get and keep, and usable by everyone") takes from the top.
+1. [ ] S. "Copy link to this chat" in the chat header ⋯ menu: Matrix a matrix.to link (the room's
+       address if it has one, else its id with the server), Talk the conversation link
+2. [ ] S. Devices for Talk accounts: Nextcloud has no API to list app passwords, so a button that
+       opens Nextcloud's Security settings (where they're listed and revoked)
+3. [ ] S. Translate a message through your own Nextcloud, only when it has a translation provider
+       (message ⋯ menu; the translation shows under the original)
+4. [ ] S–M. Status from your calendar: busy ("In a meeting") while a meeting runs, from the
+       calendar the reminders already read, the same busy as do not disturb; out of office from
+       Nextcloud's absence setting (Nextcloud 28+), shown on profiles. Check first whether SURF's
+       Nextcloud already sets "In a meeting" itself (then only Matrix needs it)
+5. [ ] M. High contrast and motion (the visual half of accessibility): a light and a dark
+       high-contrast theme (strong borders, no faint grey text, no see-through surfaces), switched
+       on by macOS "Increase contrast" (prefers-contrast) and Windows contrast themes
+       (forced-colors, system colours); "reduce motion" respected (moving backgrounds, effects,
+       fades); an extra-large text size with the layout holding up; a clear focus outline for
+       keyboard use; contrast of both normal themes checked
+6. [ ] M. Releases and auto-update: a tag builds a GitHub Release with its notes and the
+       installers; the app checks for updates and installs them (Tauri updater with our own update
+       key, free, separate from OS code signing; the key goes into one GitHub secret), "Update
+       available" with what's new, Settings → About shows the version with Check now. After the
+       first install, nobody needs the quarantine command again
+7. [ ] M. Export a chat (HTML / text): pages back through the whole history (as jumping to old
+       messages does), saved where you choose; pictures and files beside it, or left out
+8. [ ] M. Links to chats (clicking room links works already): typing # suggests your chats after a
+       letter or two (like @mentions), picking one inserts a link shown as the chat's name (Matrix:
+       matrix.to, a pill in Element and Element X too, others are offered to join; Talk: the
+       conversation link on the same Nextcloud, a card in Talk). No pick: it stays a #hashtag. Room
+       links show as a pill with name and picture for chats you know. Only chats of the same
+       platform are suggested
+9. [ ] M. Saved messages and "remind me about this": Save in a message's ⋯ menu, a Saved list;
+       Matrix in your account data (syncs between your own devices), reminders by the app (like
+       send later); Talk through its own reminder API (so Talk's other clients remind you too)
+10. [ ] M. Phishing check against a downloaded list of known phishing sites (OpenPhish), only if
+       the built-in checks turn out too limited
+11. [ ] M. Calendar on other CalDAV servers (discovery, sign-in; the views and meetings exist)
+12. [ ] L. Files in the rail (Nextcloud, like OneDrive in Teams): folders (browsing exists for the
+       📎 menu), recent files and search; upload by drag and drop; open, download, share a link or
+       into a chat; documents open in Nextcloud Office
+13. [ ] L. Accessibility for screen readers and keyboard: a label on every icon button (about 440
+       buttons, a third have a tooltip now); the message list as a list, new messages announced;
+       arrow keys through messages, F6 between panes; focus kept in dialogs and given back after;
+       tested with VoiceOver (and NVDA on Windows if possible)
+14. [ ] L. Pop out a chat into its own window (chats live in the main window now; the second window
+       needs its own copy kept in step)
+15. [ ] L. Matrix 1:1 calls in their own window (signalling lives in the main window; needs a
+       hand-over, as Talk calls have)
+16. [ ] L. Tabs in chats: Matrix room widgets (a website, a shared notepad, a dashboard) as tabs that
+       sync with Element, "Add website tab"; for Talk a linked note or a Nextcloud Deck board
+17. [ ] L. Mini games, not during calls; our own designs. Matrix: two players in a direct chat with
+       moves as our own (encrypted, invisible) event type, only the invite and result as normal
+       messages; both need ms_trix (a room widget would make it playable in Element Desktop/Web too).
+       Talk: not for two players (every move would be a visible chat line). Single-player puzzles
+       work for everyone. L for the first game with its frame, each next one smaller
+18. [ ] S per language. More languages: quick to translate, but each needs someone who speaks it to
+       check the result
+19. [ ] XL. Calendar on Exchange / Microsoft 365 (EWS or Graph, admin approval like Teams)
+20. [ ] XL. Email add-on (see "Beyond")
+21. [ ] XL each. Zulip and Mattermost (own lists below)
+22. [ ] XL. Mobile (Tauri mobile or UniFFI)
 
-Later (ideas 2026-11-21):
-- [ ] Tabs in chats: Matrix room widgets (a website, a shared notepad, a dashboard) as tabs that sync
-      with Element, "Add website tab"; for Talk a linked note or a Nextcloud Deck board
-- [ ] Mini games, not during calls; our own designs. Matrix: two players in a direct chat with
-      moves as our own (encrypted, invisible) event type, only the invite and result as normal
-      messages; both need ms_trix (a room widget would make it playable in Element Desktop/Web too).
-      Talk: not for two players (every move would be a visible chat line). Single-player puzzles
-      work for everyone
-- [ ] Translate a message through your own Nextcloud (if it has a translation provider)
-- [ ] Pop out a chat into its own window
-- [ ] Export a chat (HTML / text)
+To test (from 1.5 and before): emoji verification with a colleague; a silent call started from
+Talk; replying with a file in Talk; Talk group calls and screen sharing at SURF; whether SURF's
+Talk has threads (22+) and pinning (23+); Talk 1:1 call sound (the log's sound check); away status
+on Windows and Linux; signing in through the browser on a server that offers it.
 
 Waiting on others: Matrix group calls and calls with Element X users (MatrixRTC: needs LiveKit
-on matrix.surf.nl), OS code signing (certificates), Talk typing (skipped: see Talk follow-ups).
+on matrix.surf.nl), OS code signing (certificates; also clicking a notification to open the chat),
+Talk call recording (needs the recording server), status messages other clients show (Matrix
+extended profile fields), Talk typing (skipped: see Talk follow-ups).
 
 Ordered by what makes ms_trix usable as a daily driver first. Anything not
 built yet is visibly disabled in the UI with a "coming soon" tooltip.
