@@ -123,6 +123,20 @@ pub struct Profile {
     pub shared: Vec<String>,
     /// We hide their messages and invites (Matrix ignore list).
     pub ignored: bool,
+    /// They're out of office now (Nextcloud's absence setting).
+    pub absence: Option<Absence>,
+}
+
+/// An out of office notice.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Absence {
+    /// When it ends, Unix milliseconds.
+    pub until: Option<i64>,
+    pub short_message: String,
+    pub message: String,
+    /// Who to ask instead.
+    pub replacement: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -597,6 +611,15 @@ pub enum Presence {
     Busy,
     Away,
     Offline,
+}
+
+/// A message translated by the account's server.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Translation {
+    pub text: String,
+    /// The language it was in ("nl"), when the server says.
+    pub from: Option<String>,
 }
 
 /// A file or folder in the account's cloud storage (Nextcloud Files).

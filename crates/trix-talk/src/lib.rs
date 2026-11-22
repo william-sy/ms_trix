@@ -157,7 +157,21 @@ pub struct TalkAdapter {
     wake: Arc<tokio::sync::Notify>,
     /// Talk's features on this server (capabilities), once asked.
     features: Mutex<Option<Vec<String>>>,
+    /// How this Nextcloud translates, once asked.
+    translator: Mutex<Option<Translator>>,
 }
+
+/// How a Nextcloud translates text.
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Translator {
+    /// Its translation API (Nextcloud 26+), answers at once.
+    Direct,
+    /// A Task Processing task (Nextcloud 30+; also language models): asked, then waited for.
+    Task,
+    None,
+}
+
+const TRANSLATE_TASK: &str = "core:text2text:translate";
 
 /// Sign in through the browser (Login Flow v2). `open_url` opens the sign-in page.
 pub async fn login(server: &str, open_url: Box<dyn FnOnce(String) -> Result<()> + Send>) -> Result<(Arc<TalkAdapter>, Vec<u8>)> {
@@ -222,7 +236,7 @@ fn placeholder_account(id: AccountId, session: &Session) -> Account {
 
 impl TalkAdapter {
     fn new(account: Account, session: Session) -> Self {
-        Self { account: Mutex::new(account), session, http: client(), state: Default::default(), task: Mutex::new(None), watch_task: Mutex::new(None), dav_user: Mutex::new(None), wake: Default::default(), features: Mutex::new(None) }
+        Self { account: Mutex::new(account), session, http: client(), state: Default::default(), task: Mutex::new(None), watch_task: Mutex::new(None), dav_user: Mutex::new(None), wake: Default::default(), features: Mutex::new(None), translator: Mutex::new(None) }
     }
 
     pub fn restore(account: Account, blob: &[u8]) -> Result<Arc<Self>> {
@@ -240,6 +254,47 @@ impl TalkAdapter {
         let found = features.iter().any(|f| f == name);
         *self.features.lock().unwrap() = Some(features);
         found
+    }
+
+    async fn translator(&self) -> Result<Translator> {
+        if let Some(found) = *self.translator.lock().unwrap() {
+            return Ok(found);
+        }
+        // Not remembered when the server couldn't be asked (offline): asked again next time.
+        let direct = match self.ocs(self.request(Method::GET, "/ocs/v2.php/translation/languages")).await {
+            Err(e @ (AdapterError::Network(_) | AdapterError::Auth(_))) => return Err(e),
+            other => other.ok().flatten(),
+        };
+        let found = if direct.is_some_and(|(d, _)| d["languages"].as_array().is_some_and(|l| !l.is_empty())) {
+            Translator::Direct
+        } else {
+            let types = self.ocs(self.request(Method::GET, "/ocs/v2.php/taskprocessing/tasktypes")).await.ok().flatten();
+            if types.is_some_and(|(d, _)| d["types"].get(TRANSLATE_TASK).is_some()) { Translator::Task } else { Translator::None }
+        };
+        *self.translator.lock().unwrap() = Some(found);
+        Ok(found)
+    }
+
+    /// Through Task Processing: the task is started, then asked after until it's done.
+    async fn translate_task(&self, text: &str, to: &str) -> Result<Translation> {
+        let body = serde_json::json!({
+            "type": TRANSLATE_TASK,
+            "appId": "spreed",
+            "input": { "input": text, "origin_language": "detect_language", "target_language": to },
+        });
+        let (data, _) = self.ocs(self.request(Method::POST, "/ocs/v2.php/taskprocessing/schedule").json(&body)).await?.ok_or_else(|| err("no answer"))?;
+        let id = data["task"]["id"].as_u64().ok_or_else(|| err("the server started no translation"))?;
+        // Language models can take a while.
+        for _ in 0..120 {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            let Some((data, _)) = self.ocs(self.request(Method::GET, &format!("/ocs/v2.php/taskprocessing/task/{id}"))).await? else { continue };
+            match data["task"]["status"].as_str() {
+                Some("STATUS_SUCCESSFUL") => return Ok(Translation { text: data["task"]["output"]["output"].as_str().unwrap_or_default().to_owned(), from: None }),
+                Some("STATUS_FAILED" | "STATUS_CANCELLED") => return Err(err(data["task"]["errorMessage"].as_str().unwrap_or("the translation failed"))),
+                _ => {}
+            }
+        }
+        Err(err("the translation took too long"))
     }
 
     /// Uploads to our "Talk" folder, then shares it into the conversation (with its caption, and
@@ -776,6 +831,11 @@ impl ProtocolAdapter for TalkAdapter {
 
     fn home_server(&self) -> Option<String> {
         Some(host(&self.session.server))
+    }
+
+    /// Nextcloud has no API for the list of app passwords; its Security settings show and revoke them.
+    fn security_page(&self) -> Option<String> {
+        Some(format!("{}/index.php/settings/user/security", self.session.server))
     }
 
     async fn start(&self) -> Result<BoxStream<'static, AdapterEvent>> {
@@ -1431,8 +1491,19 @@ impl ProtocolAdapter for TalkAdapter {
 
     async fn profile(&self, user_id: &str) -> Result<Profile> {
         let encoded = percent_encoding::utf8_percent_encode(user_id, percent_encoding::NON_ALPHANUMERIC);
-        let data = self.ocs(self.request(Method::GET, &format!("/ocs/v2.php/cloud/users/{encoded}"))).await.ok().flatten().map(|(d, _)| d).unwrap_or(Value::Null);
+        let user = self.ocs(self.request(Method::GET, &format!("/ocs/v2.php/cloud/users/{encoded}")));
+        // Out of office (Nextcloud 28+): "not found" when they aren't.
+        let away = self.ocs(self.request(Method::GET, &format!("/ocs/v2.php/apps/dav/api/v1/outOfOffice/{encoded}/now")));
+        let (user, away) = futures::join!(user, away);
+        let data = user.ok().flatten().map(|(d, _)| d).unwrap_or(Value::Null);
+        let absence = away.ok().flatten().map(|(a, _)| Absence {
+            until: a["endDate"].as_i64().map(|s| s * 1000),
+            short_message: a["shortMessage"].as_str().unwrap_or_default().to_owned(),
+            message: a["message"].as_str().unwrap_or_default().to_owned(),
+            replacement: a["replacementUserDisplayName"].as_str().or(a["replacementUserId"].as_str()).filter(|r| !r.is_empty()).map(ToOwned::to_owned),
+        });
         Ok(Profile {
+            absence,
             name: data["displayname"].as_str().unwrap_or(user_id).to_owned(),
             avatar: Some(format!("user:{user_id}")),
             user_id: user_id.to_owned(),
@@ -1540,6 +1611,30 @@ impl ProtocolAdapter for TalkAdapter {
 
     fn wake(&self) {
         self.wake.notify_one();
+    }
+
+    async fn can_translate(&self) -> Result<bool> {
+        Ok(self.translator().await? != Translator::None)
+    }
+
+    async fn translate(&self, text: &str, to: &str) -> Result<Translation> {
+        match self.translator().await? {
+            Translator::Direct => {
+                // Without a source language: the server detects it.
+                let request = self.request(Method::POST, "/ocs/v2.php/translation/translate").form(&[("text", text), ("toLanguage", to)]);
+                let response = request.send().await.map_err(net)?;
+                let status = response.status();
+                let body: Value = response.json().await.unwrap_or(Value::Null);
+                let data = &body["ocs"]["data"];
+                if !status.is_success() {
+                    // Nextcloud words these itself, in the user's language.
+                    return Err(err(data["message"].as_str().filter(|m| !m.is_empty()).map(ToOwned::to_owned).unwrap_or_else(|| status.to_string())));
+                }
+                Ok(Translation { text: data["text"].as_str().unwrap_or_default().to_owned(), from: data["from"].as_str().map(ToOwned::to_owned) })
+            }
+            Translator::Task => self.translate_task(text, to).await,
+            Translator::None => Err(AdapterError::Unsupported("translation")),
+        }
     }
 
     async fn notes(&self, with_content: bool) -> Result<Vec<Note>> {

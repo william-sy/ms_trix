@@ -33,6 +33,7 @@ import { summarize } from "./roomEvents";
 import { capabilities } from "./mock";
 import { useEscape } from "./hooks";
 import { PinnedBar, PinnedDialog, usePinned } from "./Pinned";
+import { TranslationLine, useTranslation } from "./Translate";
 
 interface Props {
   conv: Conversation;
@@ -84,6 +85,7 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
     return () => window.removeEventListener("click", close);
   }, [headMenu]);
   const setLevel = (level: string) => backend.setNotificationLevel(conv.id, level).catch((e) => onNotice(String(e)));
+  const copyLink = () => backend.conversationLink(conv.id).then((link) => navigator.clipboard.writeText(link)).then(() => onNotice(t("talk.linkCopied")), (e) => onNotice(String(e)));
   const getMembers = useMemo(() => (isLive ? () => backend.members(conv.id) : undefined), [conv.id]);
   const org = useOrg(conv.orgId);
   // Calls open the protocol's own call screen in a separate window (Talk for now).
@@ -414,6 +416,7 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
               <div className="menu head-menu right" onClick={(e) => e.stopPropagation()}>
                 {conv.dmUser && <button className="menu-item" onClick={(e) => { setHeadMenu(false); openProfile(conv.orgId, conv.dmUser!, { x: e.clientX - 300, y: e.clientY }); }}>{t("chatView.menu.viewProfile")}</button>}
                 <button className="menu-item" onClick={() => { setHeadMenu(false); setThreadId(null); setThreadsOpen(false); setPanel(true); }}>{conv.kind === "direct" ? t("chatView.menu.people") : t("chatView.menu.info")}</button>
+                {isLive && !conv.invitedBy && <button className="menu-item" onClick={() => { setHeadMenu(false); void copyLink(); }}>{t("chatView.menu.copyLink")}</button>}
                 {canCall && <button className="menu-item" onClick={() => { setHeadMenu(false); openCall(); }}>{t("talkcall.openInTalk")}</button>}
                 <div className="menu-sep" />
                 <div className="menu-title">{t("chatView.menu.notifications")}</div>
@@ -742,6 +745,8 @@ function MessageItem({ m, account, conversation, grouped, lastInRun = true, quot
   const visual = m.media?.kind === "image" || m.media?.kind === "sticker";
   const previewUrl = useMemo(() => (m.deleted || m.media || m.poll ? undefined : previewLink(m.body, m.html)), [m.deleted, m.media, m.poll, m.body, m.html]);
   const openProfile = useOpenProfile();
+  const { translate, translation, hide: hideTranslation } = useTranslation(account);
+  const translatable = m.poll ? "" : gallery && gallery.length > 1 ? gallery[gallery.length - 1]!.media?.caption : m.media ? m.media.caption : m.body;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [popup, setPopup] = useState<"emoji" | "more" | null>(null);
@@ -845,6 +850,7 @@ function MessageItem({ m, account, conversation, grouped, lastInRun = true, quot
                     <RichText body={m.body} html={m.html} account={account} query={query} sent={m.ts} />
                     {previewUrl && <LinkPreview url={previewUrl} />}
                   </>}
+              {translation && !m.deleted && <TranslationLine translation={translation} account={account} onHide={hideTranslation} />}
               {m.edited && !m.deleted && <span className="edited" title={t("message.editedTitle")}>{t("message.edited")}</span>}
               {pinned && <span className="pinned-mark" title={t("pins.pinned")}>📌</span>}
               {tick && tick !== "failed" && <span className={`msg-tick ${tick}`} title={t(`message.tick.${tick}`)}>{tick === "sending" ? "⏱" : tick === "seen" ? "✓✓" : "✓"}</span>}
@@ -877,6 +883,7 @@ function MessageItem({ m, account, conversation, grouped, lastInRun = true, quot
                     {onForward && !m.poll && <button className="menu-item" onClick={() => { setPopup(null); onForward(); }}>{t("forward.action")}</button>}
                     {onPin && <button className="menu-item" onClick={() => { setPopup(null); onPin(); }}>{pinned ? t("pins.unpin") : t("pins.pin")}</button>}
                     {!m.media && <button className="menu-item" onClick={() => { navigator.clipboard.writeText(m.body).catch(() => {}); setPopup(null); }}>{t("message.copy")}</button>}
+                    {translate && translatable?.trim() && <button className="menu-item" onClick={() => { setPopup(null); translate(translatable); }}>{t("translate.action")}</button>}
                     {onStatus && <button className="menu-item" onClick={() => { setPopup(null); onStatus(); }}>{t("status.title")}</button>}
                     {canDelete && <button className="menu-item danger" onClick={() => { setPopup(null); onDelete?.(); }}>{t("message.delete")}</button>}
                   </div>

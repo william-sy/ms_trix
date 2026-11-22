@@ -1387,6 +1387,22 @@ fn home_server(state: State<AppState>, account: String) -> CmdResult<Option<Stri
 }
 
 #[tauri::command]
+async fn can_translate(state: State<'_, AppState>, account: String) -> CmdResult<bool> {
+    adapter_for(&state, &account)?.can_translate().await.map_err(|e| e.to_string())
+}
+
+/// A message's text in the language `to`, translated by the account's Nextcloud.
+#[tauri::command]
+async fn translate(state: State<'_, AppState>, account: String, text: String, to: String) -> CmdResult<trix_core::Translation> {
+    adapter_for(&state, &account)?.translate(&text, &to).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn security_page(state: State<AppState>, account: String) -> CmdResult<Option<String>> {
+    Ok(adapter_for(&state, &account)?.security_page())
+}
+
+#[tauri::command]
 async fn profile(state: State<'_, AppState>, account: String, user_id: String) -> CmdResult<Profile> {
     adapter_for(&state, &account)?.profile(&user_id).await.map_err(|e| e.to_string())
 }
@@ -2486,6 +2502,9 @@ pub fn run() {
             respond_event,
             notify,
             conversation_link,
+            security_page,
+            can_translate,
+            translate,
             call_api,
             log_ui,
             edit_message,

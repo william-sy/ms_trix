@@ -318,6 +318,10 @@ pub trait ProtocolAdapter: Send + Sync {
         Err(AdapterError::Unsupported("changing your picture"))
     }
     /// Signed-in sessions of this account.
+    /// The server's own page for sessions and app passwords, where `devices` isn't supported.
+    fn security_page(&self) -> Option<String> {
+        None
+    }
     async fn devices(&self) -> Result<Vec<DeviceInfo>> {
         Err(AdapterError::Unsupported("sessions"))
     }
@@ -441,6 +445,14 @@ pub trait ProtocolAdapter: Send + Sync {
     /// "calendar" or "notes").
     async fn cloud_apps(&self) -> Result<Vec<String>> {
         Err(AdapterError::Unsupported("apps"))
+    }
+    /// Whether this account's server translates text (Nextcloud with a translation provider).
+    async fn can_translate(&self) -> Result<bool> {
+        Ok(false)
+    }
+    /// `text` in the language `to` ("en"), the language it was in detected by the server.
+    async fn translate(&self, _text: &str, _to: &str) -> Result<Translation> {
+        Err(AdapterError::Unsupported("translation"))
     }
     /// Notes (Nextcloud Notes), with their text or (quicker) without; Unsupported where the server
     /// has no Notes app.

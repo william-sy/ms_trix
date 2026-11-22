@@ -155,6 +155,8 @@ export interface Profile {
   verified: boolean | null;
   shared: string[];
   ignored: boolean;
+  /** Out of office now (Nextcloud). */
+  absence: { until: number | null; shortMessage: string; message: string; replacement: string | null } | null;
 }
 
 export interface RoomDetails {
@@ -588,6 +590,9 @@ export const backend = {
     invoke<DirectoryRoom[]>("directory", { account, server: server || null, term, spaces }),
   spaceRooms: (account: string, space: string) => invoke<DirectoryRoom[]>("space_rooms", { account, space }),
   homeServer: (account: string) => invoke<string | null>("home_server", { account }),
+  securityPage: (account: string) => invoke<string | null>("security_page", { account }),
+  canTranslate: (account: string) => invoke<boolean>("can_translate", { account }),
+  translate: (account: string, text: string, to: string) => invoke<{ text: string; from: string | null }>("translate", { account, text, to }),
   toggleReaction: (key: string, target: string, emoji: string) => invoke<void>("toggle_reaction", { key, target, emoji }),
   editMessage: (key: string, target: string, text: string) => invoke<void>("edit_message", { key, target, text }),
   deleteMessage: (key: string, target: string) => invoke<void>("delete_message", { key, target }),

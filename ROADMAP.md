@@ -52,8 +52,6 @@
 - [x] Nextcloud Notes (rail → Notes, for Nextcloud accounts with the Notes app): list by category
       with favourites and search, Markdown editor with preview, saves as you type; a change made
       elsewhere in between isn't overwritten (keep mine / load theirs)
-- [ ] Phishing check against a downloaded list of known phishing sites (e.g. OpenPhish), checked
-      locally, if the built-in checks turn out too limited
 
 1.4 (released 2026-11-19): fixes (see RELEASE_NOTES.md).
 
@@ -72,16 +70,15 @@
 To do, from low to high effort (ordered 2026-11-22; the 1.6 plan and the later ideas together,
 plus the open items further down). S: a few hours, M: a day or two, L: several days, XL: weeks.
 1.6 ("easy to get and keep, and usable by everyone") takes from the top.
-1. [ ] S. "Copy link to this chat" in the chat header ⋯ menu: Matrix a matrix.to link (the room's
-       address if it has one, else its id with the server), Talk the conversation link
-2. [ ] S. Devices for Talk accounts: Nextcloud has no API to list app passwords, so a button that
-       opens Nextcloud's Security settings (where they're listed and revoked)
-3. [ ] S. Translate a message through your own Nextcloud, only when it has a translation provider
-       (message ⋯ menu; the translation shows under the original)
-4. [ ] S–M. Status from your calendar: busy ("In a meeting") while a meeting runs, from the
-       calendar the reminders already read, the same busy as do not disturb; out of office from
-       Nextcloud's absence setting (Nextcloud 28+), shown on profiles. Check first whether SURF's
-       Nextcloud already sets "In a meeting" itself (then only Matrix needs it)
+1. [x] S. "Copy link to this chat" in the chat header ⋯ menu (Matrix matrix.to, Talk the
+       conversation link, ntfy the topic page) (2026-11-22)
+2. [x] S. Devices for Talk accounts: a button to Nextcloud's Security settings (no API for the list
+       of app passwords) (2026-11-22)
+3. [x] S. Translate a message through your own Nextcloud (translation API, or Task Processing on
+       Nextcloud 30+), Matrix messages too through a Nextcloud account (2026-11-22)
+4. [x] S–M. Status from your calendar: Matrix accounts busy, "In a meeting until …", while you're
+       available (setting, on by default); Nextcloud does it for Talk itself. Out of office on
+       Talk profile cards (Nextcloud 28+) (2026-11-22)
 5. [ ] M. High contrast and motion (the visual half of accessibility): a light and a dark
        high-contrast theme (strong borders, no faint grey text, no see-through surfaces), switched
        on by macOS "Increase contrast" (prefers-contrast) and Windows contrast themes
@@ -93,45 +90,43 @@ plus the open items further down). S: a few hours, M: a day or two, L: several d
        key, free, separate from OS code signing; the key goes into one GitHub secret), "Update
        available" with what's new, Settings → About shows the version with Check now. After the
        first install, nobody needs the quarantine command again
-7. [ ] M. Export a chat (HTML / text): pages back through the whole history (as jumping to old
-       messages does), saved where you choose; pictures and files beside it, or left out
-8. [ ] M. Links to chats (clicking room links works already): typing # suggests your chats after a
+7. [ ] M. Links to chats (clicking room links works already): typing # suggests your chats after a
        letter or two (like @mentions), picking one inserts a link shown as the chat's name (Matrix:
        matrix.to, a pill in Element and Element X too, others are offered to join; Talk: the
        conversation link on the same Nextcloud, a card in Talk). No pick: it stays a #hashtag. Room
        links show as a pill with name and picture for chats you know. Only chats of the same
        platform are suggested
-9. [ ] M. Saved messages and "remind me about this": Save in a message's ⋯ menu, a Saved list;
+8. [ ] M. Saved messages and "remind me about this": Save in a message's ⋯ menu, a Saved list;
        Matrix in your account data (syncs between your own devices), reminders by the app (like
        send later); Talk through its own reminder API (so Talk's other clients remind you too)
-10. [ ] M. Phishing check against a downloaded list of known phishing sites (OpenPhish), only if
-       the built-in checks turn out too limited
-11. [ ] M. Calendar on other CalDAV servers (discovery, sign-in; the views and meetings exist)
-12. [ ] L. Files in the rail (Nextcloud, like OneDrive in Teams): folders (browsing exists for the
+9. [ ] L. Files in the rail (Nextcloud, like OneDrive in Teams): folders (browsing exists for the
        📎 menu), recent files and search; upload by drag and drop; open, download, share a link or
        into a chat; documents open in Nextcloud Office
-13. [ ] L. Accessibility for screen readers and keyboard: a label on every icon button (about 440
+10. [ ] L. Accessibility for screen readers and keyboard: a label on every icon button (about 440
        buttons, a third have a tooltip now); the message list as a list, new messages announced;
        arrow keys through messages, F6 between panes; focus kept in dialogs and given back after;
        tested with VoiceOver (and NVDA on Windows if possible)
-14. [ ] L. Pop out a chat into its own window (chats live in the main window now; the second window
-       needs its own copy kept in step)
-15. [ ] L. Matrix 1:1 calls in their own window (signalling lives in the main window; needs a
+11. [ ] L. Matrix 1:1 calls in their own window (signalling lives in the main window; needs a
        hand-over, as Talk calls have)
-16. [ ] L. Tabs in chats: Matrix room widgets (a website, a shared notepad, a dashboard) as tabs that
+12. [ ] L. Tabs in chats: Matrix room widgets (a website, a shared notepad, a dashboard) as tabs that
        sync with Element, "Add website tab"; for Talk a linked note or a Nextcloud Deck board
-17. [ ] L. Mini games, not during calls; our own designs. Matrix: two players in a direct chat with
+13. [ ] L. Mini games, not during calls; our own designs. Matrix: two players in a direct chat with
        moves as our own (encrypted, invisible) event type, only the invite and result as normal
        messages; both need ms_trix (a room widget would make it playable in Element Desktop/Web too).
        Talk: not for two players (every move would be a visible chat line). Single-player puzzles
        work for everyone. L for the first game with its frame, each next one smaller
-18. [ ] S per language. More languages: quick to translate, but each needs someone who speaks it to
+14. [ ] S per language. More languages: quick to translate, but each needs someone who speaks it to
        check the result
-19. [ ] XL. Calendar on Exchange / Microsoft 365 (EWS or Graph, admin approval like Teams)
-20. [ ] XL. Email add-on (see "Beyond")
-21. [ ] XL each. Zulip and Mattermost (own lists below)
-22. [ ] XL. Mobile (Tauri mobile or UniFFI)
+15. [ ] XL each. Zulip and Mattermost (own lists below)
+16. [ ] XL. Mobile (Tauri mobile or UniFFI)
 
+Dropped 2026-11-22 (not needed for now; back on the list if someone asks): export a chat,
+phishing list (OpenPhish), calendar on other CalDAV servers and on Exchange, email add-on (unread
+count and notifications, later a Mail view), pop out a chat into its own window.
+
+To test (from 1.6): Translate in a message's ⋯ menu (only shows when SURF's Nextcloud has a
+translation provider); out of office on a Talk profile card; "In a meeting" on Matrix during a
+meeting; whether SURF's Nextcloud shows "In a meeting" on Talk by itself; Copy link to this chat.
 To test (from 1.5 and before): emoji verification with a colleague; a silent call started from
 Talk; replying with a file in Talk; Talk group calls and screen sharing at SURF; whether SURF's
 Talk has threads (22+) and pinning (23+); Talk 1:1 call sound (the log's sound check); away status
@@ -264,7 +259,7 @@ built yet is visibly disabled in the UI with a "coming soon" tooltip.
 - [x] Settings window with tabs: General, Accounts, Notifications, Privacy
 - [x] Devices (Matrix): list sessions with last seen/IP and verified state, rename, sign out others
       (password, or the browser confirmation step for SSO accounts)
-- [ ] Devices: Talk app passwords
+- [x] Devices: Talk app passwords (a button to Nextcloud's Security settings; no API for the list)
 - [x] Account: change profile picture and display name (Matrix and Talk); picture cropper
       (drag + zoom, round preview), also used for room pictures
 - [ ] Account: status (see extended profile fields)
@@ -383,7 +378,6 @@ built yet is visibly disabled in the UI with a "coming soon" tooltip.
 - [x] Native OAuth login (MAS): "Sign in with your browser" when the server offers it; loopback
       redirect, dynamic client registration, refreshed tokens saved to the keychain (to be tested on
       a server with MAS)
-- [ ] Calendar via Exchange / other CalDAV servers (Nextcloud's is done)
 - [ ] Nextcloud integration:
   - [x] Talk: the open conversation gets new messages instantly (long poll, like Talk's web app);
         the rest of the list keeps its 5 s round
@@ -420,8 +414,6 @@ built yet is visibly disabled in the UI with a "coming soon" tooltip.
       builds for macOS, Windows and Linux exist since 1.0
 - [ ] Signing: Developer ID + notarisation (macOS), code signing (Windows); also unlocks clicking a
       notification to open the chat on macOS/Windows
-- [ ] Email add-on (idea): step 1 unread count + new-mail notifications + open in your mail app;
-      step 2 a Mail view (IMAP/SMTP; Microsoft 365 / Google need OAuth and may block IMAP)
 
 ## Matrix client listing (matrix.org/ecosystem/clients)
 Submit once the repo has three months of commit history (first commit 2026-11-16, so from about

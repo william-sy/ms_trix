@@ -161,6 +161,10 @@ function General({ settings, set }: Section) {
             <option value={0}>{t("settings.presence.never")}</option>
           </select>
         </label>
+        <label className="toggle-row">
+          <input type="checkbox" checked={settings.meetingStatus} onChange={(e) => set({ meetingStatus: e.target.checked })} />
+          <span>{t("settings.presence.meetings")}</span>
+        </label>
       </section>
 
       <p className="hint">{t("settings.hint")}</p>
@@ -241,10 +245,12 @@ function Sessions({ org }: { org: Org }) {
   const [devices, setDevices] = useState<DeviceInfo[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [unsupported, setUnsupported] = useState(false);
+  const [page, setPage] = useState<string | null>(null);
   const load = () =>
     backend.devices(org.id).then((d) => { setDevices(d); setError(null); }).catch((e) => {
-      if (String(e).includes("not supported")) setUnsupported(true);
-      else setError(String(e));
+      if (!String(e).includes("not supported")) return setError(String(e));
+      setUnsupported(true);
+      backend.securityPage(org.id).then(setPage, () => {});
     });
   useEffect(() => {
     if (!isLive) return;
@@ -253,7 +259,13 @@ function Sessions({ org }: { org: Org }) {
     return () => window.removeEventListener(VERIFIED_EVENT, load);
   }, [org.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (unsupported) return <p className="hint">{t("settings.sessions.unsupported")}</p>;
+  if (unsupported) return page ? (
+    <div className="sessions">
+      <h2>{t("settings.sessions.title")}</h2>
+      <p className="hint">{t("settings.sessions.onServer")}</p>
+      <button className="btn small" onClick={() => void backend.openUrl(page).catch(() => {})}>{t("settings.sessions.openServer")}</button>
+    </div>
+  ) : <p className="hint">{t("settings.sessions.unsupported")}</p>;
   return (
     <div className="sessions">
       <h2>{t("settings.sessions.title")}</h2>

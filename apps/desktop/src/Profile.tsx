@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Avatar } from "./Avatar";
 import { backend, isLive, type DeviceInfo, type Profile } from "./backend";
-import { t } from "./i18n";
+import { locale, t } from "./i18n";
 import { useOrgs } from "./store";
 import { VERIFIED_EVENT } from "./VerificationDialog";
 import type { Conversation } from "./types";
@@ -99,6 +99,7 @@ export function ProfileCard({ account, userId, at, convs, onClose, onOpen, onNot
           )}
         </div>
       </div>
+      {profile?.absence && <AbsenceNote absence={profile.absence} />}
       <div className="profile-actions">
         <button className="btn primary small" onClick={chat}>{t("profile.chat")}</button>
         <button className="btn small" onClick={() => navigator.clipboard.writeText(userId).catch(() => {})}>{t("profile.copyId")}</button>
@@ -130,6 +131,20 @@ export function ProfileCard({ account, userId, at, convs, onClose, onOpen, onNot
       )}
       {!profile && !error && <p className="muted">{t("common.loading")}</p>}
       {error && <p className="error">{error}</p>}
+    </div>
+  );
+}
+
+/** Out of office (Nextcloud): until when, their message, who to ask instead. */
+function AbsenceNote({ absence }: { absence: NonNullable<Profile["absence"]> }) {
+  // The end is the last day's end or the next day's start: a second earlier is the last day either way.
+  const last = absence.until && new Date(absence.until - 1000).toLocaleDateString(locale(), { weekday: "short", day: "numeric", month: "short" });
+  const text = absence.message || absence.shortMessage;
+  return (
+    <div className="profile-absence">
+      <b>{last ? t("profile.absentThrough", { date: last }) : t("profile.absent")}</b>
+      {text && <span className="profile-absence-text">{text}</span>}
+      {absence.replacement && <span className="muted">{t("profile.absentReplacement", { name: absence.replacement })}</span>}
     </div>
   );
 }

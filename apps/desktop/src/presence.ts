@@ -1,11 +1,13 @@
-// Own presence helpers: re-apply the remembered status after a restart, and
-// switch "available" accounts to away while the computer is idle.
+// Own presence helpers: re-apply the remembered status after a restart, switch "available"
+// accounts to away while the computer is idle, and know when you're in a meeting.
 import { useEffect, useRef, useState } from "react";
-import { backend, isLive } from "./backend";
+import { backend, CALENDAR_CHANGED, isLive } from "./backend";
+import { parseIcal, toIcalUtc } from "./CalendarPane";
 import type { PresenceState } from "./types";
 
 export const PRESENCE_KEY = "ms_trix.presence";
 const CHECK_EVERY_MS = 30_000;
+const MEETINGS_EVERY_MS = 5 * 60_000;
 
 type Chosen = Record<string, { presence: PresenceState; status?: string }>;
 
@@ -54,4 +56,51 @@ export function useAutoAway(orgIds: string[], chosen: Chosen, awayAfterMin: numb
     sent.current = affected;
   }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
   return affected;
+}
+
+/**
+ * When the meeting going on now ends (Unix ms), from the calendars of `accounts`; null between
+ * meetings. All-day events and meetings you declined or haven't answered don't count.
+ */
+export function useMeetingNow(accounts: string[]): number | null {
+  const meetings = useRef<{ start: number; end: number }[]>([]);
+  const [until, setUntil] = useState<number | null>(null);
+  const key = accounts.join("|");
+  useEffect(() => {
+    meetings.current = [];
+    const update = () => {
+      const now = Date.now();
+      const running = meetings.current.filter((m) => m.start <= now && now < m.end);
+      setUntil(running.length ? Math.max(...running.map((m) => m.end)) : null);
+    };
+    update();
+    if (!isLive || !accounts.length) return;
+    let live = true;
+    // What runs from now until the next look (and a little after).
+    const load = async () => {
+      const from = new Date(), to = new Date(from.getTime() + MEETINGS_EVERY_MS + 60_000);
+      const results = await Promise.allSettled(accounts.map((a) => backend.calendarEvents(a, toIcalUtc(from), toIcalUtc(to))));
+      // Offline: what was known stays.
+      if (!live || results.every((r) => r.status === "rejected")) return;
+      meetings.current = results.flatMap((r) => (r.status === "fulfilled" ? r.value : [])).flatMap((e) => {
+        const start = parseIcal(e.start);
+        if (start.allDay || e.myStatus === "DECLINED" || e.myStatus === "NEEDS-ACTION") return [];
+        const end = e.end ? parseIcal(e.end).date.getTime() : start.date.getTime() + 30 * 60_000;
+        return [{ start: start.date.getTime(), end }];
+      });
+      update();
+    };
+    void load();
+    const loading = window.setInterval(() => void load(), MEETINGS_EVERY_MS);
+    const ticking = window.setInterval(update, CHECK_EVERY_MS);
+    const onChange = () => void load();
+    window.addEventListener(CALENDAR_CHANGED, onChange);
+    return () => {
+      live = false;
+      window.clearInterval(loading);
+      window.clearInterval(ticking);
+      window.removeEventListener(CALENDAR_CHANGED, onChange);
+    };
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  return until;
 }

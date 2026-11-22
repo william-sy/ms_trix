@@ -14,7 +14,7 @@ import { KeyHelpContext, RecoveryDialog, SecurityBanner, needsAttention } from "
 import { TitleBar } from "./TitleBar";
 import { SettingsDialog, type SettingsTab } from "./SettingsDialog";
 import { matches } from "./shortcuts";
-import { PRESENCE_KEY, useAutoAway } from "./presence";
+import { PRESENCE_KEY, useAutoAway, useMeetingNow } from "./presence";
 import { dndActive, dndStatus, setDnd, useDnd } from "./dnd";
 import { warmUpEffects } from "./cameraEffects";
 import { applySettings, currentSettings, loadSettings, onSettingsChanged, saveSettings, type Settings } from "./settings";
@@ -44,6 +44,7 @@ import { InAppLinkContext } from "./LinkPreview";
 import { ImageCropper } from "./ImageCropper";
 import { VerificationDialog } from "./VerificationDialog";
 import { RoomLinkContext, type OpenRoomLink } from "./roomLinks";
+import { TranslatorsContext } from "./Translate";
 import { commandText, friendlyError, locale, rustTexts, t } from "./i18n";
 
 /**
@@ -125,22 +126,39 @@ export function App() {
     backend.notifyCall(name, video ? t("mxcall.incomingVideo") : t("mxcall.incomingVoice")).catch(() => {});
     if (!dndActive()) backend.requestAttention().catch(() => {});
   });
+  // Which Nextcloud accounts have Notes, and which a calendar (not every Nextcloud has them).
+  const talkIds = isLive ? state.orgs.filter((o) => o.protocol === "talk").map((o) => o.id) : [];
+  const notesAccounts = useAccountsWith(talkIds, (id) => backend.notes(id).then(() => true));
+  const calendarAccounts = useAccountsWith(talkIds, hasCalendar);
+  // Which translate messages (any chat's, Matrix too).
+  const translateAccounts = useAccountsWith(talkIds, (id) => backend.canTranslate(id));
   // Do not disturb shows you as busy everywhere (on Talk: "do not disturb"), with when it ends as
   // your status message unless you have one; when it ends, your own status comes back.
   const dnd = useDnd();
+  // A meeting in your calendar does the same on Matrix while you're available (Nextcloud sets
+  // "In a meeting" for Talk itself).
+  const meetingUntil = useMeetingNow(settings.meetingStatus ? calendarAccounts : []);
   const orgIds = state.orgs.map((o) => o.id);
+  const matrixIds = new Set(state.orgs.filter((o) => o.protocol === "matrix").map((o) => o.id));
+  const meetingStatus = meetingUntil && t("presence.inMeeting", { time: new Date(meetingUntil).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" }) });
   const shownPresence = dnd
     ? Object.fromEntries(orgIds.map((id) => [id, { presence: "busy" as PresenceState, status: ownPresence[id]?.status || dndStatus(dnd) }]))
-    : ownPresence;
-  const dndSent = useRef<number | null>(null);
+    : meetingStatus
+      ? { ...ownPresence, ...Object.fromEntries(orgIds.filter((id) => matrixIds.has(id) && (ownPresence[id]?.presence ?? "available") === "available")
+          .map((id) => [id, { presence: "busy" as PresenceState, status: ownPresence[id]?.status || meetingStatus }])) }
+      : ownPresence;
+  // Sent when do not disturb or a meeting starts or ends, only to the accounts it changes (an
+  // account just signed in gets its status from useAutoAway's restore).
+  const presenceSent = useRef<Record<string, string>>({});
   useEffect(() => {
-    if (!isLive || dndSent.current === dnd) return;
-    dndSent.current = dnd;
+    const before = presenceSent.current;
+    presenceSent.current = Object.fromEntries(orgIds.map((id) => [id, JSON.stringify(shownPresence[id] ?? null)]));
+    if (!isLive) return;
     for (const id of orgIds) {
-      const shown = shownPresence[id];
-      backend.setPresence(id, shown?.presence ?? "available", shown?.status ?? null).catch(() => {});
+      if (before[id] === undefined || before[id] === presenceSent.current[id]) continue;
+      backend.setPresence(id, shownPresence[id]?.presence ?? "available", shownPresence[id]?.status ?? null).catch(() => {});
     }
-  }, [dnd]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [dnd, meetingStatus, orgIds.join("|")]); // eslint-disable-line react-hooks/exhaustive-deps
   const autoAway = useAutoAway(orgIds, shownPresence, settings.awayAfter);
   // ntfy add-on: the core forwards notifications while it's on ("away": no input for the
   // auto-away time, or 5 minutes when auto-away is off).
@@ -668,10 +686,6 @@ export function App() {
     backend.signOut(orgId).catch((e) => setNotice(String(e)));
   };
 
-  // Which Nextcloud accounts have Notes, and which a calendar (not every Nextcloud has them).
-  const talkIds = isLive ? state.orgs.filter((o) => o.protocol === "talk").map((o) => o.id) : [];
-  const notesAccounts = useAccountsWith(talkIds, (id) => backend.notes(id).then(() => true));
-  const calendarAccounts = useAccountsWith(talkIds, hasCalendar);
 
   if (booting) return <div className="login-screen"><div className="spinner" aria-label={t("common.connecting")} /></div>;
   if (isLive && state.orgs.length === 0) return <Login onDone={() => {}} />;
@@ -702,6 +716,7 @@ export function App() {
     <HashtagContext.Provider value={setHashtag}>
     <InAppLinkContext.Provider value={openInApp}>
     <DateRefContext.Provider value={setDateRef}>
+    <TranslatorsContext.Provider value={translateAccounts}>
     <CallsContext.Provider value={calls}>
     <TalkCallsContext.Provider value={talkCalls}>
     <KeyHelpContext.Provider value={(orgId) => {
@@ -834,6 +849,7 @@ export function App() {
       )}
     </TalkCallsContext.Provider>
     </CallsContext.Provider>
+    </TranslatorsContext.Provider>
     </DateRefContext.Provider>
     </InAppLinkContext.Provider>
     </HashtagContext.Provider>

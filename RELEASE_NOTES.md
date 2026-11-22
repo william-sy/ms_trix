@@ -1,5 +1,22 @@
 # Release notes
 
+## 1.6 (not released yet)
+
+### New
+- **Copy link to this chat** (chat header ⋯): a matrix.to link for Matrix (the room's address if
+  it has one), the conversation link for Talk, the topic's page for ntfy.
+- **Translate a message** (message ⋯ → Translate) through your own Nextcloud, when it has a
+  translation provider (its translation API, or Task Processing on Nextcloud 30 and later). Works
+  for Matrix messages too, through your Nextcloud account. Into the app's language; the
+  translation shows under the message.
+- **Out of office** (Nextcloud 28 and later): a Talk user's profile card shows that they're away,
+  until when, their message and who to ask instead.
+- **In a meeting:** while a meeting in your Nextcloud calendar runs, your Matrix accounts show you
+  as busy, "In a meeting until 15:00" (only while you're available; Settings → General → Status
+  to turn it off). Nextcloud does this itself for Talk.
+- **Talk sessions:** Settings → Accounts has a button to Nextcloud's Security settings, where your
+  devices and app passwords are listed and can be revoked (Nextcloud has no API for that list).
+
 ## 1.5 (2026-11-22)
 
 ### New

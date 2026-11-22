@@ -46,6 +46,8 @@ export interface Settings {
   spellCheck: boolean;
   /** Minutes without input before "available" shows as away; 0 = never. */
   awayAfter: number;
+  /** Busy ("In a meeting") while a meeting in your Nextcloud calendar runs (Matrix accounts). */
+  meetingStatus: boolean;
   /** ntfy add-on: notifications also to an ntfy topic (your phone), e.g. while you're away. */
   ntfy: { enabled: boolean; server: string; topic: string; when: "away" | "always"; includeText: boolean };
   /** Previews under messages with a link, fetched by the app itself. */
@@ -106,6 +108,7 @@ const defaults: Settings = {
   closeToTray: false,
   spellCheck: true,
   awayAfter: 5,
+  meetingStatus: true,
   dndUntil: null,
   linkPreviews: true,
   ntfy: { enabled: false, server: "https://ntfy.sh", topic: "", when: "away", includeText: false },

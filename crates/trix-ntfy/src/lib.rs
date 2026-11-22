@@ -340,6 +340,11 @@ impl ProtocolAdapter for NtfyAdapter {
         Ok(MessageId(id))
     }
 
+    /// The topic's page on the server (subscribe there or in the ntfy app).
+    async fn conversation_link(&self, conversation: &ConversationId) -> Result<String> {
+        Ok(format!("{}/{}", self.session.lock().unwrap().server, conversation.remote))
+    }
+
     /// ntfy has no read receipts; what you've read is kept here only.
     async fn send_read_receipt(&self, _conversation: &ConversationId, _thread_root: Option<&MessageId>, _up_to: &MessageId) -> Result<()> {
         Ok(())

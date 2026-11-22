@@ -1448,6 +1448,7 @@ impl ProtocolAdapter for MatrixAdapter {
             user_id: user.to_string(),
             verified,
             shared,
+            absence: None,
         })
     }
 
@@ -1951,6 +1952,16 @@ impl ProtocolAdapter for MatrixAdapter {
 
     async fn set_typing(&self, conversation: &ConversationId, typing: bool) -> Result<()> {
         self.room(conversation)?.typing_notice(typing).await.map_err(err)
+    }
+
+    /// matrix.to: the room's address if it has one, else its id with servers that can route to it
+    /// (just the id when its members can't be read).
+    async fn conversation_link(&self, conversation: &ConversationId) -> Result<String> {
+        let room = self.room(conversation)?;
+        Ok(match room.matrix_to_permalink().await {
+            Ok(link) => link.to_string(),
+            Err(_) => room.room_id().matrix_to_uri().to_string(),
+        })
     }
 
     fn capabilities(&self) -> Capabilities {
