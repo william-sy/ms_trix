@@ -52,6 +52,12 @@
 - [x] Nextcloud Notes (rail → Notes, for Nextcloud accounts with the Notes app): list by category
       with favourites and search, Markdown editor with preview, saves as you type; a change made
       elsewhere in between isn't overwritten (keep mine / load theirs)
+- [ ] Phishing check against a downloaded list of known phishing sites (e.g. OpenPhish), checked
+      locally, if the built-in checks turn out too limited
+
+1.4 (released 2026-11-19): fixes (see RELEASE_NOTES.md).
+
+1.5 (released 2026-11-22), besides what's in RELEASE_NOTES.md:
 - [x] Activity: a way to clear it (empty the feed, or remove single items)
 - [x] Tables in the composer (size grid, 6 × 6 at most); Talk messages rendered from Markdown;
       links in formatted messages clickable
@@ -60,8 +66,41 @@
       hover shows the weekday ("Thursday 9 December 2026, in 19 days"), click a mini month calendar
       with that day's meetings, "Open in calendar" and "Add to calendar" (date and time filled
       in). Maybe a weekday hint while typing. Words like "tomorrow" or "next Thursday": skipped
-- [ ] Phishing check against a downloaded list of known phishing sites (e.g. OpenPhish), checked
-      locally, if the built-in checks turn out too limited
+- [x] Pinned messages (Matrix; Talk 23+), Talk threads (Talk 22+), pictures sent together in one
+      bubble, notes search in the text, Home/End, a loading screen and camera warm-up for calls
+
+1.6 (planned 2026-11-22; theme: easy to get and keep, and usable by everyone):
+- [ ] Releases and auto-update: a tag builds a GitHub Release with its notes and the installers;
+      the app checks for updates and installs them (Tauri updater with our own update key, free,
+      separate from OS code signing), "Update available" with what's new, Settings → About shows
+      the version with Check now. After the first install, nobody needs the quarantine command again
+- [ ] Accessibility (screen readers and keyboard): a label on every icon button; the message list
+      as a list, new messages announced; arrow keys through messages, F6 between panes; focus kept
+      in dialogs and given back after; "reduce motion" respected (moving backgrounds, fades);
+      contrast of both themes checked; tested with VoiceOver (and NVDA on Windows if possible)
+- [ ] Files in the rail (Nextcloud, like OneDrive in Teams): folders, recent files and search;
+      upload by drag and drop; open, download, share a link or into a chat; documents open in
+      Nextcloud Office
+- [ ] Saved messages and "remind me about this": Save in a message's ⋯ menu, a Saved list; Matrix in
+      your account data (syncs between your own devices), Talk through its reminder API
+- [ ] Status from your calendar: busy ("In a meeting") during meetings; out of office from
+      Nextcloud's absence setting (Nextcloud 28+), shown on profiles
+- To test (from 1.5 and before): emoji verification with a colleague; a silent call started from
+  Talk; replying with a file in Talk; Talk group calls and screen sharing at SURF; whether SURF's
+  Talk has threads (22+) and pinning (23+); Talk 1:1 call sound (the log's sound check); away
+  status on Windows and Linux; signing in through the browser on a server that offers it
+
+Later (ideas 2026-11-21):
+- [ ] Tabs in chats: Matrix room widgets (a website, a shared notepad, a dashboard) as tabs that sync
+      with Element, "Add website tab"; for Talk a linked note or a Nextcloud Deck board
+- [ ] Mini games, not during calls: two players in a direct chat (tic-tac-toe, four in a row,
+      chess) as messages with a plain-text fallback; maybe single-player puzzles; our own designs
+- [ ] Translate a message through your own Nextcloud (if it has a translation provider)
+- [ ] Pop out a chat into its own window
+- [ ] Export a chat (HTML / text)
+
+Waiting on others: Matrix group calls and calls with Element X users (MatrixRTC: needs LiveKit
+on matrix.surf.nl), OS code signing (certificates), Talk typing (skipped: see Talk follow-ups).
 
 Ordered by what makes ms_trix usable as a daily driver first. Anything not
 built yet is visibly disabled in the UI with a "coming soon" tooltip.
