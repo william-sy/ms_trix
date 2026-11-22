@@ -77,7 +77,11 @@
 - [ ] Accessibility (screen readers and keyboard): a label on every icon button; the message list
       as a list, new messages announced; arrow keys through messages, F6 between panes; focus kept
       in dialogs and given back after; "reduce motion" respected (moving backgrounds, fades);
-      contrast of both themes checked; tested with VoiceOver (and NVDA on Windows if possible)
+      contrast of both themes checked; tested with VoiceOver (and NVDA on Windows if possible).
+      High contrast: a light and a dark high-contrast theme (strong borders, no faint grey text, no
+      see-through surfaces), switched on by macOS "Increase contrast" (prefers-contrast) and
+      Windows contrast themes (forced-colors, system colours); an extra-large text size with the
+      layout holding up; a clear focus outline for keyboard use
 - [ ] Files in the rail (Nextcloud, like OneDrive in Teams): folders, recent files and search;
       upload by drag and drop; open, download, share a link or into a chat; documents open in
       Nextcloud Office
@@ -93,8 +97,11 @@
 Later (ideas 2026-11-21):
 - [ ] Tabs in chats: Matrix room widgets (a website, a shared notepad, a dashboard) as tabs that sync
       with Element, "Add website tab"; for Talk a linked note or a Nextcloud Deck board
-- [ ] Mini games, not during calls: two players in a direct chat (tic-tac-toe, four in a row,
-      chess) as messages with a plain-text fallback; maybe single-player puzzles; our own designs
+- [ ] Mini games, not during calls; our own designs. Matrix: two players in a direct chat with
+      moves as our own (encrypted, invisible) event type, only the invite and result as normal
+      messages; both need ms_trix (a room widget would make it playable in Element Desktop/Web too).
+      Talk: not for two players (every move would be a visible chat line). Single-player puzzles
+      work for everyone
 - [ ] Translate a message through your own Nextcloud (if it has a translation provider)
 - [ ] Pop out a chat into its own window
 - [ ] Export a chat (HTML / text)
