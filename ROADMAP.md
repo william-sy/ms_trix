@@ -322,7 +322,7 @@ built yet is visibly disabled in the UI with a "coming soon" tooltip.
   - [ ] Talk: start/stop call recording (backlog; needs the recording server)
 - [ ] Talk follow-ups: threads (Talk 22+) done 2026-11-21. Typing skipped for now (2026-11-21): it
       needs Talk's signaling with the chat joined, and then the phone gets no notifications for it
-  - [ ] Talk: verify against the Nextcloud SURF uses (only tested sign-in start against a public server)
+  - [x] Talk: verify against the Nextcloud SURF uses (in daily use at SURF since 1.1)
   - [x] Attach from Nextcloud Files (📎 menu): browse folders; in a Talk chat on the same Nextcloud
         the file is shared into the conversation, elsewhere a read-only public link is sent
         (to be tested on SURF)
@@ -337,8 +337,8 @@ built yet is visibly disabled in the UI with a "coming soon" tooltip.
   - [x] Calendar: day / work week / week / month views; repeating meetings: change or delete this
         occurrence (own copy / EXDATE) or the whole series (moves in its own time zone)
 - [ ] Mobile (Tauri mobile or UniFFI)
-- [ ] GitHub repo + CI builds for macOS, Windows, Linux on every tag; GitHub releases; auto-update
-      (own update key, free) — next up once the repo exists
+- [ ] GitHub releases with a download page, and auto-update (own update key, free); the repo and CI
+      builds for macOS, Windows and Linux exist since 1.0
 - [ ] Signing: Developer ID + notarisation (macOS), code signing (Windows); also unlocks clicking a
       notification to open the chat on macOS/Windows
 - [ ] Email add-on (idea): step 1 unread count + new-mail notifications + open in your mail app;

@@ -1,6 +1,6 @@
 # Release notes
 
-## 1.5 (not released yet)
+## 1.5 (2026-11-22)
 
 ### New
 - **Share several Nextcloud files at once:** tick files and folders in the Nextcloud picker (also
@@ -33,7 +33,8 @@
 
 ### Fixed
 - Starting the first call after a restart or sleep showed nothing for seconds: the call screen now
-  says "Starting the call…" at once, then "Starting your camera and microphone…" until they're on.
+  says "Starting the call…" at once, then "Starting your camera and microphone…" until they're on,
+  and the camera system is warmed up after the app starts (first camera start ~3.5 s → under 1 s).
 - A wide picture made its bubble stretch across the chat; bubbles now fit their picture.
 - Home and End typed a box in text fields on macOS: they move to the start or end of the line now
   (with ⌘ of the whole text, with Shift selecting).
@@ -51,6 +52,11 @@
   Windows) so it's noticed with another app in front.
 - Replying with a file (a GIF, a picture): the reply was lost on sending; the file now goes as
   the reply (Matrix; on Talk where the server supports it).
+
+### Other
+- Downloads from GitHub: one per installer (macOS .dmg; Windows setup or .msi; Linux .deb or
+  AppImage) instead of the app twice in one zip, so they're about half the size; kept 30 days.
+  The README explains installing on each system (macOS quarantine, Windows SmartScreen).
 
 ## 1.4 (2026-11-19)
 
