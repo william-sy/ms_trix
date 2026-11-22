@@ -174,6 +174,20 @@ export function App() {
   const setFocusMessage = (conversation: string, message: string | null) => setFocusState(message ? { conversation, message } : null);
   // Activity newer than seenAt counts on the rail badge; opening the feed clears it.
   // The dots in the feed stay until read: everything up to readAt, plus single items.
+  // The first camera use in a run of the app sets up macOS's camera system, which takes seconds
+  // (finding the cameras, an iPhone among them). Done once in the background a little after
+  // start, the camera itself staying off, so a first call opens it as fast as later ones.
+  useEffect(() => {
+    if (!isLive || !navigator.mediaDevices) return;
+    const timer = window.setTimeout(() => {
+      const asked = performance.now();
+      navigator.mediaDevices.enumerateDevices().then(
+        (list) => void backend.logUi(`devices ready after ${Math.round(performance.now() - asked)} ms (warm-up for calls, ${list.filter((d) => d.kind === "videoinput").length} camera(s))`).catch(() => {}),
+        () => {},
+      );
+    }, 6000);
+    return () => window.clearTimeout(timer);
+  }, []);
   const [seenAt, setSeenAt] = useStored("ms_trix.activity.seenAt", 0);
   const [activityRead, setActivityRead] = useStored<{ at: number; read: string[]; unread: string[] }>("ms_trix.activity.read", () => ({ at: seenAt, read: [], unread: [] }));
   const activityUnread = (a: ActivityItem) => activityRead.unread.includes(a.id) || (a.at > activityRead.at && !activityRead.read.includes(a.id));

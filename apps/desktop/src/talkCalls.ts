@@ -712,6 +712,7 @@ async function openCamera(cameraId?: string | null): Promise<MediaStream | null>
     if (!cameraId && saved && want && stream.getVideoTracks()[0]?.label !== want) {
       const match = (await navigator.mediaDevices.enumerateDevices()).find((d) => d.kind === "videoinput" && d.label === want);
       if (match) {
+        log(`camera opened again: the saved one (${want}) had another id`);
         stream.getTracks().forEach((t) => t.stop());
         stream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: match.deviceId } } });
       }
