@@ -293,7 +293,7 @@ pub fn parse_events(calendar: &str, href: &str, etag: Option<&str>, me: &[String
     out
 }
 
-/// The properties ms_trix writes for an event (a new one, or replacing these in an edited one).
+/// The properties Trixcomm writes for an event (a new one, or replacing these in an edited one).
 fn event_props(stamp: &str, event: &NewEvent, organizer: Option<&Attendee>) -> Vec<String> {
     let zone = event.tzid.as_deref().filter(|z| valid_tzid(z));
     let date = |v: &str| match (v.len(), zone) {
@@ -330,7 +330,7 @@ fn event_props(stamp: &str, event: &NewEvent, organizer: Option<&Attendee>) -> V
 }
 
 pub fn event_ics(uid: &str, stamp: &str, event: &NewEvent, organizer: Option<&Attendee>) -> String {
-    let mut lines = vec!["BEGIN:VCALENDAR".to_owned(), "VERSION:2.0".to_owned(), "PRODID:-//ms_trix//EN".to_owned()];
+    let mut lines = vec!["BEGIN:VCALENDAR".to_owned(), "VERSION:2.0".to_owned(), "PRODID:-//Trixcomm//EN".to_owned()];
     if let Some(zone) = event.vtimezone.as_deref().filter(|_| event.tzid.as_deref().is_some_and(valid_tzid)).filter(|z| valid_vtimezone(z)) {
         lines.extend(zone.lines().map(|l| l.trim_end().to_owned()));
     }
@@ -368,7 +368,7 @@ fn valid_vtimezone(block: &str) -> bool {
         })
 }
 
-/// An edited event: the original object with ms_trix's properties replaced, and the rest
+/// An edited event: the original object with Trixcomm's properties replaced, and the rest
 /// (reminders, other apps' fields) kept. Rewrites the first VEVENT: for single events.
 pub fn rewrite_event(original: &str, stamp: &str, event: &NewEvent, organizer: Option<&Attendee>) -> Option<String> {
     let mut out = vec![];
@@ -670,7 +670,7 @@ mod tests {
         assert!(valid_times(&event));
         assert!(!valid_times(&NewEvent { tzid: None, ..event.clone() }), "a local time needs its zone");
         let ics = event_ics("u1", "20261119T100000Z", &event, None);
-        assert!(ics.contains("PRODID:-//ms_trix//EN\r\nBEGIN:VTIMEZONE\r\nTZID:Europe/Amsterdam"), "{ics}");
+        assert!(ics.contains("PRODID:-//Trixcomm//EN\r\nBEGIN:VTIMEZONE\r\nTZID:Europe/Amsterdam"), "{ics}");
         assert!(ics.contains("DTSTART;TZID=Europe/Amsterdam:20261117T090000\r\nDTEND;TZID=Europe/Amsterdam:20261117T091500"), "{ics}");
         assert!(ics.contains("RRULE:FREQ=WEEKLY;BYDAY=MO,TU\r\nEND:VEVENT"), "{ics}");
         // Anything else in the rule or the zone is refused.

@@ -212,8 +212,8 @@ export function App() {
     }, 6000);
     return () => window.clearTimeout(timer);
   }, []);
-  const [seenAt, setSeenAt] = useStored("ms_trix.activity.seenAt", 0);
-  const [activityRead, setActivityRead] = useStored<{ at: number; read: string[]; unread: string[] }>("ms_trix.activity.read", () => ({ at: seenAt, read: [], unread: [] }));
+  const [seenAt, setSeenAt] = useStored("Trixcomm.activity.seenAt", 0);
+  const [activityRead, setActivityRead] = useStored<{ at: number; read: string[]; unread: string[] }>("Trixcomm.activity.read", () => ({ at: seenAt, read: [], unread: [] }));
   const activityUnread = (a: ActivityItem) => activityRead.unread.includes(a.id) || (a.at > activityRead.at && !activityRead.read.includes(a.id));
   const setActivityItemRead = (a: ActivityItem, read: boolean) => {
     const known = new Set(activity.map((x) => x.id)); // forget items that fell out of the feed
@@ -221,7 +221,7 @@ export function App() {
     setActivityRead({ at: activityRead.at, read: read ? [...keep(activityRead.read), a.id] : keep(activityRead.read), unread: read ? keep(activityRead.unread) : [...keep(activityRead.unread), a.id] });
   };
   // Cleared from the feed, on this computer: everything up to `at`, plus single items.
-  const [activityCleared, setActivityCleared] = useStored<{ at: number; ids: string[] }>("ms_trix.activity.cleared", () => ({ at: 0, ids: [] }));
+  const [activityCleared, setActivityCleared] = useStored<{ at: number; ids: string[] }>("Trixcomm.activity.cleared", () => ({ at: 0, ids: [] }));
   const [undoClear, setUndoClear] = useState<{ at: number; ids: string[] } | null>(null);
   const activityShown = (a: ActivityItem) => a.at > activityCleared.at && !activityCleared.ids.includes(a.id);
   const removeActivity = (a: ActivityItem) => {
@@ -229,7 +229,7 @@ export function App() {
     setActivityCleared({ at: activityCleared.at, ids: [...activityCleared.ids.filter((id) => known.has(id)), a.id] });
   };
   // Missed calls newer than this count on the Calls rail badge.
-  const [callsSeenAt, setCallsSeenAt] = useStored("ms_trix.calls.seenAt", Date.now());
+  const [callsSeenAt, setCallsSeenAt] = useStored("Trixcomm.calls.seenAt", Date.now());
   const openView = (v: typeof view) => {
     if (v === "activity") setSeenAt(Date.now());
     if (v === "calls") setCallsSeenAt(Date.now());
@@ -372,7 +372,7 @@ export function App() {
   useEffect(() => {
     if (!isLive) return;
     getCurrentWindow().setBadgeCount(unreadTotal || undefined).catch(() => {});
-    backend.setTrayUnread(unreadTotal, unreadTotal ? t("tray.unread", { count: unreadTotal }) : "ms_trix").catch(() => {});
+    backend.setTrayUnread(unreadTotal, unreadTotal ? t("tray.unread", { count: unreadTotal }) : "Trixcomm").catch(() => {});
   }, [unreadTotal]);
 
   // App-wide shortcuts (see shortcuts.ts); the handler is refreshed every render.

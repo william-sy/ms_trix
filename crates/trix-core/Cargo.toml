@@ -1,6 +1,6 @@
 [package]
 name = "trix-core"
-description = "Protocol-agnostic domain model and adapter interface for ms_trix"
+description = "Protocol-agnostic domain model and adapter interface for Trixcomm"
 edition.workspace = true
 license.workspace = true
 version.workspace = true

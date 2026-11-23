@@ -5,7 +5,7 @@ import { sasName } from "./sasNames";
 import { useOrgs } from "./store";
 
 /** Fired on window when a verification finishes, so lists showing "verified" can reload. */
-export const VERIFIED_EVENT = "ms_trix:verified";
+export const VERIFIED_EVENT = "Trixcomm:verified";
 
 interface Props {
   verification: Verification;

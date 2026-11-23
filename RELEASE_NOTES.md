@@ -3,6 +3,9 @@
 ## 1.6 (not released yet)
 
 ### New
+- **New name: Trixcomm** (it was ms_trix). Your accounts, settings, search index and encryption
+  keys carry over. Installing 1.6 adds Trixcomm next to the old app: on macOS delete
+  ms_trix.app from Applications, on Windows uninstall ms_trix, on Linux remove the old package.
 - **Copy link to this chat** (chat header ⋯): a matrix.to link for Matrix (the room's address if
   it has one), the conversation link for Talk, the topic's page for ntfy.
 - **Translate a message** (message ⋯ → Translate) through your own Nextcloud, when it has a
@@ -19,13 +22,13 @@
 - **Updates by themselves:** when a new version is out, a bar under the title says so, with
   What's new and *Restart to update* (not during a call). Settings → About shows the version, has
   *Check for updates* and a switch for checking automatically (at start and every six hours, on
-  by default). Only updates signed with ms_trix's own key are installed, so after this version
+  by default). Only updates signed with Trixcomm's own key are installed, so after this version
   nobody needs macOS's quarantine command or Windows' "Run anyway" again. Works for every
   installer: the macOS app, Windows setup and MSI, Linux AppImage and .deb (asks for your
   password).
 
 ### Other
-- No more references to one organisation in the docs, the demo data and the tests: ms_trix is
+- No more references to one organisation in the docs, the demo data and the tests: Trixcomm is
   for anyone on Matrix and Nextcloud Talk. The phishing check's list of well-known sites is
   general now; your own accounts' domains are still added to it.
 
@@ -33,7 +36,7 @@
 
 ### Fixed
 - In a Talk call, people using Talk in their browser saw you but didn't hear you. Talk's web app
-  keeps a participant silent until told their microphone is on; ms_trix now tells everyone who
+  keeps a participant silent until told their microphone is on; Trixcomm now tells everyone who
   joins, as Talk's own apps do (it also shows your camera as off when it is).
 
 ## 1.5 (2026-11-22)

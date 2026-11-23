@@ -14,7 +14,7 @@ const categories: { icon: string; name: Key; emojis: string }[] = [
   { icon: "💡", name: "emoji.objects", emojis: "⌚ 📱 💻 ⌨️ 🖥️ 🖨️ 🖱️ 💾 💿 📷 📹 🎥 📞 ☎️ 📺 📻 ⏰ ⏳ 🔋 🔌 💡 🔦 🕯️ 💸 💵 💰 💳 💎 🔧 🔨 🛠️ ⚙️ 🧰 🧲 🔬 🔭 📡 💉 💊 🧪 🧬 🧹 🧺 🧻 🚪 🪑 🛏️ 🛒 🎒 👓 🕶️ 👔 👕 👖 👗 👟 👑 🎩 📦 📫 ✉️ 📧 📝 📄 📃 📑 📊 📈 📉 📅 📆 🗂️ 📁 📂 📚 📖 🔖 🔗 📎 ✂️ 🖊️ ✏️ 🔍" },
 ];
 
-const RECENT_KEY = "ms_trix.emoji.recent";
+const RECENT_KEY = "Trixcomm.emoji.recent";
 const loadRecent = (): string[] => {
   try {
     return JSON.parse(localStorage.getItem(RECENT_KEY) ?? "[]");

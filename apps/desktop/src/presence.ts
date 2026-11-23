@@ -5,7 +5,7 @@ import { backend, CALENDAR_CHANGED, isLive } from "./backend";
 import { parseIcal, toIcalUtc } from "./CalendarPane";
 import type { PresenceState } from "./types";
 
-export const PRESENCE_KEY = "ms_trix.presence";
+export const PRESENCE_KEY = "Trixcomm.presence";
 const CHECK_EVERY_MS = 30_000;
 const MEETINGS_EVERY_MS = 5 * 60_000;
 

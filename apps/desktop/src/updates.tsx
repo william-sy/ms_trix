@@ -7,7 +7,7 @@ import { backend, isLive, type UpdateInfo } from "./backend";
 import { t } from "./i18n";
 import { currentSettings } from "./settings";
 
-const RELEASES = "https://github.com/william-sy/ms_trix/releases";
+const RELEASES = "https://github.com/william-sy/trixcomm/releases";
 const FIRST = 15_000;
 const EVERY = 6 * 3600_000;
 

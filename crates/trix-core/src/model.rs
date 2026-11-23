@@ -159,7 +159,7 @@ pub struct DeviceInfo {
     pub name: Option<String>,
     pub last_seen_ip: Option<String>,
     pub last_seen_ts: Option<Timestamp>,
-    /// The session ms_trix itself runs as.
+    /// The session Trixcomm itself runs as.
     pub current: bool,
     /// Cross-signing verified; None when the protocol has no such notion.
     pub verified: Option<bool>,

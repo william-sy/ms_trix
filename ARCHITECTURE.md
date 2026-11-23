@@ -1,4 +1,4 @@
-# ms_trix architecture
+# Trixcomm architecture
 
 A Teams-style chat, meetings and calendar client that is protocol-open and multi-org.
 Licensed GPL-3.0-or-later.
@@ -15,6 +15,7 @@ Licensed GPL-3.0-or-later.
 | E2EE | Required. Matrix via matrix-rust-sdk crypto |
 | Unread | Client-owned state machine in `trix-core/src/unread.rs`; server counts are inputs only |
 | Stack | Tauri 2 (Rust core) + React/TypeScript UI. Mobile later via Tauri mobile or UniFFI |
+| Name | Trixcomm (ms_trix until 1.5.1). Kept under the first name, as users' data lives there: the app identifier `nl.mstrix.app` (data, logs and web storage folders), the keychain service `ms_trix`, the settings key `ms_trix.settings`, Matrix's sliding sync id; also the crate/binary names `ms-trix-desktop` and `ms_trix_lib` (a development build's web storage is named after the binary) |
 
 ## Layout
 
@@ -58,14 +59,14 @@ that state to the UI through commands and events.
   to `UnreadState`.
 * Both `m.marked_unread` and the older `com.famedly.marked_unread` are read.
 * Sync uses sliding sync (MSC4186, like Element X) when the server offers it and
-  falls back to classic `/sync` otherwise; `MS_TRIX_CLASSIC_SYNC=1` forces classic.
+  falls back to classic `/sync` otherwise; `TRIXCOMM_CLASSIC_SYNC=1` forces classic.
   Both feed the same `room_changed` path. Sliding sync has no presence, so 1:1
   contacts' presence is polled every minute in that mode.
 * Each room's recent history and read state (main and per-thread receipts) are
   loaded once per session, at startup or when a room first shows up.
 * Login: the server is asked for its login types; password and SSO (browser +
   local redirect server) are supported. Native OAuth (MAS) is a later step.
-* Sessions live in the OS keychain (service `ms_trix`); `accounts.json` in the
+* Sessions live in the OS keychain (service `Trixcomm`); `accounts.json` in the
   app data dir holds only the non-secret account list.
 * Invisible crypto (MSC4153, like Element X): the client shares room keys with
   `CollectStrategy::IdentityBasedStrategy`, so sending encrypted messages needs this

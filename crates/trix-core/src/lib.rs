@@ -1,4 +1,4 @@
-//! Protocol-agnostic core of ms_trix.
+//! Protocol-agnostic core of Trixcomm.
 //!
 //! The UI only ever talks to the types in this crate. Every chat network
 //! (Matrix today, XMPP/IRC later) plugs in by implementing [`ProtocolAdapter`].

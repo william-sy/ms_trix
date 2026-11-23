@@ -24,7 +24,7 @@ interface Props {
 }
 
 /** Teams view sidebar: your spaces as teams, with the channels you're in. */
-const ORDER_KEY = "ms_trix.teams.order";
+const ORDER_KEY = "Trixcomm.teams.order";
 type Order = { pinned: string[]; order: string[] };
 const loadOrder = (): Order => {
   try { return { pinned: [], order: [], ...JSON.parse(localStorage.getItem(ORDER_KEY) ?? "{}") }; } catch { return { pinned: [], order: [] }; }

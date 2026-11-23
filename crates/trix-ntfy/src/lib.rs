@@ -1,5 +1,5 @@
 //! ntfy as an account: watch ntfy topics (ntfy.sh or your own server) and read their messages in
-//! ms_trix like chats, with notifications. Each topic is a conversation; writing in it publishes
+//! Trixcomm like chats, with notifications. Each topic is a conversation; writing in it publishes
 //! to the topic. A topic is added as a new room and removed by leaving it.
 
 use std::collections::HashSet;
@@ -65,7 +65,7 @@ pub fn valid_topic(topic: &str) -> bool {
 
 fn client() -> reqwest::Client {
     // No overall timeout: the watching connection stays open (see SILENCE).
-    reqwest::Client::builder().connect_timeout(Duration::from_secs(10)).user_agent("ms_trix").build().expect("http client")
+    reqwest::Client::builder().connect_timeout(Duration::from_secs(10)).user_agent("Trixcomm").build().expect("http client")
 }
 
 fn authorized(builder: reqwest::RequestBuilder, token: Option<&str>) -> reqwest::RequestBuilder {
@@ -412,7 +412,7 @@ mod tests {
 
     #[test]
     fn topic_names() {
-        assert!(valid_topic("ms_trix-alerts_1"));
+        assert!(valid_topic("trixcomm-alerts_1"));
         assert!(!valid_topic("with space") && !valid_topic("a/b") && !valid_topic(""));
     }
 }
@@ -424,7 +424,7 @@ mod live {
     #[tokio::test]
     #[ignore = "needs the internet (a throwaway topic on ntfy.sh)"]
     async fn watches_and_publishes() {
-        let topic = format!("ms_trix-test-{}", rand::random::<u64>());
+        let topic = format!("trixcomm-test-{}", rand::random::<u64>());
         let (adapter, _) = login("ntfy.sh", std::slice::from_ref(&topic), None).await.expect("login");
         let mut events = adapter.start().await.expect("start");
         assert!(matches!(events.next().await, Some(AdapterEvent::ConversationUpserted(c)) if c.name == topic));

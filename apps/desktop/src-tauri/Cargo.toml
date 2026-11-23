@@ -1,7 +1,7 @@
 [package]
 name = "ms-trix-desktop"
 version = "1.5.1"
-description = "ms_trix desktop app"
+description = "Trixcomm desktop app"
 license = "GPL-3.0-or-later"
 edition = "2024"
 rust-version = "1.90"

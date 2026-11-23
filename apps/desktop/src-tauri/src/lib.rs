@@ -76,7 +76,7 @@ fn present_notification(app: &AppHandle, title: &str, body: &str, kind: Notifica
     match sound.as_str() {
         "none" => {}
         // macOS notifications don't reliably play their sound (not at all for
-        // unsigned/dev builds), so ms_trix plays it itself.
+        // unsigned/dev builds), so Trixcomm plays it itself.
         name if cfg!(target_os = "macos") => play_mac_sound(name),
         "default" => {
             builder = builder.sound(if cfg!(target_os = "macos") {
@@ -121,7 +121,7 @@ async fn share_overlay(app: AppHandle, border: bool, width: u32, height: u32) ->
     let size = monitor.size().to_logical::<f64>(scale);
     let overlay = |label: &str, hash: &str| {
         tauri::WebviewWindowBuilder::new(&app, label, tauri::WebviewUrl::App(format!("index.html#{hash}").into()))
-            .title("ms_trix")
+            .title("Trixcomm")
             .decorations(false)
             .transparent(true)
             .shadow(false)
@@ -156,7 +156,7 @@ const REMINDER_WIDTH: f64 = 480.0;
 const REMINDER_ROW: (f64, f64) = (84.0, 52.0);
 
 /// Meeting reminders in a small window in the corner of the screen, on top of other windows
-/// (also when ms_trix is hidden or behind them). `reminders` (JSON) is the whole list, `count`
+/// (also when Trixcomm is hidden or behind them). `reminders` (JSON) is the whole list, `count`
 /// rows; an open window gets the new list and grows or shrinks to fit.
 #[tauri::command]
 async fn open_reminder(app: AppHandle, reminders: String, count: u32) -> CmdResult<()> {
@@ -178,7 +178,7 @@ async fn open_reminder(app: AppHandle, reminders: String, count: u32) -> CmdResu
     }
     let hash: String = url::form_urlencoded::byte_serialize(reminders.as_bytes()).collect();
     tauri::WebviewWindowBuilder::new(&app, REMINDER_WINDOW, tauri::WebviewUrl::App(format!("index.html#reminder={hash}").into()))
-        .title("ms_trix")
+        .title("Trixcomm")
         .decorations(false)
         .transparent(true)
         .resizable(false)
@@ -1488,7 +1488,7 @@ async fn invite_user(state: State<'_, AppState>, key: String, user_id: String) -
 /// or focuses it if that call is already open. The window loads a remote page
 /// and gets no access to the app's commands.
 /// Strips Talk's page down to the call: no Nextcloud top bar, conversation list
-/// or chat sidebar, since ms_trix already shows those next to the call window.
+/// or chat sidebar, since Trixcomm already shows those next to the call window.
 /// Selectors are Nextcloud's own layout classes; if a Talk update renames them
 /// the window just shows the full page again.
 const CALL_WINDOW_SCRIPT: &str = r#"
@@ -1849,7 +1849,7 @@ fn set_close_to_tray(app: AppHandle, enabled: bool, open_label: String, quit_lab
     let quit = MenuItem::with_id(&app, "quit", quit_label, true, None::<&str>).map_err(|e| e.to_string())?;
     let menu = Menu::with_items(&app, &[&open, &quit]).map_err(|e| e.to_string())?;
     let mut tray = TrayIconBuilder::with_id(TRAY_ID)
-        .tooltip("ms_trix")
+        .tooltip("Trixcomm")
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().as_ref() {
@@ -1880,7 +1880,7 @@ fn set_tray_unread(app: AppHandle, count: u32, tooltip: String) {
 fn update_tray(app: &AppHandle) {
     let Some(tray) = app.tray_by_id(TRAY_ID) else { return };
     let (count, tooltip) = app.state::<AppState>().tray_unread.lock().unwrap().clone();
-    let _ = tray.set_tooltip(Some(if tooltip.is_empty() { "ms_trix".to_owned() } else { tooltip }));
+    let _ = tray.set_tooltip(Some(if tooltip.is_empty() { "Trixcomm".to_owned() } else { tooltip }));
     #[cfg(target_os = "macos")]
     let _ = tray.set_title((count > 0).then(|| count.to_string()));
     #[cfg(not(target_os = "macos"))]
@@ -2517,7 +2517,7 @@ pub fn run() {
             open_media,
         ])
         .build(tauri::generate_context!())
-        .expect("error while running ms_trix")
+        .expect("error while running Trixcomm")
         .run(|app, event| {
             // macOS: clicking the Dock icon brings a window hidden to the tray back.
             #[cfg(target_os = "macos")]

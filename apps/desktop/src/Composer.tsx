@@ -27,7 +27,7 @@ export const formats: { label?: string; labelKey?: Key; className?: string; titl
 ];
 
 // Remembered until there is a settings page for it.
-const RICH_KEY = "ms_trix.composer.rich";
+const RICH_KEY = "Trixcomm.composer.rich";
 const loadRich = () => { try { return localStorage.getItem(RICH_KEY) === "1"; } catch { return false; } };
 const saveRich = (v: boolean) => { try { localStorage.setItem(RICH_KEY, v ? "1" : "0"); } catch { /* private mode */ } };
 
@@ -317,7 +317,7 @@ export function Composer(p: Props) {
           <span className="rec-dot" />
           <span className="rec-label">{t("composer.recording")}</span>
           <span className="rec-time">{formatDuration(voice.elapsed)}</span>
-          {/* Live input level: if this stays flat, the microphone isn't reaching ms_trix. */}
+          {/* Live input level: if this stays flat, the microphone isn't reaching Trixcomm. */}
           <span className="vu" aria-hidden>
             {Array.from({ length: 12 }, (_, i) => <span key={i} className={voice.level * 12 > i ? "on" : ""} />)}
           </span>

@@ -1,6 +1,6 @@
 [package]
 name = "trix-matrix"
-description = "Matrix protocol adapter for ms_trix (built on matrix-rust-sdk)"
+description = "Matrix protocol adapter for Trixcomm (built on matrix-rust-sdk)"
 edition.workspace = true
 license.workspace = true
 version.workspace = true

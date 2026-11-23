@@ -1,6 +1,6 @@
 [package]
 name = "trix-talk"
-description = "Nextcloud Talk protocol adapter for ms_trix"
+description = "Nextcloud Talk protocol adapter for Trixcomm"
 edition.workspace = true
 license.workspace = true
 version.workspace = true

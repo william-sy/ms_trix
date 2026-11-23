@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 
 use trix_core::{Account, AccountId};
 
+/// The app's first name: kept, as existing sign-ins are stored under it.
 const KEYCHAIN_SERVICE: &str = "ms_trix";
 
 fn list_path(data_dir: &Path) -> PathBuf {

@@ -309,7 +309,7 @@ export interface CallRecord {
   outcome: string | null;
 }
 
-const HISTORY_KEY = "ms_trix.calls.history";
+const HISTORY_KEY = "Trixcomm.calls.history";
 const loadHistory = (): CallRecord[] => {
   try { return JSON.parse(localStorage.getItem(HISTORY_KEY) ?? "[]"); } catch { return []; }
 };

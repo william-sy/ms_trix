@@ -1,4 +1,4 @@
-//! Encrypted local full-text search for ms_trix.
+//! Encrypted local full-text search for Trixcomm.
 //!
 //! Server-side search can't read encrypted rooms, so messages are indexed on
 //! this device. The index holds decrypted text, so nothing readable is stored:

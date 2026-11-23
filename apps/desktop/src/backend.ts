@@ -718,7 +718,7 @@ export const onPollChanged = (cb: (conversation: string, poll: string) => void) 
 export const onCallSignal = (cb: (sig: CallSignal) => void) => listen<CallSignal>("trix://call", (e) => cb(e.payload));
 
 /** Fired on window when the signed-in accounts change, e.g. so failed pictures retry. */
-export const ACCOUNTS_CHANGED = "ms_trix:accounts";
+export const ACCOUNTS_CHANGED = "Trixcomm:accounts";
 
 export async function subscribe(on: BackendEvents): Promise<UnlistenFn> {
   const offs = await Promise.all([

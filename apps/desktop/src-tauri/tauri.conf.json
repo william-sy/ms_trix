@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "ms_trix",
+  "productName": "Trixcomm",
   "version": "1.5.1",
   "identifier": "nl.mstrix.app",
   "build": {
@@ -13,7 +13,7 @@
     "macOSPrivateApi": true,
     "windows": [
       {
-        "title": "ms_trix",
+        "title": "Trixcomm",
         "width": 1280,
         "height": 820,
         "resizable": true,
@@ -45,7 +45,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEFENTJDODg2Mjg3RTEyOEYKUldTUEVuNG9oc2hTclk3TXh1dzljdWNPTzBaTis4M0J3OW5qaENkWmg0OXZWOHk4WEpDSWNnV2gK",
       "endpoints": [
-        "https://github.com/william-sy/ms_trix/releases/latest/download/latest.json"
+        "https://github.com/william-sy/trixcomm/releases/latest/download/latest.json"
       ],
       "windows": {
         "installMode": "passive"

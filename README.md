@@ -1,10 +1,12 @@
-# ms_trix
+# Trixcomm
 
-One desktop app for your chats, meetings and calendar, on open protocols. ms_trix feels like
+*Formerly ms_trix.*
+
+One desktop app for your chats, meetings and calendar, on open protocols. Trixcomm feels like
 Microsoft Teams, but works with **Matrix** (end-to-end encrypted) and **Nextcloud Talk**, and with
 several organisations at once.
 
-![ms_trix: chats, rooms and channels on the left, a conversation's shared files on the right](images/window%20overview.png)
+![Trixcomm: chats, rooms and channels on the left, a conversation's shared files on the right](images/window%20overview.png)
 
 > **Status:** early, in daily use with Matrix and Nextcloud Talk. Builds are not signed yet, so
 > macOS and Windows will warn when you first open the app. Runs on macOS (Apple Silicon), Windows
@@ -15,7 +17,7 @@ several organisations at once.
 
 Many organisations run their own Matrix and Nextcloud servers but their people miss the
 familiar Teams layout: one list of chats, teams with channels, a calendar, and calls that just
-work. ms_trix puts those together in one window, for every account you have, while your
+work. Trixcomm puts those together in one window, for every account you have, while your
 messages stay on your own servers.
 
 ## What it does
@@ -80,44 +82,44 @@ Talk meeting settings, right in the room's info panel:
   recovery key or another session
 - Sign-in sessions are kept in the operating system's keychain
 - The search index holds decrypted messages, so it is encrypted on disk with a key in the keychain
-- ms_trix talks to the servers of the accounts you add; besides those only to websites linked in
+- Trixcomm talks to the servers of the accounts you add; besides those only to websites linked in
   messages (link previews, Settings → Privacy) and to GitHub to check for updates (Settings →
   About). Both can be turned off
-- Updates are installed only when signed with ms_trix's own update key
+- Updates are installed only when signed with Trixcomm's own update key
 
 ## Installing
 
 Download the installer for your system from the
-[latest release](https://github.com/william-sy/ms_trix/releases/latest): the `.dmg` (macOS),
+[latest release](https://github.com/william-sy/trixcomm/releases/latest): the `.dmg` (macOS),
 `-setup.exe` or `.msi` (Windows), `.deb` or `.AppImage` (Linux). Builds of `main` between
-releases are in the [build workflow](https://github.com/william-sy/ms_trix/actions) (open a run;
+releases are in the [build workflow](https://github.com/william-sy/trixcomm/actions) (open a run;
 each installer downloads as a zip, kept for 30 days).
 They aren't signed yet, so your system asks once whether you trust the app.
 
-From 1.6 on, ms_trix updates itself: when a new version is out it says so under the title bar,
+From 1.6 on, Trixcomm updates itself: when a new version is out it says so under the title bar,
 and *Restart to update* installs it (never during a call). Settings → About has *Check for
 updates*. The steps below are needed only for the first install. On Linux the AppImage and the
 `.deb` both update; the `.deb` asks for your password.
 
-**macOS (Apple Silicon):** open the `.dmg` and drag ms_trix to Applications. macOS then says the
+**macOS (Apple Silicon):** open the `.dmg` and drag Trixcomm to Applications. macOS then says the
 app can't be opened; remove the "downloaded from the internet" mark once:
 
 ```sh
-xattr -dr com.apple.quarantine /Applications/ms_trix.app
+xattr -dr com.apple.quarantine /Applications/Trixcomm.app
 ```
 
-**Windows 10 and 11:** run `ms_trix_<version>_x64-setup.exe` (installs for you only, no admin
+**Windows 10 and 11:** run `Trixcomm_<version>_x64-setup.exe` (installs for you only, no admin
 needed) or the `.msi` (for all users, needs admin).
 
 - The browser may warn that the file isn't commonly downloaded: choose *Keep*.
 - SmartScreen shows "Windows protected your PC": click *More info*, then *Run anyway*. To skip
   that warning, unblock the file first: right-click it → *Properties* → tick *Unblock* → *OK*,
-  or in PowerShell `Unblock-File .\ms_trix_<version>_x64-setup.exe`.
+  or in PowerShell `Unblock-File .\Trixcomm_<version>_x64-setup.exe`.
 - The app needs Microsoft Edge WebView2, which Windows 10 and 11 normally have; if not, the
   installer downloads it.
 
-**Linux:** install the `.deb` with `sudo apt install ./ms_trix_<version>_amd64.deb`, or make the
-`.AppImage` executable (`chmod +x ms_trix_*.AppImage`) and run it.
+**Linux:** install the `.deb` with `sudo apt install ./Trixcomm_<version>_amd64.deb`, or make the
+`.AppImage` executable (`chmod +x Trixcomm_*.AppImage`) and run it.
 
 ## Building
 
@@ -159,7 +161,7 @@ More in [ARCHITECTURE.md](ARCHITECTURE.md). What's done and what's next is in
 
 ## Licence
 
-ms_trix is free software: you can redistribute it and/or modify it under the terms of the
+Trixcomm is free software: you can redistribute it and/or modify it under the terms of the
 [GNU General Public License](LICENSE), version 3 or (at your option) any later version.
 
 ## Credits
@@ -169,5 +171,5 @@ Claude
 
 ---
 
-ms_trix is not affiliated with or endorsed by Microsoft. Microsoft Teams is a trademark of
+Trixcomm is not affiliated with or endorsed by Microsoft. Microsoft Teams is a trademark of
 Microsoft Corporation.

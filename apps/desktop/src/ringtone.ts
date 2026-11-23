@@ -1,7 +1,7 @@
 import { backend, isLive } from "./backend";
 import { currentSettings } from "./settings";
 
-// ms_trix's own ringtones, played with Web Audio (no sound files): short melodies on a soft
+// Trixcomm's own ringtones, played with Web Audio (no sound files): short melodies on a soft
 // marimba or bell, repeated while a call rings. Or your own sound file (Settings → Notifications).
 
 export const RINGTONES = ["chime", "tide", "lantern", "sparkle", "phone", "retro", "classic"] as const;
@@ -59,7 +59,7 @@ const TUNES: Record<(typeof RINGTONES)[number], Tune> = {
       [1.08, 9, 0.11], [1.2, 12, 0.11], [1.32, 17, 0.11], [1.44, 12, 0.11], [1.56, 11, 0.11], [1.68, 7, 0.11], [1.8, 12, 0.4]],
     every: 2.8,
   },
-  // The plain beeps ms_trix had before.
+  // The plain beeps Trixcomm had before.
   classic: {
     voice: "beep",
     notes: [[0, 10, 0.22], [0.25, 14, 0.22], [0.5, 10, 0.22], [0.75, 14, 0.22]],

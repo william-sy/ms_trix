@@ -300,12 +300,12 @@ impl MatrixAdapter {
         let result = match credentials {
             Credentials::OAuth { open_url } => oauth::login(&client, open_url).await.map_err(|e| matrix_sdk::Error::UnknownError(e.to_string().into())),
             Credentials::Password { username, password } => {
-                auth.login_username(username, password).initial_device_display_name("ms_trix").await.map(drop)
+                auth.login_username(username, password).initial_device_display_name("Trixcomm").await.map(drop)
             }
             Credentials::Sso { identity_provider, open_url } => {
                 let builder = auth
                     .login_sso(|url| async move { open_url(url).map_err(|e| matrix_sdk::Error::UnknownError(e.to_string().into())) })
-                    .initial_device_display_name("ms_trix");
+                    .initial_device_display_name("Trixcomm");
                 match identity_provider {
                     Some(idp) => builder.identity_provider_id(&idp).await.map(drop),
                     None => builder.await.map(drop),
@@ -2003,7 +2003,7 @@ impl ProtocolAdapter for MatrixAdapter {
         let task = tokio::spawn(async move {
             // Sliding sync (what Element X uses) starts fast on big accounts; fall back
             // to classic /sync when the server doesn't offer it or it fails to start.
-            let classic_forced = std::env::var_os("MS_TRIX_CLASSIC_SYNC").is_some();
+            let classic_forced = std::env::var_os("TRIXCOMM_CLASSIC_SYNC").is_some();
             if !classic_forced && !matches!(client.sliding_sync_version(), matrix_sdk::sliding_sync::Version::None) {
                 let mut result = sliding_sync(client.clone(), tx.clone(), account.clone(), index.clone(), sliding.clone()).await;
                 if matches!(&result, Err(e) if e.to_string().contains("to_device.since")) && forget_to_device_token(&store) {
@@ -2927,6 +2927,7 @@ async fn sliding_sync(
     use matrix_sdk::sliding_sync::{SlidingSyncList, SlidingSyncMode};
 
     let list = SlidingSyncList::builder("all").sync_mode(SlidingSyncMode::new_growing(LIST_BATCH)).timeline_limit(LIST_TIMELINE).required_state(list_required_state());
+    // The connection's id, under the app's first name: another id would sync from scratch.
     let sync = client
         .sliding_sync("ms_trix")?
         .add_list(list)

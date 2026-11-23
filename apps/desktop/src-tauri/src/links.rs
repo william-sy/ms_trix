@@ -56,7 +56,7 @@ fn client() -> &'static reqwest::Client {
             .redirect(reqwest::redirect::Policy::none())
             .connect_timeout(Duration::from_secs(5))
             .timeout(Duration::from_secs(8))
-            .user_agent("Mozilla/5.0 (compatible; ms_trix link preview)")
+            .user_agent("Mozilla/5.0 (compatible; Trixcomm link preview)")
             .build()
             .expect("http client")
     })

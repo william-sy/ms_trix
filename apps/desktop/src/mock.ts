@@ -38,7 +38,7 @@ export const conversations: Conversation[] = [
   c({ id: "mx-tauri", orgId: "matrixorg", kind: "group", name: "Tauri + Matrix builders", preview: "You: anyone tried UniFFI for mobile?", time: "Mon", sortKey: 60, favourite: true }),
   c({ id: "mx-anna", orgId: "matrixorg", kind: "direct", name: "Anna de Vries", preview: "Sure, let's pair on the unread model", time: "09:15", sortKey: 95, marked: true }),
   c({ id: "irc-rust", orgId: "libera", kind: "channel", team: "Libera.Chat", name: "#rust", preview: "ferris: async traits are stable now", time: "08:40", sortKey: 80, unread: 37, encrypted: false, muted: true }),
-  c({ id: "irc-ms-trix", orgId: "libera", kind: "channel", team: "Libera.Chat", name: "#ms_trix", preview: "Plugin adapter demo", time: "Sun", sortKey: 30, encrypted: false }),
+  c({ id: "irc-trixcomm", orgId: "libera", kind: "channel", team: "Libera.Chat", name: "#trixcomm", preview: "Plugin adapter demo", time: "Sun", sortKey: 30, encrypted: false }),
 ];
 
 const generic = (name: string): Message[] => [

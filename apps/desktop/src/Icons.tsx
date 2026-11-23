@@ -1,4 +1,4 @@
-// Simple stroke icons drawn for ms_trix (no third-party/brand assets).
+// Simple stroke icons drawn for Trixcomm (no third-party/brand assets).
 import type { ReactNode } from "react";
 
 const Svg = ({ children, size = 20 }: { children: ReactNode; size?: number }) => (

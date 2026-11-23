@@ -132,7 +132,7 @@ plus the open items further down). S: a few hours, M: a day or two, L: several d
        sync with Element, "Add website tab"; for Talk a linked note or a Nextcloud Deck board
 16. [ ] L. Mini games, not during calls; our own designs. Matrix: two players in a direct chat with
        moves as our own (encrypted, invisible) event type, only the invite and result as normal
-       messages; both need ms_trix (a room widget would make it playable in Element Desktop/Web too).
+       messages; both need Trixcomm (a room widget would make it playable in Element Desktop/Web too).
        Talk: not for two players (every move would be a visible chat line). Single-player puzzles
        work for everyone. L for the first game with its frame, each next one smaller
 17. [ ] S per language. More languages: quick to translate, but each needs someone who speaks it to
@@ -157,7 +157,7 @@ on the homeserver), OS code signing (certificates; also clicking a notification 
 Talk call recording (needs the recording server), status messages other clients show (Matrix
 extended profile fields), Talk typing (skipped: see Talk follow-ups).
 
-Ordered by what makes ms_trix usable as a daily driver first. Anything not
+Ordered by what makes Trixcomm usable as a daily driver first. Anything not
 built yet is visibly disabled in the UI with a "coming soon" tooltip.
 
 ## Done
@@ -211,7 +211,7 @@ built yet is visibly disabled in the UI with a "coming soon" tooltip.
       reactions, files (send + view), read markers, mark unread, favourites, notification level,
       presence, members, invite, new chats, open conversations to join; polling every 5 s
 - [x] Build pipeline: GitHub Actions job per OS (macOS Apple Silicon only, Windows, Linux) with installers as artifacts
-- [x] Talk calls (step A): Start / Join call opens Talk's own call screen in an ms_trix window
+- [x] Talk calls (step A): Start / Join call opens Talk's own call screen in an Trixcomm window
       (video, screen sharing, HPB); "call in progress" 📞 in the chat list; notification when a call starts
 - [x] Captions under images/files (Matrix `filename` + `body`, Talk text with a shared file)
 - [x] Chat header ⋯ menu: room info / people, notification level, favourite, leave
@@ -336,7 +336,7 @@ built yet is visibly disabled in the UI with a "coming soon" tooltip.
       Klipy or Giphy, privacy notice); sending/receiving GIF files already works and animates
 
 ## 4. Beyond
-- [x] Calls step B: Talk calls in ms_trix's own call screen (1:1 video with a Talk client works on a real server).
+- [x] Calls step B: Talk calls in Trixcomm's own call screen (1:1 video with a Talk client works on a real server).
       Talk REST for membership + signalling settings; signalling over the HPB (WebSocket, MCU or
       mesh) or Talk's built-in signalling; WebRTC here. Teams-like grid with speaker ring, own tile
       in the corner, shared screen large with a strip of faces, mute/camera/share/leave, minimise.
@@ -440,7 +440,7 @@ Submit once the repo has three months of commit history (first commit 2026-11-16
 2027-02-16): a PR to matrix-org/matrix.org with the client page, an SVG logo + REUSE licence file,
 screenshots and a project Matrix room. Maturity: Beta until it has been used in production for a while.
 
-Their feature list, and where ms_trix stands:
+Their feature list, and where Trixcomm stands:
 - Supported: end-to-end encryption, spaces (view, browse, join), 1:1 calls (legacy), SSO, OAuth 2.0
   (MAS), multiple accounts, multiple languages, image packs (emoji, stickers, own pack), sliding sync
 - [x] Invisible crypto (MSC4153): room keys only go to cross-signed devices (incoming messages are

@@ -216,11 +216,11 @@ pub async fn login(server: &str, open_url: Box<dyn FnOnce(String) -> Result<()> 
     Ok((Arc::new(adapter), serde_json::to_vec(&session).map_err(err)?))
 }
 
-/// Nextcloud names the app password after the User-Agent ("ms_trix (Desktop)").
+/// Nextcloud names the app password after the User-Agent ("Trixcomm (Desktop)").
 /// Keeps cookies: Talk ties joining a conversation and then its call to the same
 /// (cookie-based) session, like its own apps do.
 fn client() -> reqwest::Client {
-    reqwest::Client::builder().user_agent(concat!("ms_trix (Desktop) ", env!("CARGO_PKG_VERSION"))).cookie_store(true).build().unwrap_or_default()
+    reqwest::Client::builder().user_agent(concat!("Trixcomm (Desktop) ", env!("CARGO_PKG_VERSION"))).cookie_store(true).build().unwrap_or_default()
 }
 
 fn placeholder_account(id: AccountId, session: &Session) -> Account {
@@ -1748,7 +1748,7 @@ impl ProtocolAdapter for TalkAdapter {
             return Err(err("bad time"));
         }
         let href = self.calendar_href(&event.calendar).await?;
-        let uid = format!("{}-{}@ms_trix", now(), Alphanumeric.sample_string(&mut rand::rng(), 12));
+        let uid = format!("{}-{}@trixcomm", now(), Alphanumeric.sample_string(&mut rand::rng(), 12));
         let stamp = stamp_now();
         let organizer = self.whoami().await.1;
         if !event.attendees.is_empty() && organizer.is_none() {

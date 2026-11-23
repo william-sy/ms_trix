@@ -1,6 +1,6 @@
 [package]
 name = "trix-ntfy"
-description = "ntfy topics as an ms_trix account (watch and publish)"
+description = "ntfy topics as an Trixcomm account (watch and publish)"
 edition.workspace = true
 license.workspace = true
 version.workspace = true

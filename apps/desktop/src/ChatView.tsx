@@ -384,7 +384,7 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
               <button className="icon-btn" title={t("mxcall.video")} disabled={!!calls?.call && calls.call.phase !== "ended"} onClick={() => calls?.start(conv.id, conv.orgId, conv.dmUser!, true)}><CameraIcon /></button>
             </>
           ))}
-          {/* Talk: calls run in ms_trix's own call screen; Talk's window stays in the ⋯ menu. */}
+          {/* Talk: calls run in Trixcomm's own call screen; Talk's window stays in the ⋯ menu. */}
           {canCall && (inThisTalkCall ? (
             <button className="btn primary small call-join" onClick={() => talkCalls?.show()}><CallIcon /> {t("mxcall.show")}</button>
           ) : conv.callActive ? (

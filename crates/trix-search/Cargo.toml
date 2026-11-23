@@ -1,6 +1,6 @@
 [package]
 name = "trix-search"
-description = "Encrypted local full-text search index for ms_trix"
+description = "Encrypted local full-text search index for Trixcomm"
 edition.workspace = true
 license.workspace = true
 version.workspace = true

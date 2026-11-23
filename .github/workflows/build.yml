@@ -84,55 +84,55 @@ jobs:
 
       # One download per installer, so nobody gets the app twice (the .dmg already holds the .app;
       # Windows and Linux each have two kinds of installer). Kept 30 days.
-      - name: Upload ms_trix-macOS-dmg
+      - name: Upload trixcomm-macOS-dmg
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@v7
         with:
-          name: ms_trix-macOS-dmg
+          name: trixcomm-macOS-dmg
           path: ${{ matrix.bundle }}/dmg/*.dmg
           if-no-files-found: error
           retention-days: 30
           # Installers are compressed already.
           compression-level: 0
 
-      - name: Upload ms_trix-Windows-setup
+      - name: Upload trixcomm-Windows-setup
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v7
         with:
-          name: ms_trix-Windows-setup
+          name: trixcomm-Windows-setup
           path: ${{ matrix.bundle }}/nsis/*.exe
           if-no-files-found: error
           retention-days: 30
           # Installers are compressed already.
           compression-level: 0
 
-      - name: Upload ms_trix-Windows-msi
+      - name: Upload trixcomm-Windows-msi
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v7
         with:
-          name: ms_trix-Windows-msi
+          name: trixcomm-Windows-msi
           path: ${{ matrix.bundle }}/msi/*.msi
           if-no-files-found: error
           retention-days: 30
           # Installers are compressed already.
           compression-level: 0
 
-      - name: Upload ms_trix-Linux-deb
+      - name: Upload trixcomm-Linux-deb
         if: runner.os == 'Linux'
         uses: actions/upload-artifact@v7
         with:
-          name: ms_trix-Linux-deb
+          name: trixcomm-Linux-deb
           path: ${{ matrix.bundle }}/deb/*.deb
           if-no-files-found: error
           retention-days: 30
           # Installers are compressed already.
           compression-level: 0
 
-      - name: Upload ms_trix-Linux-AppImage
+      - name: Upload trixcomm-Linux-AppImage
         if: runner.os == 'Linux'
         uses: actions/upload-artifact@v7
         with:
-          name: ms_trix-Linux-AppImage
+          name: trixcomm-Linux-AppImage
           path: ${{ matrix.bundle }}/appimage/*.AppImage
           if-no-files-found: error
           retention-days: 30
@@ -140,10 +140,10 @@ jobs:
           compression-level: 0
 
       # For the release: the updater's signatures (and macOS's update archive, the .app packed).
-      - name: Upload ms_trix-${{ matrix.name }}-updater
+      - name: Upload trixcomm-${{ matrix.name }}-updater
         uses: actions/upload-artifact@v7
         with:
-          name: ms_trix-${{ matrix.name }}-updater
+          name: trixcomm-${{ matrix.name }}-updater
           path: |
             ${{ matrix.bundle }}/macos/*.app.tar.gz
             ${{ matrix.bundle }}/*/*.sig
@@ -185,13 +185,13 @@ jobs:
           merge-multiple: true
 
       # All files side by side (the signatures came from several folders); the macOS update
-      # archive (ms_trix.app.tar.gz) gets the version in its name like the rest.
+      # archive (Trixcomm.app.tar.gz) gets the version in its name like the rest.
       - name: Update manifest
         run: |
           find installers -mindepth 2 -type f -exec mv {} installers/ \;
           version="${GITHUB_REF_NAME#v}"
           for f in installers/*.app.tar.gz*; do
-            [ -e "$f" ] && mv "$f" "installers/ms_trix_${version}_aarch64.${f#installers/ms_trix.}"
+            [ -e "$f" ] && mv "$f" "installers/Trixcomm_${version}_aarch64.${f#installers/Trixcomm.}"
           done
           node apps/desktop/scripts/update-manifest.mjs installers "$version" notes.md \
             "https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME" > installers/latest.json
@@ -203,4 +203,4 @@ jobs:
         run: |
           files=()
           for f in installers/*; do [[ -f "$f" && "$f" != *.sig ]] && files+=("$f"); done
-          gh release create "$GITHUB_REF_NAME" "${files[@]}" --verify-tag --title "ms_trix ${GITHUB_REF_NAME#v}" --notes-file body.md
+          gh release create "$GITHUB_REF_NAME" "${files[@]}" --verify-tag --title "Trixcomm ${GITHUB_REF_NAME#v}" --notes-file body.md

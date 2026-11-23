@@ -1,4 +1,4 @@
-// Talk group calls in ms_trix's own call screen.
+// Talk group calls in Trixcomm's own call screen.
 //
 // Membership (joining the conversation and the call) and the signalling settings go
 // through Talk's REST API via the host (`backend.callApi`). Signalling then runs either

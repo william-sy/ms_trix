@@ -392,7 +392,7 @@ pub trait ProtocolAdapter: Send + Sync {
     }
     /// Sends a 1:1 call event (`content` is JSON); encrypted like messages in encrypted rooms.
     async fn send_call_event(&self, _conversation: &ConversationId, _event_type: &str, _content: &str) -> Result<()> {
-        Err(AdapterError::Unsupported("calls in ms_trix"))
+        Err(AdapterError::Unsupported("calls in Trixcomm"))
     }
     /// The homeserver's TURN relays, if it offers them.
     async fn turn_servers(&self) -> Result<Option<TurnServers>> {
@@ -402,7 +402,7 @@ pub trait ProtocolAdapter: Send + Sync {
     /// protocol's own call/signalling endpoints are allowed. Returns the JSON reply data
     /// and the server address (for signalling auth).
     async fn call_api(&self, _method: &str, _path: &str, _form: &[(String, String)], _timeout_secs: u64) -> Result<(String, String)> {
-        Err(AdapterError::Unsupported("calls in ms_trix"))
+        Err(AdapterError::Unsupported("calls in Trixcomm"))
     }
     /// Uploads a file to one of the endpoints `call_api` serves (a conversation picture, an
     /// email list), as multipart field `field`; returns the response data as JSON.

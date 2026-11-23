@@ -12,7 +12,7 @@ use trix_core::adapter::{AdapterError, Result};
 use url::Url;
 
 /// Shown on the server's consent page as the app's home page.
-const CLIENT_URI: &str = "https://mstrix.nl/";
+const CLIENT_URI: &str = "https://github.com/william-sy/trixcomm";
 /// How long the browser sign-in may take.
 const TIMEOUT: std::time::Duration = std::time::Duration::from_secs(600);
 
@@ -31,7 +31,7 @@ fn metadata(redirect: &Url) -> Result<Raw<ClientMetadata>> {
         vec![OAuthGrantType::AuthorizationCode { redirect_uris: vec![redirect.clone()] }],
         Localized::new(Url::parse(CLIENT_URI).map_err(err)?, []),
     );
-    metadata.client_name = Some(Localized::new("ms_trix".to_owned(), []));
+    metadata.client_name = Some(Localized::new("Trixcomm".to_owned(), []));
     Raw::new(&metadata).map_err(err)
 }
 
@@ -76,9 +76,9 @@ async fn wait_for_redirect(listener: &TcpListener) -> Result<String> {
         };
         let ok = !query.contains("error=");
         let body = format!(
-            "<!doctype html><meta charset=utf-8><title>ms_trix</title><body style=\"font-family:system-ui;text-align:center;padding:4em\"><h2>{}</h2><p>{}</p></body>",
+            "<!doctype html><meta charset=utf-8><title>Trixcomm</title><body style=\"font-family:system-ui;text-align:center;padding:4em\"><h2>{}</h2><p>{}</p></body>",
             if ok { "Signed in" } else { "Sign-in cancelled" },
-            "You can close this tab and return to ms_trix."
+            "You can close this tab and return to Trixcomm."
         );
         let response = format!("HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len());
         let _ = stream.write_all(response.as_bytes()).await;

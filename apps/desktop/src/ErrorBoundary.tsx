@@ -10,7 +10,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, { error: E
   }
 
   componentDidCatch(error: Error) {
-    console.error("ms_trix UI crashed:", error);
+    console.error("Trixcomm UI crashed:", error);
   }
 
   render() {

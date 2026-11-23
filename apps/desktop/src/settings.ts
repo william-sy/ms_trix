@@ -41,7 +41,7 @@ export interface Settings {
   /** Let others see when you've read their messages / are typing. */
   shareReceipts: boolean;
   shareTyping: boolean;
-  /** Closing the window keeps ms_trix running in the tray. */
+  /** Closing the window keeps Trixcomm running in the tray. */
   closeToTray: boolean;
   spellCheck: boolean;
   /** Minutes without input before "available" shows as away; 0 = never. */
@@ -78,7 +78,7 @@ export interface Settings {
   reminderSound: Ringtone;
   /** Minutes before a meeting its reminder comes; 0 = no reminders. */
   reminderMinutes: number;
-  /** Meeting reminders pop up on top of other windows, or inside ms_trix only. */
+  /** Meeting reminders pop up on top of other windows, or inside Trixcomm only. */
   meetingReminder: "window" | "app";
   /** Size of messages that are only emoji (or custom emoji). */
   emojiSize: "small" | "medium" | "large";
@@ -97,6 +97,7 @@ export const accents: { name: Key; color: string }[] = [
   { name: "accent.graphite", color: "#5f6b7a" },
 ];
 
+// The app's first name: kept, so settings carry over (index.html reads it too).
 const KEY = "ms_trix.settings";
 const defaults: Settings = {
   theme: "system",

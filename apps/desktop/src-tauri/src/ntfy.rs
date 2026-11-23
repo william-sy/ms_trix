@@ -96,7 +96,7 @@ pub fn forward(app: &AppHandle, title: &str, body: &str, kind: Kind) {
 /// A test message, whether you're away or not.
 pub async fn test() -> Result<(), String> {
     let prefs = PREFS.lock().unwrap().clone().ok_or("set a server and topic first")?;
-    publish(&prefs, "ms_trix", "✓ ntfy works", 3, "white_check_mark").await
+    publish(&prefs, "Trixcomm", "✓ ntfy works", 3, "white_check_mark").await
 }
 
 async fn publish(prefs: &Prefs, title: &str, message: &str, priority: u8, tag: &str) -> Result<(), String> {
@@ -129,7 +129,7 @@ mod tests {
     #[test]
     #[ignore = "needs the internet (publishes to a throwaway topic on ntfy.sh)"]
     fn publishes_to_ntfy() {
-        let topic = format!("ms_trix-test-{}", rand::random::<u64>());
+        let topic = format!("trixcomm-test-{}", rand::random::<u64>());
         let prefs = Prefs { server: "https://ntfy.sh".into(), topic, only_away: false, away_after_secs: 0, include_text: true };
         tauri::async_runtime::block_on(publish(&prefs, "Ünïcode tïtle", "hello from the test", 3, "speech_balloon")).expect("published");
     }

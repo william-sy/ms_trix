@@ -486,7 +486,7 @@ function Notifications({ settings, set }: Section) {
 }
 
 /** A long random topic name: on ntfy.sh anyone who knows a topic can read it. */
-const randomTopic = () => `ms_trix-${Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => (b % 36).toString(36)).join("")}`;
+const randomTopic = () => `trixcomm-${Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => (b % 36).toString(36)).join("")}`;
 
 /** ntfy add-on: notifications also to an ntfy topic (the ntfy app on your phone), e.g. while you're away. */
 function NtfySection({ settings, set }: Section) {
@@ -537,7 +537,7 @@ function NtfySection({ settings, set }: Section) {
 const RINGTONE_MAX = 5 * 1024 * 1024;
 const REMINDER_MINUTES = [1, 5, 10, 15, 30, 0];
 
-/** The ringtone or the reminder sound: one of ms_trix's tunes or your own sound file, with a preview. */
+/** The ringtone or the reminder sound: one of Trixcomm's tunes or your own sound file, with a preview. */
 function RingtoneRow({ field, settings, set }: Section & { field: "ringtone" | "reminderSound" }) {
   const [stop, setStop] = useState<(() => void) | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -664,7 +664,7 @@ function About({ settings, set }: Section) {
   return (
     <>
       <section>
-        <h2>ms_trix</h2>
+        <h2>Trixcomm</h2>
         <p>{t("about.version", { version: version ?? "—" })}</p>
         <div className="about-update">
           {update.available ? (
