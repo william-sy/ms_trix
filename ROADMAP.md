@@ -79,46 +79,66 @@ plus the open items further down). S: a few hours, M: a day or two, L: several d
 4. [x] S–M. Status from your calendar: Matrix accounts busy, "In a meeting until …", while you're
        available (setting, on by default); Nextcloud does it for Talk itself. Out of office on
        Talk profile cards (Nextcloud 28+) (2026-11-22)
-5. [ ] M. High contrast and motion (the visual half of accessibility): a light and a dark
+5. [ ] S–M. Call layout (idea 2026-11-23): the strip of faces (beside a shared screen, under the
+       speaker) made bigger or smaller by dragging its edge, remembered; one or two rows (columns
+       beside a shared screen) in the layout menu, so less scrolling through participants. Not
+       per-tile resizing (Teams doesn't either); the gallery already fills the window
+6. [ ] M. High contrast and motion (the visual half of accessibility): a light and a dark
        high-contrast theme (strong borders, no faint grey text, no see-through surfaces), switched
        on by macOS "Increase contrast" (prefers-contrast) and Windows contrast themes
        (forced-colors, system colours); "reduce motion" respected (moving backgrounds, effects,
        fades); an extra-large text size with the layout holding up; a clear focus outline for
        keyboard use; contrast of both normal themes checked
-6. [ ] M. Releases and auto-update: a tag builds a GitHub Release with its notes and the
-       installers; the app checks for updates and installs them (Tauri updater with our own update
+7. [ ] M. Releases and auto-update. Done (2026-11-23, first 1.5.1): a tag vX.Y.Z builds a GitHub
+       Release with that version's notes and the installers; hotfixes on a release/X.Y branch.
+       To do: the app checks for updates and installs them (Tauri updater with our own update
        key, free, separate from OS code signing; the key goes into one GitHub secret), "Update
        available" with what's new, Settings → About shows the version with Check now. After the
        first install, nobody needs the quarantine command again
-7. [ ] M. Links to chats (clicking room links works already): typing # suggests your chats after a
+8. [ ] M. Links to chats (clicking room links works already): typing # suggests your chats after a
        letter or two (like @mentions), picking one inserts a link shown as the chat's name (Matrix:
        matrix.to, a pill in Element and Element X too, others are offered to join; Talk: the
        conversation link on the same Nextcloud, a card in Talk). No pick: it stays a #hashtag. Room
        links show as a pill with name and picture for chats you know. Only chats of the same
        platform are suggested
-8. [ ] M. Saved messages and "remind me about this": Save in a message's ⋯ menu, a Saved list;
+9. [ ] M. Saved messages and "remind me about this": Save in a message's ⋯ menu, a Saved list;
        Matrix in your account data (syncs between your own devices), reminders by the app (like
        send later); Talk through its own reminder API (so Talk's other clients remind you too)
-9. [ ] L. Files in the rail (Nextcloud, like OneDrive in Teams): folders (browsing exists for the
+10. [ ] M–L. Chat beside the call (idea 2026-11-23, like Teams' meeting chat): 💬 in the call's
+       header opens the conversation's chat as a panel on the right (the stage narrows; its own
+       window grows if there's room), with an unread count while closed; docked and in its own
+       window. Messages already reach every webview (trix://messages); the work is moving sending,
+       editing and reactions out of App.tsx (`act`) into a hook both windows use, then ChatView and
+       Composer as they are. Files by drag and drop can follow. Talk calls only for now
+11. [ ] L. Find a time (requested 2026-11-23, Teams' scheduling assistant): in New meeting (and
+       Edit), everyone's free and busy times for the chosen day under People: a row per person, you
+       included, the chosen time framed, click a free spot to move there; a dot on each person
+       (free, busy, unknown); "Suggest a time" lists the next slots of the same length when
+       everyone is free, within working hours, picked with one click. Nextcloud answers free/busy
+       itself (CalDAV scheduling outbox, VFREEBUSY): across all their calendars, repeats expanded,
+       outside their working hours marked unavailable if they set them; busy blocks only, no
+       titles. Only for people on the same Nextcloud; email guests show as unknown. Check first
+       that SURF's Nextcloud answers it (one request)
+12. [ ] L. Files in the rail (Nextcloud, like OneDrive in Teams): folders (browsing exists for the
        📎 menu), recent files and search; upload by drag and drop; open, download, share a link or
        into a chat; documents open in Nextcloud Office
-10. [ ] L. Accessibility for screen readers and keyboard: a label on every icon button (about 440
+13. [ ] L. Accessibility for screen readers and keyboard: a label on every icon button (about 440
        buttons, a third have a tooltip now); the message list as a list, new messages announced;
        arrow keys through messages, F6 between panes; focus kept in dialogs and given back after;
        tested with VoiceOver (and NVDA on Windows if possible)
-11. [ ] L. Matrix 1:1 calls in their own window (signalling lives in the main window; needs a
+14. [ ] L. Matrix 1:1 calls in their own window (signalling lives in the main window; needs a
        hand-over, as Talk calls have)
-12. [ ] L. Tabs in chats: Matrix room widgets (a website, a shared notepad, a dashboard) as tabs that
+15. [ ] L. Tabs in chats: Matrix room widgets (a website, a shared notepad, a dashboard) as tabs that
        sync with Element, "Add website tab"; for Talk a linked note or a Nextcloud Deck board
-13. [ ] L. Mini games, not during calls; our own designs. Matrix: two players in a direct chat with
+16. [ ] L. Mini games, not during calls; our own designs. Matrix: two players in a direct chat with
        moves as our own (encrypted, invisible) event type, only the invite and result as normal
        messages; both need ms_trix (a room widget would make it playable in Element Desktop/Web too).
        Talk: not for two players (every move would be a visible chat line). Single-player puzzles
        work for everyone. L for the first game with its frame, each next one smaller
-14. [ ] S per language. More languages: quick to translate, but each needs someone who speaks it to
+17. [ ] S per language. More languages: quick to translate, but each needs someone who speaks it to
        check the result
-15. [ ] XL each. Zulip and Mattermost (own lists below)
-16. [ ] XL. Mobile (Tauri mobile or UniFFI)
+18. [ ] XL each. Zulip and Mattermost (own lists below)
+19. [ ] XL. Mobile (Tauri mobile or UniFFI)
 
 Dropped 2026-11-22 (not needed for now; back on the list if someone asks): export a chat,
 phishing list (OpenPhish), calendar on other CalDAV servers and on Exchange, email add-on (unread
