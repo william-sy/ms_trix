@@ -1,6 +1,6 @@
 # Release notes
 
-## 1.6 (not released yet)
+## 1.6.0 (2026-11-23)
 
 ### New
 - **New name: Trixcomm** (it was ms_trix). Your accounts, settings, search index and encryption

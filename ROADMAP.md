@@ -55,6 +55,8 @@
 
 1.4 (released 2026-11-19): fixes (see RELEASE_NOTES.md).
 
+1.6 (released 2026-11-23): see RELEASE_NOTES.md. Renamed to Trixcomm; updates by themselves.
+
 1.5 (released 2026-11-22), besides what's in RELEASE_NOTES.md:
 - [x] Activity: a way to clear it (empty the feed, or remove single items)
 - [x] Tables in the composer (size grid, 6 × 6 at most); Talk messages rendered from Markdown;
