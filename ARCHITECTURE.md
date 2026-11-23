@@ -109,7 +109,7 @@ that state to the UI through commands and events.
 
 * Talk calls run in the webview (WebRTC, `apps/desktop/src/talkCalls.ts`) over
   Talk's signalling: the high-performance backend (WebSocket, with or without an
-  MCU, as on SURF) or Talk's internal signalling (polling) when there is none.
+  MCU, a video server) or Talk's internal signalling (polling) when there is none.
   Offers carry the display name, so tiles and raised hands show names.
 * Each Talk call gets a webview of its own (`talk-call`, `OwnCallWindow.tsx`).
   The host docks it in the main window (filling it, or a card in the corner when
@@ -130,6 +130,20 @@ that state to the UI through commands and events.
   check (`linkCheck.ts`) runs in the UI on this computer only.
 * Speaker choice: WebView2 (Windows) supports `setSinkId`; WebKit doesn't, so on
   macOS the call switches the system output through CoreAudio (`audio_out.rs`).
+
+## Updates
+
+* Tauri's updater plugin, driven from Rust (`src-tauri/src/updates.rs`: `check_update`,
+  `install_update`); the UI is `src/updates.tsx` (banner under the title bar, Settings → About).
+* The app reads `latest.json` from the latest GitHub Release and installs only files signed with
+  the update key whose public half is in `tauri.conf.json` (`plugins.updater.pubkey`).
+* `.github/workflows/build.yml` signs the update files when the `TAURI_SIGNING_PRIVATE_KEY` and
+  `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` secrets are set (without them, e.g. in forks, it builds
+  without update files); on a tag, `apps/desktop/scripts/update-manifest.mjs` writes
+  `latest.json` with an entry per installer kind (`darwin-aarch64-app`, `windows-x86_64-nsis`,
+  `windows-x86_64-msi`, `linux-x86_64-appimage`, `linux-x86_64-deb`), which the updater picks by
+  how the app was installed.
+* Development builds don't update (`check_update` fails on purpose).
 
 ## Calendar
 

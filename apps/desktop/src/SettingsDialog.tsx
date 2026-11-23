@@ -12,6 +12,7 @@ import { OrgAvatar } from "./OrgSwitcher";
 import { AudioVideoSettings } from "./AudioVideoSettings";
 import { EmojiSettings } from "./EmojiSettings";
 import { playRingtone, RINGTONES, type Ringtone } from "./ringtone";
+import { checkForUpdate, installUpdate, updateText, useUpdates } from "./updates";
 import type { Org } from "./types";
 
 interface Props {
@@ -54,7 +55,7 @@ export function SettingsDialog({ initialTab = "general", settings, onChange, onC
           {tab === "emoji" && <EmojiSettings />}
           {tab === "privacy" && <Privacy settings={settings} set={set} />}
           {tab === "shortcuts" && <Shortcuts settings={settings} set={set} />}
-          {tab === "about" && <About />}
+          {tab === "about" && <About settings={settings} set={set} />}
         </div>
       </div>
     </div>
@@ -656,14 +657,34 @@ function Shortcuts({ settings, set }: Section) {
 
 const SPONSOR = "https://selectedwithtrust.com";
 
-function About() {
+function About({ settings, set }: Section) {
   const [version, setVersion] = useState<string | null>(null);
   useEffect(() => { if (isLive) void getVersion().then(setVersion).catch(() => {}); }, []);
+  const update = useUpdates();
   return (
     <>
       <section>
         <h2>ms_trix</h2>
         <p>{t("about.version", { version: version ?? "—" })}</p>
+        <div className="about-update">
+          {update.available ? (
+            <>
+              <span>{updateText(update)}</span>
+              <button className="btn primary small" disabled={update.blocked || update.installing !== undefined} title={update.blocked ? t("update.afterCall") : undefined} onClick={() => void installUpdate()}>{t("update.restart")}</button>
+            </>
+          ) : (
+            <>
+              <button className="btn small" disabled={!isLive || update.checking} onClick={() => void checkForUpdate()}>{update.checking ? t("update.checking") : t("update.checkNow")}</button>
+              {update.upToDate && <span className="muted">{t("update.upToDate")}</span>}
+            </>
+          )}
+        </div>
+        {update.error && <p className="error">{update.error}</p>}
+        <label className="toggle-row">
+          <input type="checkbox" checked={settings.autoUpdate} onChange={(e) => set({ autoUpdate: e.target.checked })} />
+          <span>{t("update.auto")}</span>
+        </label>
+        <p className="hint">{t("update.autoHint")}</p>
       </section>
       <section>
         <h2>{t("about.supported")}</h2>

@@ -11,19 +11,19 @@ export type LinkWarning =
 
 /** Sites people often get phished with; your own accounts' domains are added to these. */
 const WELL_KNOWN = [
-  "surf.nl", "surfconext.nl", "surfdrive.nl", "eduroam.org", "microsoft.com", "microsoftonline.com", "office.com", "outlook.com", "live.com",
+  "eduroam.org", "microsoft.com", "microsoftonline.com", "office.com", "outlook.com", "live.com",
   "google.com", "gmail.com", "apple.com", "icloud.com", "paypal.com", "amazon.com", "facebook.com", "instagram.com", "linkedin.com",
   "github.com", "dropbox.com", "ing.nl", "rabobank.nl", "abnamro.nl", "digid.nl", "belastingdienst.nl", "postnl.nl", "bol.com",
   "matrix.org", "element.io", "nextcloud.com",
 ];
 
-/** Parts of a domain name that dress up a borrowed name ("surf-nl", "paypal-login"). */
+/** Parts of a domain name that dress up a borrowed name ("paypal-nl", "paypal-login"). */
 const DRESSING = new Set(["nl", "com", "eu", "login", "logon", "signin", "secure", "account", "accounts", "verify", "auth", "sso", "mail", "support", "service", "update", "portal", "online", "help"]);
 
 /** Second-level endings, so the site of "shop.example.co.uk" is "example.co.uk". */
 const SECOND_LEVEL = new Set(["co.uk", "ac.uk", "gov.uk", "org.uk", "com.au", "co.nz", "co.jp", "com.br", "co.za"]);
 
-/** The site a host belongs to ("login.surf.nl" → "surf.nl"), roughly. */
+/** The site a host belongs to ("login.example.org" → "example.org"), roughly. */
 export function siteOf(host: string): string {
   const labels = host.toLowerCase().replace(/\.$/, "").split(".");
   if (labels.length <= 2) return labels.join(".");
@@ -33,7 +33,7 @@ export function siteOf(host: string): string {
 
 const nameOf = (site: string) => site.slice(0, site.lastIndexOf(".") < 0 ? undefined : site.lastIndexOf("."));
 
-/** Your accounts' domains: the server part of Matrix IDs (@you:matrix.surf.nl → surf.nl). */
+/** Your accounts' domains: the server part of Matrix IDs (@you:matrix.example.org → example.org). */
 export function ownDomains(userIds: string[]): string[] {
   return [...new Set(userIds.map((id) => /^@[^:]+:([^:/]+)/.exec(id)?.[1]).filter((h): h is string => !!h).map(siteOf))];
 }
@@ -141,7 +141,7 @@ export function checkLink(href: string, shown?: string, own: string[] = []): Lin
     const name = nameOf(site), read = skeleton(name), parts = read.split(/[-.]/);
     const like = trusted.find((t) => {
       const tn = nameOf(t);
-      // login.surf.nl.example.com: the real site's name in front of another one.
+      // login.paypal.com.example.net: the real site's name in front of another one.
       if (pretty.startsWith(`${t}.`) || pretty.includes(`.${t}.`)) return true;
       if (read === tn) return name !== tn || own.includes(t); // look-alike letters, or your own name under another ending
       if (tn.length >= 5 && distance(read, tn) <= (tn.length >= 8 ? 2 : 1)) return true;

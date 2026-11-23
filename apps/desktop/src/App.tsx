@@ -11,6 +11,7 @@ import { ChatView } from "./ChatView";
 import { Login } from "./Login";
 import { OrgSwitcher } from "./OrgSwitcher";
 import { KeyHelpContext, RecoveryDialog, SecurityBanner, needsAttention } from "./Security";
+import { setUpdateBlocked, UpdateBanner, useAutoUpdateCheck } from "./updates";
 import { TitleBar } from "./TitleBar";
 import { SettingsDialog, type SettingsTab } from "./SettingsDialog";
 import { matches } from "./shortcuts";
@@ -126,6 +127,10 @@ export function App() {
     backend.notifyCall(name, video ? t("mxcall.incomingVideo") : t("mxcall.incomingVoice")).catch(() => {});
     if (!dndActive()) backend.requestAttention().catch(() => {});
   });
+  // Updating restarts the app, which would end a call.
+  useAutoUpdateCheck();
+  const inCall = !!calls.call || !!(talkCalls.call && talkCalls.call.phase !== "ended");
+  useEffect(() => setUpdateBlocked(inCall), [inCall]);
   // Which Nextcloud accounts have Notes, and which a calendar (not every Nextcloud has them).
   const talkIds = isLive ? state.orgs.filter((o) => o.protocol === "talk").map((o) => o.id) : [];
   const notesAccounts = useAccountsWith(talkIds, (id) => backend.notes(id).then(() => true));
@@ -750,6 +755,7 @@ export function App() {
             <SecurityBanner org={attention} status={security[attention.id]!} onFix={() => setSecurityFor(attention.id)}
               onDismiss={() => setDismissed(new Set([...dismissed, attention.id]))} />
           )}
+          <UpdateBanner />
           {notice && (
             <div className="notice" role="alert">
               {notice} <button className="link" onClick={() => setNotice(null)}>{t("common.dismiss")}</button>

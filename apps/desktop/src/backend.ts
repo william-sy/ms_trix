@@ -568,6 +568,10 @@ export const backend = {
   messageAt: (key: string, ts: number) => invoke<[string | null, number | null]>("message_at", { key, ts }),
   loadThread: (key: string, root: string) => invoke<void>("load_thread", { key, root }),
   openUrl: (url: string) => invoke<void>("open_url", { url }),
+  /** A newer version on GitHub Releases, or null (fails in development builds). */
+  checkUpdate: () => invoke<UpdateInfo | null>("check_update"),
+  /** Downloads and installs it, then restarts; progress as "trix://update-progress" (0–100). */
+  installUpdate: () => invoke<void>("install_update"),
   openCall: (key: string, title: string) => invoke<void>("open_call", { key, title }),
   setPresence: (account: string, presence: string, status: string | null) => invoke<void>("set_presence", { account, presence, status }),
   acceptInvite: (key: string) => invoke<void>("accept_invite", { key }),
@@ -670,6 +674,12 @@ export interface SharedItem {
   media: { id: string; kind: "image" | "video" | "audio" | "file" | "sticker"; name: string; mime: string | null } | null;
   links: string[];
   text: string;
+}
+
+export interface UpdateInfo {
+  version: string;
+  /** The release's notes (Markdown). */
+  notes: string | null;
 }
 
 export interface UploadProgress {

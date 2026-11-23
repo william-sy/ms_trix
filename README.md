@@ -6,9 +6,9 @@ several organisations at once.
 
 ![ms_trix: chats, rooms and channels on the left, a conversation's shared files on the right](images/window%20overview.png)
 
-> **Status:** early, in daily use and testing at SURF (matrix.surf.nl and SURF's Nextcloud
-> Talk). Builds are not signed yet, so macOS and Windows will warn when you first open the app.
-> Runs on macOS (Apple Silicon), Windows and Linux.
+> **Status:** early, in daily use with Matrix and Nextcloud Talk. Builds are not signed yet, so
+> macOS and Windows will warn when you first open the app. Runs on macOS (Apple Silicon), Windows
+> and Linux.
 > What changed in each version: [release notes](RELEASE_NOTES.md).
 
 ## Why
@@ -80,7 +80,10 @@ Talk meeting settings, right in the room's info panel:
   recovery key or another session
 - Sign-in sessions are kept in the operating system's keychain
 - The search index holds decrypted messages, so it is encrypted on disk with a key in the keychain
-- ms_trix talks only to the servers of the accounts you add
+- ms_trix talks to the servers of the accounts you add; besides those only to websites linked in
+  messages (link previews, Settings → Privacy) and to GitHub to check for updates (Settings →
+  About). Both can be turned off
+- Updates are installed only when signed with ms_trix's own update key
 
 ## Installing
 
@@ -90,6 +93,11 @@ Download the installer for your system from the
 releases are in the [build workflow](https://github.com/william-sy/ms_trix/actions) (open a run;
 each installer downloads as a zip, kept for 30 days).
 They aren't signed yet, so your system asks once whether you trust the app.
+
+From 1.6 on, ms_trix updates itself: when a new version is out it says so under the title bar,
+and *Restart to update* installs it (never during a call). Settings → About has *Check for
+updates*. The steps below are needed only for the first install. On Linux the AppImage and the
+`.deb` both update; the `.deb` asks for your password.
 
 **macOS (Apple Silicon):** open the `.dmg` and drag ms_trix to Applications. macOS then says the
 app can't be opened; remove the "downloaded from the internet" mark once:

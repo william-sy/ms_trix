@@ -67,9 +67,20 @@ jobs:
       - name: Test core and Matrix adapter
         run: cargo test --workspace
 
+      # With the update key (secret) the update files are signed for the in-app updater; without it
+      # (forks, pull requests) the installers are built without update files.
       - name: Check translations and build installer
         working-directory: apps/desktop
-        run: npm run tauri build -- ${{ matrix.args }}
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            npm run tauri build -- ${{ matrix.args }}
+          else
+            npm run tauri build -- ${{ matrix.args }} --config '{"bundle":{"createUpdaterArtifacts":false}}'
+          fi
 
       # One download per installer, so nobody gets the app twice (the .dmg already holds the .app;
       # Windows and Linux each have two kinds of installer). Kept 30 days.
@@ -128,6 +139,17 @@ jobs:
           # Installers are compressed already.
           compression-level: 0
 
+      # For the release: the updater's signatures (and macOS's update archive, the .app packed).
+      - name: Upload ms_trix-${{ matrix.name }}-updater
+        uses: actions/upload-artifact@v4
+        with:
+          name: ms_trix-${{ matrix.name }}-updater
+          path: |
+            ${{ matrix.bundle }}/macos/*.app.tar.gz
+            ${{ matrix.bundle }}/*/*.sig
+          if-no-files-found: ignore
+          retention-days: 7
+
   # A version tag: once every OS built, one release with all installers and the version's notes.
   release:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -154,14 +176,31 @@ jobs:
             echo "::error::No section for ${GITHUB_REF_NAME#v} in RELEASE_NOTES.md"
             exit 1
           fi
-          printf '\n---\nNot signed yet: see [Installing](https://github.com/%s#installing) for the one-time step on macOS and Windows.\n' "$GITHUB_REPOSITORY" >> notes.md
+          cp notes.md body.md
+          printf '\n---\nNot signed yet: see [Installing](https://github.com/%s#installing) for the one-time step on macOS and Windows.\n' "$GITHUB_REPOSITORY" >> body.md
 
       - uses: actions/download-artifact@v4
         with:
           path: installers
           merge-multiple: true
 
+      # All files side by side (the signatures came from several folders); the macOS update
+      # archive (ms_trix.app.tar.gz) gets the version in its name like the rest.
+      - name: Update manifest
+        run: |
+          find installers -mindepth 2 -type f -exec mv {} installers/ \;
+          version="${GITHUB_REF_NAME#v}"
+          for f in installers/*.app.tar.gz*; do
+            [ -e "$f" ] && mv "$f" "installers/ms_trix_${version}_aarch64.${f#installers/ms_trix.}"
+          done
+          node apps/desktop/scripts/update-manifest.mjs installers "$version" notes.md \
+            "https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME" > installers/latest.json
+
+      # The signatures are inside latest.json; the release lists the installers and it.
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" installers/* --verify-tag --title "ms_trix ${GITHUB_REF_NAME#v}" --notes-file notes.md
+        run: |
+          files=()
+          for f in installers/*; do [[ -f "$f" && "$f" != *.sig ]] && files+=("$f"); done
+          gh release create "$GITHUB_REF_NAME" "${files[@]}" --verify-tag --title "ms_trix ${GITHUB_REF_NAME#v}" --notes-file body.md

@@ -6,7 +6,7 @@ import { t } from "./i18n";
 import { useOrg } from "./store";
 import type { Conversation } from "./types";
 
-// A Talk conversation's own settings, as in Talk's "Conversation settings" (SURF's version):
+// A Talk conversation's own settings, as in Talk's "Conversation settings":
 // talks to Talk's REST API through the host. Options the server doesn't report are left out.
 
 type Any = any; // eslint-disable-line @typescript-eslint/no-explicit-any

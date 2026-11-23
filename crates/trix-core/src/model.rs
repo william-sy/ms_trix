@@ -43,9 +43,9 @@ pub type Timestamp = u64;
 pub struct Account {
     pub id: AccountId,
     pub protocol: ProtocolId,
-    /// Shown in the org switcher, e.g. "SURF".
+    /// Shown in the org switcher, e.g. "Harbour Lab".
     pub org_name: String,
-    /// Protocol-native user id, e.g. `@william:surf.nl`.
+    /// Protocol-native user id, e.g. `@william:example.org`.
     pub user_id: String,
     pub display_name: String,
     pub avatar_url: Option<String>,
@@ -800,7 +800,7 @@ mod tests {
     #[test]
     fn finds_tags_but_not_rooms_links_or_numbers() {
         assert_eq!(hashtags("Plan for #Q3 and #budget-2027, see #planning."), ["q3", "budget-2027", "planning"]);
-        assert_eq!(hashtags("join #team:surf.nl or https://x.nl/page#part"), Vec::<String>::new());
+        assert_eq!(hashtags("join #team:example.org or https://x.nl/page#part"), Vec::<String>::new());
         assert_eq!(hashtags("issue #12, colour#fff, ##double, #a"), Vec::<String>::new());
         assert_eq!(hashtags("#vergadering: morgen #Vergadering"), ["vergadering"]);
     }

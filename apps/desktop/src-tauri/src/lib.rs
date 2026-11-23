@@ -5,6 +5,7 @@ mod scheduled;
 mod spell;
 mod accounts;
 mod search;
+mod updates;
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -2241,6 +2242,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(
             tauri_plugin_log::Builder::default()
                 // Libraries only warn: matrix-sdk/ruma log tens of thousands of lines per sync at
@@ -2335,6 +2337,8 @@ pub fn run() {
             _ => {}
         })
         .invoke_handler(tauri::generate_handler![
+            updates::check_update,
+            updates::install_update,
             accounts,
             login_methods,
             login_oauth,

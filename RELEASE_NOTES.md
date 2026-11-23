@@ -16,6 +16,18 @@
   to turn it off). Nextcloud does this itself for Talk.
 - **Talk sessions:** Settings → Accounts has a button to Nextcloud's Security settings, where your
   devices and app passwords are listed and can be revoked (Nextcloud has no API for that list).
+- **Updates by themselves:** when a new version is out, a bar under the title says so, with
+  What's new and *Restart to update* (not during a call). Settings → About shows the version, has
+  *Check for updates* and a switch for checking automatically (at start and every six hours, on
+  by default). Only updates signed with ms_trix's own key are installed, so after this version
+  nobody needs macOS's quarantine command or Windows' "Run anyway" again. Works for every
+  installer: the macOS app, Windows setup and MSI, Linux AppImage and .deb (asks for your
+  password).
+
+### Other
+- No more references to one organisation in the docs, the demo data and the tests: ms_trix is
+  for anyone on Matrix and Nextcloud Talk. The phishing check's list of well-known sites is
+  general now; your own accounts' domains are still added to it.
 
 ## 1.5.1 (2026-11-23)
 
@@ -136,7 +148,7 @@
   a link. This app fetches them itself, so your server never sees links from encrypted chats;
   turn them off in Settings → Privacy.
 - **Phishing check:** links whose text shows another address than where they go, look-alike
-  letters, names that imitate your own or well-known domains (surf-nl.com, paypa1.com), and
+  letters, names that imitate your own or well-known domains (paypal-login.com, paypa1.com), and
   address tricks are marked with ⚠ and ask before they open. The preview also shows where a short
   link really leads. All checked on this computer.
 - **Repeating meetings:** every day, every weekday, every week on the days you pick, every two

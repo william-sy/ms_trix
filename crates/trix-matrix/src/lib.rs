@@ -221,7 +221,7 @@ pub struct IdentityProvider {
     pub name: String,
 }
 
-/// Resolves a server name (`surf.nl`) or URL and asks it how to log in.
+/// Resolves a server name (`example.org`) or URL and asks it how to log in.
 pub async fn login_methods(homeserver: &str) -> Result<LoginMethods> {
     use matrix_sdk::ruma::api::client::session::get_login_types::v3::LoginType;
 

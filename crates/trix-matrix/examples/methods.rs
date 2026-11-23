@@ -1,5 +1,5 @@
 //! Prints which login methods a server offers:
-//!   cargo run -p trix-matrix --example methods -- matrix.org surf.nl
+//!   cargo run -p trix-matrix --example methods -- matrix.org mozilla.org
 
 #[tokio::main]
 async fn main() {

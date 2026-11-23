@@ -52,6 +52,8 @@ export interface Settings {
   ntfy: { enabled: boolean; server: string; topic: string; when: "away" | "always"; includeText: boolean };
   /** Previews under messages with a link, fetched by the app itself. */
   linkPreviews: boolean;
+  /** Ask GitHub Releases for a newer version at start and every few hours. */
+  autoUpdate: boolean;
   /** Do not disturb until this time (ms; DND_FOREVER: until switched off), or off. */
   dndUntil: number | null;
   /** Changed keyboard shortcuts (id -> combo); missing ids use the defaults. */
@@ -111,6 +113,7 @@ const defaults: Settings = {
   meetingStatus: true,
   dndUntil: null,
   linkPreviews: true,
+  autoUpdate: true,
   ntfy: { enabled: false, server: "https://ntfy.sh", topic: "", when: "away", includeText: false },
   shortcuts: {},
   orgColors: {},

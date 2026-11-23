@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "ms_trix",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "identifier": "nl.mstrix.app",
   "build": {
     "frontendDist": "../dist",
@@ -38,6 +38,18 @@
     ],
     "android": {
       "debugApplicationIdSuffix": ".debug"
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEFENTJDODg2Mjg3RTEyOEYKUldTUEVuNG9oc2hTclk3TXh1dzljdWNPTzBaTis4M0J3OW5qaENkWmg0OXZWOHk4WEpDSWNnV2gK",
+      "endpoints": [
+        "https://github.com/william-sy/ms_trix/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
     }
   }
 }

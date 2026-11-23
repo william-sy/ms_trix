@@ -327,7 +327,7 @@ mod tests {
     #[test]
     #[ignore = "needs the internet"]
     fn previews_a_real_page() {
-        let preview = tauri::async_runtime::block_on(preview("https://www.surf.nl/")).expect("a preview");
+        let preview = tauri::async_runtime::block_on(preview("https://www.rust-lang.org/")).expect("a preview");
         println!("{} | {:?} | {:?} | image: {}", preview.final_url, preview.site_name, preview.title, preview.image.as_ref().map_or(0, |i| i.len()));
         assert!(preview.title.is_some());
         assert!(tauri::async_runtime::block_on(preview_local()).is_none());

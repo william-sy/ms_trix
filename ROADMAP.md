@@ -6,9 +6,9 @@
 - Archive: Matrix tags, both an own "archived" tag and the standard m.lowpriority, so other
   clients (Element, mobile) also move archived chats out of the way
 - GIF picker: skipped for now; keep as an idea (needs a third-party service + privacy notice)
-- Calls/verification are tested with a colleague on matrix.surf.nl
+- Calls/verification are tested with a colleague on a real homeserver
 - No signing certificates or GitHub repo yet: unsigned dev builds for now
-- First users: SURF (Matrix + Nextcloud Talk). Next protocols: Zulip and Mattermost (own roadmaps
+- First users: an organisation on Matrix + Nextcloud Talk. Next protocols: Zulip and Mattermost (own roadmaps
   below); XMPP and IRC skipped. Languages: English + Dutch for now
 - Microsoft Teams chats (2026-11-20): not pursued. Through Microsoft Graph there are no calls,
   organisations' admins must approve the app (verified publisher), and messages can only be
@@ -89,12 +89,12 @@ plus the open items further down). S: a few hours, M: a day or two, L: several d
        (forced-colors, system colours); "reduce motion" respected (moving backgrounds, effects,
        fades); an extra-large text size with the layout holding up; a clear focus outline for
        keyboard use; contrast of both normal themes checked
-7. [ ] M. Releases and auto-update. Done (2026-11-23, first 1.5.1): a tag vX.Y.Z builds a GitHub
-       Release with that version's notes and the installers; hotfixes on a release/X.Y branch.
-       To do: the app checks for updates and installs them (Tauri updater with our own update
-       key, free, separate from OS code signing; the key goes into one GitHub secret), "Update
-       available" with what's new, Settings → About shows the version with Check now. After the
-       first install, nobody needs the quarantine command again
+7. [x] M. Releases and auto-update (2026-11-23): a tag vX.Y.Z builds a GitHub Release with that
+       version's notes, the installers and latest.json (first release 1.5.1; hotfixes on a
+       release/X.Y branch). The app checks at start and every six hours (switch in Settings →
+       About, with Check for updates), "Restart to update" (not during a call), installs only
+       updates signed with our own key (Tauri updater; secrets TAURI_SIGNING_PRIVATE_KEY and
+       _PASSWORD). First real update: from 1.6.0 to the version after it
 8. [ ] M. Links to chats (clicking room links works already): typing # suggests your chats after a
        letter or two (like @mentions), picking one inserts a link shown as the chat's name (Matrix:
        matrix.to, a pill in Element and Element X too, others are offered to join; Talk: the
@@ -118,7 +118,7 @@ plus the open items further down). S: a few hours, M: a day or two, L: several d
        itself (CalDAV scheduling outbox, VFREEBUSY): across all their calendars, repeats expanded,
        outside their working hours marked unavailable if they set them; busy blocks only, no
        titles. Only for people on the same Nextcloud; email guests show as unknown. Check first
-       that SURF's Nextcloud answers it (one request)
+       that the Nextcloud in use answers it (one request)
 12. [ ] L. Files in the rail (Nextcloud, like OneDrive in Teams): folders (browsing exists for the
        📎 menu), recent files and search; upload by drag and drop; open, download, share a link or
        into a chat; documents open in Nextcloud Office
@@ -144,16 +144,16 @@ Dropped 2026-11-22 (not needed for now; back on the list if someone asks): expor
 phishing list (OpenPhish), calendar on other CalDAV servers and on Exchange, email add-on (unread
 count and notifications, later a Mail view), pop out a chat into its own window.
 
-To test (from 1.6): Translate in a message's ⋯ menu (only shows when SURF's Nextcloud has a
+To test (from 1.6): Translate in a message's ⋯ menu (only shows when the Nextcloud has a
 translation provider); out of office on a Talk profile card; "In a meeting" on Matrix during a
-meeting; whether SURF's Nextcloud shows "In a meeting" on Talk by itself; Copy link to this chat.
+meeting; whether Nextcloud shows "In a meeting" on Talk by itself; Copy link to this chat.
 To test (from 1.5 and before): emoji verification with a colleague; a silent call started from
-Talk; replying with a file in Talk; Talk group calls and screen sharing at SURF; whether SURF's
-Talk has threads (22+) and pinning (23+); Talk 1:1 call sound (the log's sound check); away status
+Talk; replying with a file in Talk; Talk group calls and screen sharing on a real server; whether the
+Talk in use has threads (22+) and pinning (23+); Talk 1:1 call sound (the log's sound check); away status
 on Windows and Linux; signing in through the browser on a server that offers it.
 
 Waiting on others: Matrix group calls and calls with Element X users (MatrixRTC: needs LiveKit
-on matrix.surf.nl), OS code signing (certificates; also clicking a notification to open the chat),
+on the homeserver), OS code signing (certificates; also clicking a notification to open the chat),
 Talk call recording (needs the recording server), status messages other clients show (Matrix
 extended profile fields), Talk typing (skipped: see Talk follow-ups).
 
@@ -336,7 +336,7 @@ built yet is visibly disabled in the UI with a "coming soon" tooltip.
       Klipy or Giphy, privacy notice); sending/receiving GIF files already works and animates
 
 ## 4. Beyond
-- [x] Calls step B: Talk calls in ms_trix's own call screen (1:1 video with a Talk client works on SURF).
+- [x] Calls step B: Talk calls in ms_trix's own call screen (1:1 video with a Talk client works on a real server).
       Talk REST for membership + signalling settings; signalling over the HPB (WebSocket, MCU or
       mesh) or Talk's built-in signalling; WebRTC here. Teams-like grid with speaker ring, own tile
       in the corner, shared screen large with a strip of faces, mute/camera/share/leave, minimise.
@@ -344,7 +344,7 @@ built yet is visibly disabled in the UI with a "coming soon" tooltip.
       Pre-join screen (preview, mic level, device choice, join muted / camera off); devices picked
       there are remembered for the next call, and can be switched during the call (⚙ menu);
       joining a running call starts with the camera as you last had it
-- [ ] Talk calls: test group calls (grid layout) and screen sharing on SURF
+- [ ] Talk calls: test group calls (grid layout) and screen sharing on a real server
 - [x] Screen sharing: red border around the shared screen + floating "Stop sharing" bar (both kept
       out of the capture), "You're sharing · Stop sharing" in the call header; Talk (video server):
       screen offered with "sendoffer" like Talk's web app, also to people joining later; own name sent
@@ -392,8 +392,8 @@ built yet is visibly disabled in the UI with a "coming soon" tooltip.
 - [x] Matrix calls: lines in the chat (started a voice/video call, ended, missed, declined; also in
       history), Calls rail with recent calls + missed-call badge + call back, glare handling
 - [x] Matrix calls: picture-in-picture (system floating video window) where the webview supports it
-- [ ] Matrix group calls via MatrixRTC / Element Call widget (matrix-sdk widget driver is ready; matrix.surf.nl
-      has no MatrixRTC/LiveKit configured yet, so this waits for SURF's server side). Also 1:1 calls
+- [ ] Matrix group calls via MatrixRTC / Element Call widget (matrix-sdk widget driver is ready; it needs
+      MatrixRTC/LiveKit on the homeserver, which our test server doesn't have yet). Also 1:1 calls
       over MatrixRTC: Element X only calls that way, so our legacy 1:1 calls can't reach Element X users
 - [x] Native OAuth login (MAS): "Sign in with your browser" when the server offers it; loopback
       redirect, dynamic client registration, refreshed tokens saved to the keychain (to be tested on
@@ -404,7 +404,7 @@ built yet is visibly disabled in the UI with a "coming soon" tooltip.
   - [x] Polls, Matrix (Element's format) and Talk: poll card with live results, vote (single or
         multiple choice), hidden results until the end, end your own poll, /poll to create one
   - [x] Talk: "Meet now" in the Calendar (title → create and copy link, or start the meeting)
-  - [x] Talk conversation settings, as in SURF's Talk (screenshots 2026-11-18), in the room panel:
+  - [x] Talk conversation settings, as in Talk's web app (screenshots 2026-11-18), in the room panel:
         Basic info: name, description, picture (emoji / upload / from Files);
         Personal: notifications all / @-mentions / off, call notifications, important (ignores DND),
         sensitive (no preview); Moderation: open to registered users (listable), allow @all;
@@ -415,13 +415,13 @@ built yet is visibly disabled in the UI with a "coming soon" tooltip.
   - [ ] Talk: start/stop call recording (backlog; needs the recording server)
 - [ ] Talk follow-ups: threads (Talk 22+) done 2026-11-21. Typing skipped for now (2026-11-21): it
       needs Talk's signaling with the chat joined, and then the phone gets no notifications for it
-  - [x] Talk: verify against the Nextcloud SURF uses (in daily use at SURF since 1.1)
+  - [x] Talk: verify against a production Nextcloud (in daily use since 1.1)
   - [x] Attach from Nextcloud Files (📎 menu): browse folders; in a Talk chat on the same Nextcloud
         the file is shared into the conversation, elsewhere a read-only public link is sent
-        (to be tested on SURF)
+        (to be tested on a real server)
   - [x] Nextcloud Calendar via CalDAV: Calendar rail item, Teams-like week (overlaps side by side,
         all-day row, now line), show/hide calendars, event details with Join for Talk meetings,
-        New meeting (optionally with a new Talk conversation as the online meeting) (to be tested on SURF)
+        New meeting (optionally with a new Talk conversation as the online meeting) (to be tested on a real server)
   - [x] Calendar: invite people (Nextcloud users by name, or any email address; Nextcloud mails
         the invitations), edit (reschedule) and delete your own meetings, accept/decline status
   - [x] Calendar: answer invitations (accept / maybe / decline; unanswered ones look tentative,
@@ -438,7 +438,7 @@ built yet is visibly disabled in the UI with a "coming soon" tooltip.
 ## Matrix client listing (matrix.org/ecosystem/clients)
 Submit once the repo has three months of commit history (first commit 2026-11-16, so from about
 2027-02-16): a PR to matrix-org/matrix.org with the client page, an SVG logo + REUSE licence file,
-screenshots and a project Matrix room. Maturity: Beta until SURF has used it in production for a while.
+screenshots and a project Matrix room. Maturity: Beta until it has been used in production for a while.
 
 Their feature list, and where ms_trix stands:
 - Supported: end-to-end encryption, spaces (view, browse, join), 1:1 calls (legacy), SSO, OAuth 2.0

@@ -448,11 +448,11 @@ mod tests {
     fn phrases_wildcards_and_case() {
         let dir = tempfile::tempdir().unwrap();
         let index = open(&dir);
-        index.add(&[doc("a|!r", "$1", "Deploying the SURF cluster", 1), doc("a|!r", "$2", "surf the web, then cluster", 2)]).unwrap();
+        index.add(&[doc("a|!r", "$1", "Deploying the ACME cluster", 1), doc("a|!r", "$2", "acme the web, then cluster", 2)]).unwrap();
         let ids = |q: &str, case: bool| index.search_query(&Query::parse(q, case), None, 10).unwrap().into_iter().map(|d| d.event_id).collect::<Vec<_>>();
-        assert_eq!(ids("\"surf cluster\"", false), ["$1"], "a phrase keeps its words together");
+        assert_eq!(ids("\"acme cluster\"", false), ["$1"], "a phrase keeps its words together");
         assert_eq!(ids("*ploy*", false), ["$1"], "a leading wildcard reads the messages");
-        assert_eq!(ids("SURF", true), ["$1"], "match case");
+        assert_eq!(ids("ACME", true), ["$1"], "match case");
         assert_eq!(ids("clus* web", false), ["$2"]);
     }
 

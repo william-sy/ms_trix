@@ -151,16 +151,16 @@ mod tests {
 
     #[test]
     fn words_phrases_wildcards_and_case() {
-        let text = "Deploying the SURF cluster tomorrow, see #planning";
+        let text = "Deploying the ACME cluster tomorrow, see #planning";
         let q = |s: &str, case: bool| Query::parse(s, case);
-        assert!(q("deploy surf", false).matches(text), "words start words");
+        assert!(q("deploy acme", false).matches(text), "words start words");
         assert!(!q("ploy", false).matches(text), "not inside words without a wildcard");
         assert!(q("*ploy*", false).matches(text) && q("*ing", false).matches(text) && q("clus*", false).matches(text));
-        assert!(q("\"surf cluster\"", false).matches(text) && !q("\"cluster surf\"", false).matches(text), "phrases keep their order");
-        assert!(q("SURF", true).matches(text) && !q("Surf", true).matches(text), "match case");
+        assert!(q("\"acme cluster\"", false).matches(text) && !q("\"cluster acme\"", false).matches(text), "phrases keep their order");
+        assert!(q("ACME", true).matches(text) && !q("Acme", true).matches(text), "match case");
         assert!(q("#planning", false).matches(text) && !q("#plan", false).matches(text));
         assert!(q("x", false).is_empty() && !q("*ab", false).is_empty());
-        assert_eq!(q("*ploy* \"the surf\"", false).index_words(), vec!["surf", "the"], "a leading wildcard can't use the index");
+        assert_eq!(q("*ploy* \"the acme\"", false).index_words(), vec!["acme", "the"], "a leading wildcard can't use the index");
         assert_eq!(q("cluster", false).first_match(text), Some((19, 7)));
     }
 

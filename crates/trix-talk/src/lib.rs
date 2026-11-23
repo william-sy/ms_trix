@@ -1973,7 +1973,7 @@ mod tests {
 
     #[test]
     fn normalizes_server() {
-        assert_eq!(normalize("cloud.surf.nl/"), "https://cloud.surf.nl");
-        assert_eq!(host("https://cloud.surf.nl"), "cloud.surf.nl");
+        assert_eq!(normalize("cloud.example.org/"), "https://cloud.example.org");
+        assert_eq!(host("https://cloud.example.org"), "cloud.example.org");
     }
 }

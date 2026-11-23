@@ -47,7 +47,7 @@ export type Action =
 
 export const initialState: State = isLive
   ? { orgs: [], orgFilter: "all", convs: [], selectedId: null, armed: {}, messages: {} }
-  : { orgs, orgFilter: "all", convs: conversations, selectedId: "surf-webinar", armed: {}, messages: {} };
+  : { orgs, orgFilter: "all", convs: conversations, selectedId: "lab-webinar", armed: {}, messages: {} };
 
 const update = (convs: Conversation[], id: string, f: (c: Conversation) => Partial<Conversation>) =>
   convs.map((c) => (c.id === id ? { ...c, ...f(c) } : c));
