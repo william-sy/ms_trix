@@ -1057,6 +1057,7 @@ mark { background: rgba(255, 196, 0, 0.45); color: inherit; border-radius: 2px; 
 @keyframes stage-in { from { opacity: 0.35; } to { opacity: 1; } }
 .call-mini > .talk-tile { animation: stage-in 0.3s ease-out; }
 .talk-speaker-main .talk-tile.small { position: absolute; right: 12px; bottom: 12px; width: 220px; aspect-ratio: 16 / 9; z-index: 2; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5); }
+.talk-speaker-main .talk-tile.small.speaking { box-shadow: 0 0 0 3px var(--accent), 0 2px 10px rgba(0, 0, 0, 0.5); }
 .talk-strip.row { width: auto; height: 124px; flex-direction: row; overflow-x: auto; overflow-y: hidden; flex: none; }
 .talk-strip.row .talk-tile { height: 100%; width: auto; }
 .talk-pin { position: absolute; top: 6px; right: 6px; z-index: 3; padding: 2px 6px; border-radius: 4px; background: rgba(0, 0, 0, 0.5); color: #fff; display: flex; font-size: 12px; opacity: 0; transition: opacity 0.15s; }

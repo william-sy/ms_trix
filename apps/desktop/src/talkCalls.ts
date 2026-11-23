@@ -69,6 +69,8 @@ interface Peer extends TalkPeerView {
   pending: Partial<Record<"video" | "screen", RTCIceCandidateInit[]>>;
   inCall: number;
   offerTimer?: number;
+  /** They tell us when they speak (Talk's data channel); our own meter of their sound is then off. */
+  toldSpeaking?: boolean;
   announceTimer?: number;
   meter?: () => void;
 }
@@ -483,6 +485,34 @@ export class TalkCall {
     if (this.nick) this.dc("nickChanged", this.userId ? { name: this.nick, userid: this.userId } : this.nick);
   }
 
+  /**
+   * Someone's status message: speaking (measured by their own app, so it works however their sound
+   * plays here; our meter of their sound is the fallback for apps that don't send it), microphone
+   * and camera.
+   */
+  private onStatus(peer: Peer, raw: unknown) {
+    let msg: Any;
+    try { msg = JSON.parse(String(raw)); } catch { return; }
+    switch (msg?.type) {
+      case "speaking":
+      case "stoppedSpeaking":
+        if (!peer.toldSpeaking) { peer.toldSpeaking = true; peer.meter?.(); peer.meter = undefined; }
+        peer.speaking = msg.type === "speaking";
+        break;
+      case "audioOn":
+      case "audioOff":
+        peer.audioOn = msg.type === "audioOn";
+        break;
+      case "videoOn":
+      case "videoOff":
+        peer.videoOn = msg.type === "videoOn";
+        break;
+      default:
+        return;
+    }
+    this.set({});
+  }
+
   /** Our speaking meter: the ring on our own tile, and "speaking" for everyone else. */
   private onSpeaking = (speakingSelf: boolean) => {
     this.set({ speakingSelf });
@@ -567,10 +597,12 @@ export class TalkCall {
         const stream = other.length ? new MediaStream([...(given?.getTracks() ?? [e.track]), ...other]) : given ?? new MediaStream([e.track]);
         peer.stream = stream;
         peer.meter?.();
-        peer.meter = speakingMeter(stream, (speaking) => { peer.speaking = speaking; this.set({}); });
+        if (!peer.toldSpeaking) peer.meter = speakingMeter(stream, (speaking) => { peer.speaking = speaking; this.set({}); });
       }
       this.set({});
     };
+    // Their status over Talk's data channel (the video server passes it on), as Talk's apps read it.
+    pc.ondatachannel = (e) => { e.channel.onmessage = (m) => this.onStatus(peer, m.data); };
     pc.onconnectionstatechange = () => {
       log(`${peer.name} ${roomType}: ${pc.connectionState}`);
       if (pc.connectionState === "connected" && roomType === "video") this.checkSound(peer, pc);
