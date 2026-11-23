@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { SpeakerPicker } from "./SpeakerPicker";
+import { canPickSpeaker, SpeakerPicker } from "./SpeakerPicker";
 import { t } from "./i18n";
 import type { Settings } from "./settings";
 import { startMeter } from "./voice";
@@ -36,7 +36,6 @@ export function AudioVideoSettings({ settings, set }: Section) {
   // Before access, WebKit lists one nameless placeholder per kind instead of the real devices.
   const unnamed = devices.some((d) => (d.kind === "audioinput" || d.kind === "videoinput") && !d.label);
   const of = (kind: MediaDeviceKind) => devices.filter((d) => d.kind === kind && d.deviceId !== "default" && d.deviceId !== "communications");
-  const canPickSpeaker = typeof (HTMLAudioElement.prototype as { setSinkId?: unknown }).setSinkId === "function";
 
   // The saved device, also when its id changed since (matched by name).
   const resolve = (kind: MediaDeviceKind, id: string | null) => {

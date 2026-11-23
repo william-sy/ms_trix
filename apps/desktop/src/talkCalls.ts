@@ -10,7 +10,7 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { backend, isLive } from "./backend";
-import { currentSettings } from "./settings";
+import { currentSettings, isMac } from "./settings";
 import { openMic } from "./voice";
 import { currentEffect, processCamera, switchEffect, type CameraEffect } from "./cameraEffects";
 import { pickScreen, screenStopped } from "./screenShare";
@@ -152,6 +152,15 @@ export class TalkCall {
   ownPending: Partial<Record<"video" | "screen", RTCIceCandidateInit[]>> = {};
   selfMeter?: () => void;
   closed = false;
+  /**
+   * Our status for everyone receiving us, over Talk's data channel "status" (the video server passes
+   * it on): microphone, camera, speaking and name. Talk's apps show someone muted and never speaking
+   * until it tells them otherwise; signalling messages alone don't reach all of them.
+   */
+  private status?: RTCDataChannel;
+  private statusTimer?: number;
+  /** Our Nextcloud user id, for the status' name message (none for guests). */
+  private userId: string | null = null;
   /** Started with "Start call silently": the others aren't rung. */
   silent = false;
 
@@ -195,7 +204,7 @@ export class TalkCall {
       const local = await openMedia(video, micId, cameraId, false);
       local.getAudioTracks().forEach((t) => (t.enabled = !this.state.muted));
       local.getAudioTracks().forEach(watchMic);
-      this.selfMeter = speakingMeter(local, (speakingSelf) => this.set({ speakingSelf }));
+      this.selfMeter = speakingMeter(local, this.onSpeaking);
       this.set({ local, cameraOn: local.getVideoTracks().length > 0, starting: undefined });
       // In the log, for "the camera is slow": how long the devices took, and since the page opened.
       log(`${local.getVideoTracks().length ? "camera" : "microphone"} ready after ${Math.round(performance.now() - asked)} ms (page open ${Math.round(performance.now())} ms)`);
@@ -222,6 +231,7 @@ export class TalkCall {
     try {
       const settings = await this.api("GET", `/v3/signaling/settings`, { token: this.token });
       log(`signaling mode ${settings.signalingMode}, server ${settings.server || "(built-in)"}`);
+      this.userId = settings.userId ?? null;
       this.iceServers = [...(settings.stunservers ?? []), ...(settings.turnservers ?? [])].map((s: Any) => ({ urls: s.urls, username: s.username, credential: s.credential }));
 
       const room = await this.api("POST", `/v4/room/${this.token}/participants/active`, { force: "true" });
@@ -412,6 +422,7 @@ export class TalkCall {
    * and 16 s, like Talk does.
    */
   private announceTo(peer: Peer, wait = 0) {
+    if (!wait) this.announceStatus();
     peer.announceTimer = window.setTimeout(() => {
       if (this.closed || this.peers.get(peer.sid) !== peer) return;
       const send = (type: string, payload: Any) => this.sig?.send(peer.sid, { to: peer.sid, roomType: "video", type, payload });
@@ -422,6 +433,35 @@ export class TalkCall {
       if (wait < 16000) this.announceTo(peer, wait ? wait * 2 : 1000);
     }, wait);
   }
+
+  /** The status to everyone on the same schedule, restarted when someone joins (as Talk does). */
+  private announceStatus(wait = 0) {
+    window.clearTimeout(this.statusTimer);
+    this.statusTimer = window.setTimeout(() => {
+      if (this.closed) return;
+      this.sendStatus();
+      if (wait < 16000) this.announceStatus(wait ? wait * 2 : 1000);
+    }, wait);
+  }
+
+  /** One status message: `{ type, payload }` as JSON, the way Talk's apps send them. */
+  private dc(type: string, payload?: Any) {
+    if (this.status?.readyState === "open") this.status.send(JSON.stringify(payload === undefined ? { type } : { type, payload }));
+  }
+
+  /** Our whole status: microphone, speaking, camera, name. */
+  private sendStatus() {
+    this.dc(this.state.muted ? "audioOff" : "audioOn");
+    this.dc(this.state.speakingSelf && !this.state.muted ? "speaking" : "stoppedSpeaking");
+    this.dc(this.state.cameraOn ? "videoOn" : "videoOff");
+    if (this.nick) this.dc("nickChanged", this.userId ? { name: this.nick, userid: this.userId } : this.nick);
+  }
+
+  /** Our speaking meter: the ring on our own tile, and "speaking" for everyone else. */
+  private onSpeaking = (speakingSelf: boolean) => {
+    this.set({ speakingSelf });
+    if (!this.state.muted) this.dc(speakingSelf ? "speaking" : "stoppedSpeaking");
+  };
 
   private dropPeer(sid: string) {
     const peer = this.peers.get(sid);
@@ -452,6 +492,11 @@ export class TalkCall {
     const sig = this.sig!;
     const pc = this.newPc((c) => sig.send(sig.ownSid, this.candidateData(sig.ownSid, roomType, c)));
     for (const track of stream.getTracks()) pc.addTransceiver(track, { direction: "sendonly", streams: [stream] });
+    // Before the offer, so it's negotiated with the media.
+    if (roomType === "video") {
+      this.status = pc.createDataChannel("status");
+      this.status.onopen = () => this.sendStatus();
+    }
     this.publishers[roomType] = pc;
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
@@ -618,6 +663,8 @@ export class TalkCall {
     this.state.local?.getAudioTracks().forEach((t) => (t.enabled = !muted));
     if (this.state.phase === "prejoin") return this.set({ muted });
     this.broadcast({ type: muted ? "mute" : "unmute", payload: { name: "audio" } });
+    this.dc(muted ? "audioOff" : "audioOn");
+    if (muted) this.dc("stoppedSpeaking");
     this.set({ muted });
   }
 
@@ -628,6 +675,7 @@ export class TalkCall {
     if (this.state.phase === "prejoin") return this.set({ cameraOn: on });
     rememberCamera(on);
     this.broadcast({ type: on ? "unmute" : "mute", payload: { name: "video" } });
+    this.dc(on ? "videoOn" : "videoOff");
     this.set({ cameraOn: on });
   }
 
@@ -663,7 +711,7 @@ export class TalkCall {
       if (audio) {
         watchMic(track);
         this.selfMeter?.();
-        this.selfMeter = speakingMeter(local, (speakingSelf) => this.set({ speakingSelf }));
+        this.selfMeter = speakingMeter(local, this.onSpeaking);
       }
       this.set({ local });
     } catch (e) {
@@ -714,6 +762,7 @@ export class TalkCall {
     if (this.closed) return;
     this.closed = true;
     this.selfMeter?.();
+    window.clearTimeout(this.statusTimer);
     for (const sid of [...this.peers.keys()]) this.dropPeer(sid);
     Object.values(this.publishers).forEach((pc) => pc?.close());
     this.state.local?.getTracks().forEach((t) => t.stop());
@@ -785,9 +834,10 @@ async function openMedia(video: boolean, micId?: string | null, cameraId?: strin
 
 /** In the log, for "I can't hear them": where their sound goes. */
 async function logSpeaker() {
-  const id = currentSettings().speakerId;
+  // macOS: call sound follows the Mac's output (see SpeakerPicker).
+  const id = isMac ? null : currentSettings().speakerId;
   const devices = id ? await navigator.mediaDevices.enumerateDevices().catch(() => []) : [];
-  log(`speaker: ${id ? devices.find((d) => d.kind === "audiooutput" && d.deviceId === id)?.label ?? "the one picked (not listed now)" : "system default"}`);
+  log(`speaker: ${id ? devices.find((d) => d.kind === "audiooutput" && d.deviceId === id)?.label ?? "the one picked (not listed now)" : isMac ? "the Mac's sound output" : "system default"}`);
 }
 
 interface SoundStats { sent: number; received: number; outLevel?: number; inLevel?: number }

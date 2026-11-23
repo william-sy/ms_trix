@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { SpeakerPicker } from "./SpeakerPicker";
+import { canPickSpeaker, SpeakerPicker } from "./SpeakerPicker";
 import { BackgroundPicker } from "./BackgroundPicker";
 import { rawCamera } from "./cameraEffects";
 import { useRingtone } from "./CallScreen";
@@ -20,7 +20,7 @@ function Video({ stream, muted, mirror, className }: { stream?: MediaStream; mut
     if (!el) return;
     el.srcObject = stream ?? null;
     const speaker = currentSettings().speakerId;
-    if (!muted && speaker && el.setSinkId) void el.setSinkId(speaker).catch(() => {});
+    if (canPickSpeaker && !muted && speaker && el.setSinkId) void el.setSinkId(speaker).catch(() => {});
     if (!stream || muted) return;
     const unregister = registerPlayer(stream, el);
     // Sound that may not start on its own (no click on this page yet) plays on the next click.
@@ -36,7 +36,7 @@ function Video({ stream, muted, mirror, className }: { stream?: MediaStream; mut
     return () => { unregister(); window.removeEventListener("pointerdown", play, { capture: true }); window.removeEventListener("trix:audio-output", reattach); };
   }, [stream, muted]);
   // A speaker picked during the call applies at once.
-  useEffect(() => onSettingsChanged((st) => { const el = ref.current; if (!muted && st.speakerId && el?.setSinkId) void el.setSinkId(st.speakerId).catch(() => {}); }), [muted]);
+  useEffect(() => onSettingsChanged((st) => { const el = ref.current; if (canPickSpeaker && !muted && st.speakerId && el?.setSinkId) void el.setSinkId(st.speakerId).catch(() => {}); }), [muted]);
   return <video ref={ref} className={`${className ?? ""} ${mirror ? "mirror" : ""}`} autoPlay playsInline muted={muted} />;
 }
 

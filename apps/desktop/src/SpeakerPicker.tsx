@@ -3,8 +3,12 @@ import { backend, isLive } from "./backend";
 import { t } from "./i18n";
 import { currentSettings, isMac, onSettingsChanged, updateSettings } from "./settings";
 
-/** The webview can send sound to a chosen device (Chromium, i.e. Windows); WebKit can't. */
-export const canPickSpeaker = typeof (HTMLAudioElement.prototype as { setSinkId?: unknown }).setSinkId === "function";
+/**
+ * The app sends call sound to a chosen device itself (Chromium, i.e. Windows). Not on macOS, even
+ * where WebKit now has `setSinkId`: there call sound pinned to AirPods went silent when a call ran
+ * on the microphone alone (no camera), so call sound follows the Mac's output, picked below.
+ */
+export const canPickSpeaker = !isMac && typeof (HTMLAudioElement.prototype as { setSinkId?: unknown }).setSinkId === "function";
 
 interface MacOutput { id: number; name: string; current: boolean }
 

@@ -7,6 +7,7 @@ import { useCallWindow } from "./callWindow";
 import type { Calls, CallState } from "./calls";
 import { t } from "./i18n";
 import { currentSettings, onSettingsChanged } from "./settings";
+import { canPickSpeaker } from "./SpeakerPicker";
 import type { Conversation } from "./types";
 import { formatDuration } from "./voice";
 import { BackgroundButton, SpeakerButton } from "./TalkCallScreen";
@@ -19,10 +20,10 @@ function Media({ stream, muted, className, audioOnly }: { stream?: MediaStream; 
     if (!el) return;
     el.srcObject = stream ?? null;
     const speaker = currentSettings().speakerId;
-    if (!muted && speaker && el.setSinkId) void el.setSinkId(speaker).catch(() => {});
+    if (canPickSpeaker && !muted && speaker && el.setSinkId) void el.setSinkId(speaker).catch(() => {});
   }, [stream, muted]);
   // A speaker picked during the call applies at once.
-  useEffect(() => onSettingsChanged((st) => { const el = ref.current; if (!muted && st.speakerId && el?.setSinkId) void el.setSinkId(st.speakerId).catch(() => {}); }), [muted]);
+  useEffect(() => onSettingsChanged((st) => { const el = ref.current; if (canPickSpeaker && !muted && st.speakerId && el?.setSinkId) void el.setSinkId(st.speakerId).catch(() => {}); }), [muted]);
   if (audioOnly) return <audio ref={ref as React.RefObject<HTMLAudioElement>} autoPlay muted={muted} />;
   return <video ref={ref} className={className} autoPlay playsInline muted={muted} />;
 }
