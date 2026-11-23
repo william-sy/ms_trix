@@ -179,7 +179,7 @@ export function TalkCallScreen({ calls, conversation, docked, onPopOut, onPopIn 
   // Who's on stage, and since when; and since when each person has been talking (see below).
   const stageOwner = useRef<{ sid: string; since: number } | null>(null);
   const talkingSince = useRef(new Map<string, number>());
-  const setLayout = (l: Layout) => { callLog(`layout: ${l}`); setLayoutState(l); setLayoutMenu(false); setPage(0); remember(LAYOUT, l); };
+  const setLayout = (l: Layout) => { callLog(`layout: ${l}`); calls.recheckSound(`after switching to ${l}`); setLayoutState(l); setLayoutMenu(false); setPage(0); remember(LAYOUT, l); };
   const setShareView = (v: ShareView) => { setShareViewState(v); setLayoutMenu(false); remember(SHARE_VIEW, v); };
   useEffect(() => {
     if (call?.phase !== "connected") return;

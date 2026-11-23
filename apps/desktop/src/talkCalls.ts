@@ -496,10 +496,7 @@ export class TalkCall {
     };
     pc.onconnectionstatechange = () => {
       log(`${peer.name} ${roomType}: ${pc.connectionState}`);
-      if (pc.connectionState === "connected" && roomType === "video") {
-        soundCheck(pc, (s) => `sound check, ${peer.name}: ${s.received ? `arriving (${kb(s.received)})` : "nothing arriving"}${peer.stream?.getAudioTracks().length ? "" : ", no sound in their stream"}${level(s.inLevel)}; ${playback(peer.stream)}`
-          + (this.sig?.mcu ? "" : `; you: ${s.sent ? `sending (${kb(s.sent)})` : "nothing sent"}`));
-      }
+      if (pc.connectionState === "connected" && roomType === "video") this.checkSound(peer, pc);
       if (pc.connectionState === "failed" && roomType === "screen") { peer.screen = undefined; this.set({}); }
     };
     peer.pcs[roomType] = pc;
@@ -729,6 +726,17 @@ export class TalkCall {
     this.set({ phase: "ended", local: undefined, screen: undefined });
   }
 
+  /** In the log, a few seconds on: what arrives from them and whether it plays. */
+  private checkSound(peer: Peer, pc: RTCPeerConnection, when = "") {
+    soundCheck(pc, (s) => `sound check${when}, ${peer.name}: ${s.received ? `arriving (${kb(s.received)})` : "nothing arriving"}${peer.stream?.getAudioTracks().length ? "" : ", no sound in their stream"}${level(s.inLevel)}; ${playback(peer.stream)}`
+      + (this.sig?.mcu ? "" : `; you: ${s.sent ? `sending (${kb(s.sent)})` : "nothing sent"}`));
+  }
+
+  /** The sound check again for everyone (after a layout change: the players are new). */
+  recheckSound(when: string) {
+    for (const peer of this.peers.values()) if (peer.pcs.video) this.checkSound(peer, peer.pcs.video, ` ${when}`);
+  }
+
   setMinimized(minimized: boolean) {
     this.set({ minimized });
   }
@@ -838,6 +846,8 @@ export interface TalkCalls {
   setHand: (raised: boolean) => void;
   react: (emoji: string) => void;
   setMinimized: (minimized: boolean) => void;
+  /** The sound check again, e.g. "after switching to speaker". */
+  recheckSound: (when: string) => void;
   dismiss: () => void;
 }
 
@@ -928,6 +938,7 @@ export function useTalkCallEngine(onError: (message: string) => void): TalkCalls
     setHand: (raised) => current.current?.setHand(raised),
     react: (emoji) => current.current?.react(emoji),
     setMinimized: (m) => current.current?.setMinimized(m),
+    recheckSound: (when) => current.current?.recheckSound(when),
     dismiss: () => { current.current = null; setCall(null); },
   };
 }
