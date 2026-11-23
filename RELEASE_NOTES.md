@@ -17,6 +17,13 @@
 - **Talk sessions:** Settings → Accounts has a button to Nextcloud's Security settings, where your
   devices and app passwords are listed and can be revoked (Nextcloud has no API for that list).
 
+## 1.5.1 (2026-11-23)
+
+### Fixed
+- In a Talk call, people using Talk in their browser saw you but didn't hear you. Talk's web app
+  keeps a participant silent until told their microphone is on; ms_trix now tells everyone who
+  joins, as Talk's own apps do (it also shows your camera as off when it is).
+
 ## 1.5 (2026-11-22)
 
 ### New

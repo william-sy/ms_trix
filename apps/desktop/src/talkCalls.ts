@@ -69,6 +69,7 @@ interface Peer extends TalkPeerView {
   pending: Partial<Record<"video" | "screen", RTCIceCandidateInit[]>>;
   inCall: number;
   offerTimer?: number;
+  announceTimer?: number;
   meter?: () => void;
 }
 
@@ -348,6 +349,7 @@ export class TalkCall {
         this.peers.set(u.sid, peer);
         log(`participant joined: ${peer.name} (flags ${u.inCall})`);
         this.connectPeer(peer);
+        this.announceTo(peer);
         if (this.state.screen) this.sendScreenTo(peer);
       }
       peer.inCall = u.inCall;
@@ -386,10 +388,29 @@ export class TalkCall {
     else peer.offerTimer = window.setTimeout(() => !peer.pcs.video && void this.offerTo(peer, "video"), 4000);
   }
 
+  /**
+   * Tells someone who joined whether our microphone and camera are on, as Talk's own clients do.
+   * Talk's web app keeps a participant silent until told (Talk 32 and older can't tell from the
+   * media in Firefox and Safari), and forgets it while still connecting: sent after 0, 1, 2, 4, 8
+   * and 16 s, like Talk does.
+   */
+  private announceTo(peer: Peer, wait = 0) {
+    peer.announceTimer = window.setTimeout(() => {
+      if (this.closed || this.peers.get(peer.sid) !== peer) return;
+      const send = (type: string, payload: Any) => this.sig?.send(peer.sid, { to: peer.sid, roomType: "video", type, payload });
+      send(this.state.muted ? "mute" : "unmute", { name: "audio" });
+      send(this.state.cameraOn ? "unmute" : "mute", { name: "video" });
+      if (this.nick) send("nickChanged", { name: this.nick });
+      if (!wait) log(`telling ${peer.name}: microphone ${this.state.muted ? "off" : "on"}, camera ${this.state.cameraOn ? "on" : "off"}`);
+      if (wait < 16000) this.announceTo(peer, wait ? wait * 2 : 1000);
+    }, wait);
+  }
+
   private dropPeer(sid: string) {
     const peer = this.peers.get(sid);
     if (!peer) return;
     window.clearTimeout(peer.offerTimer);
+    window.clearTimeout(peer.announceTimer);
     peer.meter?.();
     Object.values(peer.pcs).forEach((pc) => pc?.close());
     this.peers.delete(sid);
@@ -485,6 +506,7 @@ export class TalkCall {
       // Media from someone the participant list didn't announce yet.
       peer = { sid, name: this.names.get(sid) ?? "…", pcs: {}, pending: {}, inCall: IN_CALL, audioOn: true, videoOn: true, speaking: false };
       this.peers.set(sid, peer);
+      this.announceTo(peer);
     }
     if (!peer) return;
     switch (data.type) {
