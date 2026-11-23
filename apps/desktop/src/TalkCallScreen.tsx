@@ -178,7 +178,7 @@ export function TalkCallScreen({ calls, conversation, docked, onPopOut, onPopIn 
   // Who's on stage, and since when; and since when each person has been talking (see below).
   const stageOwner = useRef<{ sid: string; since: number } | null>(null);
   const talkingSince = useRef(new Map<string, number>());
-  const setLayout = (l: Layout) => { setLayoutState(l); setLayoutMenu(false); setPage(0); remember(LAYOUT, l); };
+  const setLayout = (l: Layout) => { callLog(`layout: ${l}`); setLayoutState(l); setLayoutMenu(false); setPage(0); remember(LAYOUT, l); };
   const setShareView = (v: ShareView) => { setShareViewState(v); setLayoutMenu(false); remember(SHARE_VIEW, v); };
   useEffect(() => {
     if (call?.phase !== "connected") return;
@@ -238,7 +238,7 @@ export function TalkCallScreen({ calls, conversation, docked, onPopOut, onPopIn 
       <button className={`call-btn ${call.sharing ? "on" : ""}`} title={call.sharing ? t("mxcall.stopShare") : t("mxcall.share")} disabled={call.phase !== "connected"} onClick={() => calls.setSharing(!call.sharing)}><ShareScreenIcon /></button>
       <button className={`call-btn ${call.handRaised ? "on" : ""}`} title={call.handRaised ? t("talkcall.lowerHand") : t("talkcall.raiseHand")} disabled={call.phase !== "connected"} onClick={() => calls.setHand(!call.handRaised)}><HandIcon /></button>
       {!call.minimized && <ReactButton onReact={calls.react} disabled={call.phase !== "connected"} />}
-      <button className="call-btn decline" title={t("talkcall.leave")} disabled={call.phase === "ended"} onClick={calls.leave}><CallIcon /></button>
+      <button className="call-btn decline" title={t("talkcall.leave")} disabled={call.phase === "ended"} onClick={() => calls.leave()}><CallIcon /></button>
     </div>
   );
 

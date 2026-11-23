@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { backend } from "./backend";
 import { warmUpEffects } from "./cameraEffects";
+import { ErrorBoundary } from "./ErrorBoundary";
 import { t } from "./i18n";
 import { callLog as log, setCallsInOwnWindow, useTalkCallEngine, type CallWindowParams } from "./talkCalls";
 import { TalkCallScreen } from "./TalkCallScreen";
@@ -40,7 +41,7 @@ export function CallWindow() {
         const c = callsRef.current;
         if (!c.call || c.call.phase === "ended") void backend.closeCallWindow().catch(() => {});
         else if (c.call.phase === "prejoin") c.cancel();
-        else c.leave();
+        else c.leave("its window was closed");
       }),
       listen<boolean>("trix://call-docked", (e) => setDocked(e.payload)),
       // "Show" in the app while minimised.
@@ -107,7 +108,10 @@ export function CallWindow() {
   };
   return (
     <>
-      <TalkCallScreen calls={calls} conversation={conversation} docked={docked} onPopOut={docked ? popOut : undefined} onPopIn={docked ? undefined : popIn} />
+      {/* Below the call engine: a screen that breaks shows the error, the call carries on. */}
+      <ErrorBoundary>
+        <TalkCallScreen calls={calls} conversation={conversation} docked={docked} onPopOut={docked ? popOut : undefined} onPopIn={docked ? undefined : popIn} />
+      </ErrorBoundary>
       {notice && <div className="notice call-window-notice" role="alert" onClick={() => setNotice(null)}>{notice}</div>}
     </>
   );

@@ -234,7 +234,7 @@ export class TalkCall {
     } catch (e) {
       log(`failed to start: ${String(e)}`);
       this.set({ error: String(e) });
-      await this.leave();
+      await this.leave("it couldn't start");
     }
   }
 
@@ -259,7 +259,7 @@ export class TalkCall {
           : { type: "hello", hello: { version: "1.0", auth: { url: backendUrl, params: settings.helloAuthParams?.["1.0"] ?? { userid: settings.userId, ticket: settings.ticket } } } });
       };
       ws.onerror = () => reject(new Error("couldn't connect to the signalling server"));
-      ws.onclose = () => { if (!this.closed) { log("signalling connection closed"); void this.leave(); } };
+      ws.onclose = () => { if (!this.closed) void this.leave("the signalling connection closed"); };
       ws.onmessage = (e) => {
         const msg = JSON.parse(String(e.data));
         switch (msg.type) {
@@ -695,7 +695,8 @@ export class TalkCall {
     log(`sharing the screen with ${peer.name}`);
   }
 
-  async leave() {
+  /** `why` goes into the log ("left the call (…)"). */
+  async leave(why = "you hung up") {
     if (this.closed) return;
     this.closed = true;
     this.selfMeter?.();
@@ -707,7 +708,7 @@ export class TalkCall {
     this.sig?.close();
     await this.api("DELETE", `/v4/call/${this.token}`).catch(() => {});
     await this.api("DELETE", `/v4/room/${this.token}/participants/active`).catch(() => {});
-    log("left the call");
+    log(`left the call (${why})`);
     this.set({ phase: "ended", local: undefined, screen: undefined });
   }
 
@@ -811,7 +812,8 @@ export interface TalkCalls {
   reprepare: (video: boolean, micId?: string | null, cameraId?: string | null) => void;
   /** In the call: another microphone or camera. */
   switchDevice: (kind: "audioinput" | "videoinput", id: string | null) => void;
-  leave: () => void;
+  /** `why`: for the log; you hanging up when left out. */
+  leave: (why?: string) => void;
   setMuted: (muted: boolean) => void;
   setCamera: (on: boolean) => void;
   setSharing: (on: boolean) => void;
@@ -883,7 +885,7 @@ export const useTalkCalls = () => useContext(TalkCallsContext);
 export function useTalkCallEngine(onError: (message: string) => void): TalkCalls {
   const [call, setCall] = useState<TalkCallState | null>(null);
   const current = useRef<TalkCall | null>(null);
-  useEffect(() => () => void current.current?.leave(), []);
+  useEffect(() => () => void current.current?.leave("the call page closed"), []);
   useEffect(() => {
     if (call?.error) onError(call.error);
   }, [call?.error]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -901,7 +903,7 @@ export function useTalkCallEngine(onError: (message: string) => void): TalkCalls
     cancel: () => current.current?.cancel(),
     reprepare: (video, micId, cameraId) => void current.current?.prepare(video, micId, cameraId),
     switchDevice: (kind, id) => void current.current?.switchDevice(kind, id),
-    leave: () => void current.current?.leave(),
+    leave: (why) => void current.current?.leave(why),
     setMuted: (m) => current.current?.setMuted(m),
     setCamera: (on) => current.current?.setCamera(on),
     setSharing: (on) => void current.current?.setSharing(on).catch((e) => onError(String(e))),

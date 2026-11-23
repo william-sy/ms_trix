@@ -1,4 +1,5 @@
-import { Component, type ReactNode } from "react";
+import { Component, type ErrorInfo, type ReactNode } from "react";
+import { backend } from "./backend";
 import { t } from "./i18n";
 
 /** Shows what broke instead of a blank window; "Try again" re-renders the app. */
@@ -9,8 +10,11 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, { error: E
     return { error };
   }
 
-  componentDidCatch(error: Error) {
+  componentDidCatch(error: Error, info: ErrorInfo) {
     console.error("Trixcomm UI crashed:", error);
+    // In the log too, with where it happened (the first components of the stack).
+    const where = (info.componentStack ?? "").trim().split("\n").slice(0, 4).map((l) => l.trim()).join(" < ");
+    void backend.logUi(`UI crashed: ${error.message}${where ? ` (${where})` : ""}`).catch(() => {});
   }
 
   render() {
