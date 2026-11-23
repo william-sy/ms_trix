@@ -27,6 +27,20 @@
   installer: the macOS app, Windows setup and MSI, Linux AppImage and .deb (asks for your
   password).
 
+### Fixed
+- **Talk calls without a camera:** people on Talk saw you muted and never speaking, and you
+  couldn't hear people who had no video. Trixcomm now tells everyone about its microphone,
+  camera, speaking and name the way Talk's own apps do (and reads theirs), and plays each
+  person's sound in a player of its own, whatever their tile shows. On macOS call sound follows
+  the Mac's sound output.
+- Your speaking ring didn't show in speaker view (your tile is the small one there).
+- A problem drawing the call screen no longer ends the call: the screen shows the error and the
+  call carries on.
+- The call screen's dropdowns and menus were light in the light theme; they're dark like the
+  call screen now.
+- A meeting with many people: the list showed everyone crammed together. It now says how many
+  answered what, lists everyone on a line of their own and scrolls.
+
 ### Other
 - No more references to one organisation in the docs, the demo data and the tests: Trixcomm is
   for anyone on Matrix and Nextcloud Talk. The phishing check's list of well-known sites is

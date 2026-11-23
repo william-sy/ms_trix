@@ -1015,6 +1015,7 @@
   "calendar.newMeeting": "New meeting",
   "calendar.noTitle": "(no title)",
   "calendar.organizer": "Organised by {name}",
+  "calendar.invited": "{count} invited",
   "calendar.openChat": "Open chat",
   "calendar.join": "Join",
   "calendar.openLink": "Open link",

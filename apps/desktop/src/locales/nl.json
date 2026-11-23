@@ -1015,6 +1015,7 @@
   "calendar.newMeeting": "Nieuwe vergadering",
   "calendar.noTitle": "(geen titel)",
   "calendar.organizer": "Georganiseerd door {name}",
+  "calendar.invited": "{count} uitgenodigd",
   "calendar.openChat": "Chat openen",
   "calendar.join": "Deelnemen",
   "calendar.openLink": "Link openen",

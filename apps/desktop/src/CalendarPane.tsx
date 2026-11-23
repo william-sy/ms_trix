@@ -321,6 +321,9 @@ function layoutDay(items: Item[], day: Date) {
 }
 
 const STATUS_ICON: Record<string, string> = { ACCEPTED: "✅", DECLINED: "❌", TENTATIVE: "❔" };
+/** Who comes first in the list: yes, maybe, no answer yet, no. */
+const STATUS_ORDER: Record<string, number> = { ACCEPTED: 0, TENTATIVE: 1, DECLINED: 3 };
+const statusOrder = (a: Attendee) => STATUS_ORDER[a.status ?? ""] ?? 2;
 
 function EventDialog({ item, chat, writable, onClose, onEdit, onDeleted, onOpenChat, onJoinCall }: {
   item: Item; chat?: Conversation; writable: boolean; onClose: () => void; onEdit: (series: boolean) => void; onDeleted: () => void;
@@ -355,11 +358,22 @@ function EventDialog({ item, chat, writable, onClose, onEdit, onDeleted, onOpenC
         {event.location && <p className="calendar-meta">📍 {firstUrl(event.location) ? <button className="link" onClick={() => backend.openUrl(firstUrl(event.location)!).catch(() => {})}>{event.location}</button> : event.location}</p>}
         {event.organizer && <p className="calendar-meta">👤 {t("calendar.organizer", { name: event.organizer })}</p>}
         {event.attendees.length > 0 && (
-          <ul className="calendar-attendees">
-            {event.attendees.map((a) => (
-              <li key={a.email} title={a.email}>{STATUS_ICON[a.status ?? ""] ?? "⏳"} {a.name || a.email}</li>
-            ))}
-          </ul>
+          // How many answered what (icons read in every language), then everyone, one per line,
+          // in a box that scrolls once the list is long.
+          <div className="calendar-attendees">
+            <p className="calendar-attendees-head">
+              <span>{t("calendar.invited", { count: event.attendees.length })}</span>
+              {(["ACCEPTED", "TENTATIVE", "", "DECLINED"] as const).map((s) => {
+                const count = event.attendees.filter((a) => (STATUS_ICON[a.status ?? ""] ? a.status : "") === s).length;
+                return count > 0 && <span key={s}>{STATUS_ICON[s] ?? "⏳"} {count}</span>;
+              })}
+            </p>
+            <ul>
+              {[...event.attendees].sort((a, b) => statusOrder(a) - statusOrder(b) || (a.name || a.email).localeCompare(b.name || b.email)).map((a) => (
+                <li key={a.email} title={a.email}>{STATUS_ICON[a.status ?? ""] ?? "⏳"} <span>{a.name || a.email}</span></li>
+              ))}
+            </ul>
+          </div>
         )}
         {event.description && <p className="calendar-description">{event.description}</p>}
         {event.myStatus && !event.mine && (
