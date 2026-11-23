@@ -79,6 +79,23 @@ export const callLog = log;
 // Audio engines (speaking detection). WebKit can start one paused on a page nobody has clicked
 // yet (the call's own page, opened from the app): resumed now, and on the next click or key.
 const contexts = new Set<AudioContext>();
+/** In the log: whether the speaking meters' audio engines run ("suspended" ones hear nothing). */
+const engines = () => [...contexts].map((c) => c.state).join(", ") || "none";
+
+/** The media elements playing each stream (registered by the call screen), for the sound check. */
+const players = new Map<MediaStream, Set<HTMLMediaElement & { sinkId?: string }>>();
+export function registerPlayer(stream: MediaStream, el: HTMLMediaElement): () => void {
+  const set = players.get(stream) ?? new Set();
+  players.set(stream, set.add(el));
+  return () => { set.delete(el); if (!set.size) players.delete(stream); };
+}
+/** In the log, for "I can't hear them": is their sound playing, and where to. */
+function playback(stream?: MediaStream): string {
+  const els = [...(stream ? players.get(stream) ?? [] : [])];
+  const tracks = (stream?.getAudioTracks() ?? []).map((t) => `${t.readyState}${t.muted ? " muted" : ""}${t.enabled ? "" : " disabled"}`).join("/");
+  const shown = els.map((el) => `${el.paused ? "paused" : "playing"}${el.muted ? ", muted" : ""}${el.volume < 1 ? `, volume ${el.volume}` : ""}${el.sinkId ? ", to a picked speaker" : ""}`);
+  return `their sound ${shown.length ? shown.join(" / ") : "has no player"} (track ${tracks || "none"}); audio engines ${engines()}`;
+}
 export function resumeAudio() {
   for (const ctx of contexts) if (ctx.state === "suspended") void ctx.resume().catch(() => {});
 }
@@ -441,7 +458,7 @@ export class TalkCall {
     sig.send(sig.ownSid, { to: sig.ownSid, type: "offer", roomType, sid: String(Date.now()), payload: { type: "offer", sdp: offer.sdp, nick: this.nick } });
     log(`publishing ${roomType} to the video server`);
     if (roomType === "video") {
-      void connected(pc, 15000).then(() => soundCheck(pc, (s) => `sound check, you: ${s.sent ? `sending (${kb(s.sent)})` : "nothing sent"}${this.state.muted ? ", muted in the call" : ""}${level(s.outLevel)}`));
+      void connected(pc, 15000).then(() => soundCheck(pc, (s) => `sound check, you: ${s.sent ? `sending (${kb(s.sent)})` : "nothing sent"}${this.state.muted ? ", muted in the call" : ""}${level(s.outLevel)}; audio engines ${engines()}`));
     }
   }
 
@@ -480,7 +497,7 @@ export class TalkCall {
     pc.onconnectionstatechange = () => {
       log(`${peer.name} ${roomType}: ${pc.connectionState}`);
       if (pc.connectionState === "connected" && roomType === "video") {
-        soundCheck(pc, (s) => `sound check, ${peer.name}: ${s.received ? `arriving (${kb(s.received)})` : "nothing arriving"}${peer.stream?.getAudioTracks().length ? "" : ", no sound in their stream"}${level(s.inLevel)}`
+        soundCheck(pc, (s) => `sound check, ${peer.name}: ${s.received ? `arriving (${kb(s.received)})` : "nothing arriving"}${peer.stream?.getAudioTracks().length ? "" : ", no sound in their stream"}${level(s.inLevel)}; ${playback(peer.stream)}`
           + (this.sig?.mcu ? "" : `; you: ${s.sent ? `sending (${kb(s.sent)})` : "nothing sent"}`));
       }
       if (pc.connectionState === "failed" && roomType === "screen") { peer.screen = undefined; this.set({}); }

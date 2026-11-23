@@ -9,7 +9,7 @@ import { dndActive } from "./dnd";
 import { CallIcon, CameraIcon, CameraOffIcon, EmojiIcon, ExpandIcon, GearIcon, HandIcon, LayoutIcon, MicIcon, MicOffIcon, PinIcon, ShareScreenIcon, SparkleIcon, NewWindowIcon } from "./Icons";
 import { t } from "./i18n";
 import { currentSettings, onSettingsChanged, updateSettings } from "./settings";
-import { callLog, type TalkCalls, type TalkPeerView } from "./talkCalls";
+import { callLog, registerPlayer, type TalkCalls, type TalkPeerView } from "./talkCalls";
 import type { Conversation } from "./types";
 import { formatDuration } from "./voice";
 
@@ -22,6 +22,7 @@ function Video({ stream, muted, mirror, className }: { stream?: MediaStream; mut
     const speaker = currentSettings().speakerId;
     if (!muted && speaker && el.setSinkId) void el.setSinkId(speaker).catch(() => {});
     if (!stream || muted) return;
+    const unregister = registerPlayer(stream, el);
     // Sound that may not start on its own (no click on this page yet) plays on the next click.
     const play = () => void el.play().catch((e) => {
       // Aborted: this element got another stream or left the screen; not a block worth logging.
@@ -32,7 +33,7 @@ function Video({ stream, muted, mirror, className }: { stream?: MediaStream; mut
     // macOS: another speaker was picked (the system output); reconnect so the sound follows.
     const reattach = () => { el.srcObject = null; el.srcObject = stream; play(); };
     window.addEventListener("trix:audio-output", reattach);
-    return () => { window.removeEventListener("pointerdown", play, { capture: true }); window.removeEventListener("trix:audio-output", reattach); };
+    return () => { unregister(); window.removeEventListener("pointerdown", play, { capture: true }); window.removeEventListener("trix:audio-output", reattach); };
   }, [stream, muted]);
   // A speaker picked during the call applies at once.
   useEffect(() => onSettingsChanged((st) => { const el = ref.current; if (!muted && st.speakerId && el?.setSinkId) void el.setSinkId(st.speakerId).catch(() => {}); }), [muted]);
