@@ -133,15 +133,20 @@ function speakingMeter(stream: MediaStream, on: (speaking: boolean) => void): ()
 function sentMeter(pc: RTCPeerConnection, on: (speaking: boolean) => void): () => void {
   let speaking = false;
   let quiet = 0;
+  // In the log once, to tune the thresholds: how loud it got in the first 20 seconds.
+  let loudest = 0;
+  const started = Date.now();
   const timer = window.setInterval(async () => {
     const report = await pc.getStats().catch(() => null);
     let level = 0;
     report?.forEach((r) => {
       if (r.type === "media-source" && (r.kind ?? r.mediaType) === "audio" && typeof r.audioLevel === "number") level = Math.max(level, r.audioLevel);
     });
+    if (started && Date.now() - started < 20_000) loudest = Math.max(loudest, level);
+    else if (loudest >= 0) { log(`speaking meter: loudest sent level in 20 s ${loudest.toFixed(3)} (speaking above 0.03)`); loudest = -1; }
     // On at once; off after a short quiet spell, so the ring doesn't flicker between words.
-    if (level > 0.05) { quiet = 0; if (!speaking) { speaking = true; on(true); } }
-    else if (speaking && level < 0.03 && ++quiet >= 3) { speaking = false; on(false); }
+    if (level > 0.03) { quiet = 0; if (!speaking) { speaking = true; on(true); } }
+    else if (speaking && level < 0.015 && ++quiet >= 3) { speaking = false; on(false); }
   }, 200);
   return () => window.clearInterval(timer);
 }

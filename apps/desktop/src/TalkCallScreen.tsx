@@ -13,8 +13,10 @@ import { callLog, registerPlayer, type TalkCalls, type TalkPeerView } from "./ta
 import type { Conversation } from "./types";
 import { formatDuration } from "./voice";
 
-function Video({ stream, muted, mirror, className }: { stream?: MediaStream; muted?: boolean; mirror?: boolean; className?: string }) {
-  const ref = useRef<HTMLVideoElement & { setSinkId?: (id: string) => Promise<void> }>(null);
+type Player = HTMLMediaElement & { setSinkId?: (id: string) => Promise<void> };
+
+/** Plays `stream` in a media element: its sound unless muted, retried on the next click if blocked. */
+function usePlayer(ref: React.RefObject<Player | null>, stream: MediaStream | undefined, muted: boolean) {
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -34,10 +36,27 @@ function Video({ stream, muted, mirror, className }: { stream?: MediaStream; mut
     const reattach = () => { el.srcObject = null; el.srcObject = stream; play(); };
     window.addEventListener("trix:audio-output", reattach);
     return () => { unregister(); window.removeEventListener("pointerdown", play, { capture: true }); window.removeEventListener("trix:audio-output", reattach); };
-  }, [stream, muted]);
+  }, [stream, muted]); // eslint-disable-line react-hooks/exhaustive-deps
   // A speaker picked during the call applies at once.
-  useEffect(() => onSettingsChanged((st) => { const el = ref.current; if (canPickSpeaker && !muted && st.speakerId && el?.setSinkId) void el.setSinkId(st.speakerId).catch(() => {}); }), [muted]);
+  useEffect(() => onSettingsChanged((st) => { const el = ref.current; if (canPickSpeaker && !muted && st.speakerId && el?.setSinkId) void el.setSinkId(st.speakerId).catch(() => {}); }), [muted]); // eslint-disable-line react-hooks/exhaustive-deps
+}
+
+/** A picture: a camera (always muted, the sound is in Sound) or a shared screen (with its sound). */
+function Video({ stream, muted = false, mirror, className }: { stream?: MediaStream; muted?: boolean; mirror?: boolean; className?: string }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  usePlayer(ref, stream, muted);
   return <video ref={ref} className={`${className ?? ""} ${mirror ? "mirror" : ""}`} autoPlay playsInline muted={muted} />;
+}
+
+/**
+ * Someone's sound, in an audio element of its own, whatever their tile shows. It used to play in
+ * their video element, hidden (display: none) without a camera: WebKit reported it playing but
+ * nothing was heard (participants without video, e.g. voice-only callers).
+ */
+function Sound({ stream }: { stream: MediaStream }) {
+  const ref = useRef<HTMLAudioElement>(null);
+  usePlayer(ref, stream, false);
+  return <audio ref={ref} autoPlay />;
 }
 
 /** The speaker choice during a call (headphones plugged in halfway, …). */
@@ -107,13 +126,11 @@ function Tile({ account, name, stream, videoOn, audioOn, speaking, self, small, 
     <div className={`talk-tile ${speaking ? "speaking" : ""} ${small ? "small" : ""} ${pinned ? "pinned" : ""}`} onDoubleClick={onPin}>
       {onPin && <button className="talk-pin" title={pinned ? t("talkcall.unpin") : t("talkcall.pin")} onClick={onPin}><PinIcon size={16} /></button>}
       {onHide && <button className="talk-pin" title={t("talkcall.hideSelf")} onClick={onHide}>✕</button>}
-      {hasVideo ? <Video key={videoKey} stream={stream} muted={self} mirror={self} className="talk-tile-video" /> : (
-        <div className="talk-tile-avatar">
-          <Avatar account={account} name={name} className="big" />
-          {/* Sound still has to play without a picture. */}
-          {!self && stream && <Video stream={stream} className="hidden-audio" />}
-        </div>
+      {hasVideo ? <Video key={videoKey} stream={stream} muted mirror={self} className="talk-tile-video" /> : (
+        <div className="talk-tile-avatar"><Avatar account={account} name={name} className="big" /></div>
       )}
+      {/* Their sound, the same element whether or not the picture shows. */}
+      {!self && stream && <Sound stream={stream} />}
       {hand && <span className="talk-hand" title={t("talkcall.handRaised")}>✋</span>}
       <span className="talk-tile-name">{!audioOn && <MicOffIcon size={14} />}{self ? t("talkcall.you") : name}</span>
     </div>
@@ -223,7 +240,7 @@ export function TalkCallScreen({ calls, conversation, docked, onPopOut, onPopIn 
   // Hidden only from your own screen; while minimised you still see yourself when no one else is on.
   const selfShown = !hideSelf;
   // People who aren't on screen (another page, content only, minimised) must still be heard.
-  const sound = (peers: TalkPeerView[]) => peers.map((p) => p.stream && <Video key={`sound-${p.sid}`} stream={p.stream} className="hidden-audio" />);
+  const sound = (peers: TalkPeerView[]) => peers.map((p) => p.stream && <Sound key={`sound-${p.sid}`} stream={p.stream} />);
   const effective = layout === "auto" ? (call.peers.length <= 1 || pinnedPeer ? "speaker" : "gallery") : layout;
   const onStage = pinnedPeer ?? call.peers.find((p) => p.sid === stageOwner.current?.sid) ?? call.peers[0];
   const perPage = effective === "large" ? PER_PAGE.large : PER_PAGE.gallery;
