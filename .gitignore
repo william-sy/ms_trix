@@ -5,6 +5,8 @@ dist/
 apps/desktop/src-tauri/gen/
 .smoke/
 *.tsbuildinfo
+# Research notes, kept local (see _notes/README.md).
+_notes/
 # Screenshots contain real chats and colleagues names; kept local on purpose.
 Reference+pictures/
 /Screenshot*.png
