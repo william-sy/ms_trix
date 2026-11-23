@@ -125,6 +125,27 @@ function speakingMeter(stream: MediaStream, on: (speaking: boolean) => void): ()
   return () => { window.clearInterval(timer); contexts.delete(ctx); void ctx.close(); };
 }
 
+/**
+ * Our own speaking during a call, from the microphone level the connection reports for what it
+ * sends: WebKit stops feeding an audio engine from the microphone once a call sends it (the ring
+ * on our tile stood still, and so did "speaking" for everyone else).
+ */
+function sentMeter(pc: RTCPeerConnection, on: (speaking: boolean) => void): () => void {
+  let speaking = false;
+  let quiet = 0;
+  const timer = window.setInterval(async () => {
+    const report = await pc.getStats().catch(() => null);
+    let level = 0;
+    report?.forEach((r) => {
+      if (r.type === "media-source" && (r.kind ?? r.mediaType) === "audio" && typeof r.audioLevel === "number") level = Math.max(level, r.audioLevel);
+    });
+    // On at once; off after a short quiet spell, so the ring doesn't flicker between words.
+    if (level > 0.05) { quiet = 0; if (!speaking) { speaking = true; on(true); } }
+    else if (speaking && level < 0.03 && ++quiet >= 3) { speaking = false; on(false); }
+  }, 200);
+  return () => window.clearInterval(timer);
+}
+
 interface Signaling {
   ownSid: string;
   mcu: boolean;
@@ -503,7 +524,13 @@ export class TalkCall {
     sig.send(sig.ownSid, { to: sig.ownSid, type: "offer", roomType, sid: String(Date.now()), payload: { type: "offer", sdp: offer.sdp, nick: this.nick } });
     log(`publishing ${roomType} to the video server`);
     if (roomType === "video") {
-      void connected(pc, 15000).then(() => soundCheck(pc, (s) => `sound check, you: ${s.sent ? `sending (${kb(s.sent)})` : "nothing sent"}${this.state.muted ? ", muted in the call" : ""}${level(s.outLevel)}; audio engines ${engines()}`));
+      void connected(pc, 15000).then(() => {
+        if (this.closed || this.publishers.video !== pc) return;
+        // From now on our speaking comes from what's sent (see sentMeter).
+        this.selfMeter?.();
+        this.selfMeter = sentMeter(pc, this.onSpeaking);
+        soundCheck(pc, (s) => `sound check, you: ${s.sent ? `sending (${kb(s.sent)})` : "nothing sent"}${this.state.muted ? ", muted in the call" : ""}${level(s.outLevel)}; audio engines ${engines()}`);
+      });
     }
   }
 
@@ -711,7 +738,7 @@ export class TalkCall {
       if (audio) {
         watchMic(track);
         this.selfMeter?.();
-        this.selfMeter = speakingMeter(local, this.onSpeaking);
+        this.selfMeter = this.publishers.video ? sentMeter(this.publishers.video, this.onSpeaking) : speakingMeter(local, this.onSpeaking);
       }
       this.set({ local });
     } catch (e) {
