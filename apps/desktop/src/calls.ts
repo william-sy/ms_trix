@@ -5,7 +5,8 @@ import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { backend, isLive, onCallSignal, type CallSignal } from "./backend";
 import { currentSettings } from "./settings";
 import { openMic } from "./voice";
-import { processCamera, switchEffect, type CameraEffect } from "./cameraEffects";
+import { currentEffect, processCamera, switchEffect, type CameraEffect } from "./cameraEffects";
+import { cameraConstraints, cameraLevel } from "./videoQuality";
 import { pickScreen, screenStopped } from "./screenShare";
 
 export type CallPhase = "ringing" | "connecting" | "connected" | "ended";
@@ -279,9 +280,10 @@ class Call {
   }
 }
 
-const cameraConstraint = (): MediaTrackConstraints | boolean => {
+/** The chosen camera at the chosen quality (Automatic: full, or HD with a background effect). */
+const cameraConstraint = (): MediaTrackConstraints => {
   const id = currentSettings().cameraId;
-  return id ? { deviceId: { ideal: id } } : true;
+  return cameraConstraints(cameraLevel({ videos: 1, audios: 1, speaking: false, effect: currentEffect() !== "none" }), id ? { ideal: id } : undefined);
 };
 
 /** Microphone (the one chosen in Settings) and, for video calls, the camera. */

@@ -32,6 +32,13 @@
   in UTC, so Nextcloud and other calendar apps show and edit it in the right zone. When that zone
   differs from your computer's, the dialog says so; the times you pick are your computer's.
 
+- **Camera quality** (Settings → Audio & video, also in a call's settings): *Automatic* sends
+  your camera the way Talk's own app does, in full quality (up to 1080p) while you speak and in
+  calls with fewer than 20 cameras, lower in very big calls, and HD at most with a background
+  effect. Or pick High (1080p), HD (720p), Standard (480p) or Low (360p, saves data). Before,
+  calls used the camera's default, usually 640×480, so others saw you softer than Talk users.
+  In a Talk call a change applies at once.
+
 ### Fixed
 - Calendar: inviting someone by typing their address and clicking *Invite …* added them and
   removed them again straight away, so the meeting was saved without them. An address you typed

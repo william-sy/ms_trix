@@ -430,6 +430,20 @@ built yet is visibly disabled in the UI with a "coming soon" tooltip.
         participants (CSV), poll drafts; Permissions: all / restricted / advanced;
         Danger zone: lock, archive, leave, delete conversation, delete chat messages
   - [ ] Talk: start/stop call recording (backlog; needs the recording server)
+  - [x] Camera quality (2026-11-25, 1.7): Automatic (Talk's rule: full while you speak and below
+        20 cameras, lower in very big calls; HD at most with a background effect) or High 1080p,
+        HD 720p, Standard 480p, Low 360p, in the audio & video settings; Talk calls change it
+        live, Matrix calls at the next camera. Details of what Talk does: _notes/talk-calls.md
+  - [ ] S–M. Incoming video quality (Talk, ~1 day): ask the video server for the right layer
+        per tile (`selectStream {substream, temporal}`: the speaker high, small tiles low) and
+        no video from people not on screen (`selectStream {video: false}`: another gallery
+        page, the minimised card); a setting Automatic / Always best / Data saver / Off (audio
+        only). Choosing a layer works for publishers that send simulcast (Talk's web app does
+        when the server has the "simulcast" feature, as ours has); turning video off for all
+  - [ ] M. Send simulcast ourselves (Talk, 1–2 days): three layers (full, ½, ¼ at 0.9 / 0.3 /
+        0.1 Mbit/s, as Talk's web app) so viewers in big grids get a small one and Janus can fall
+        back for slow connections; RID sendEncodings in WebKit with Janus to be tested with a
+        Talk web user
 - [ ] Talk follow-ups: threads (Talk 22+) done 2026-11-21. Typing skipped for now (2026-11-21): it
       needs Talk's signaling with the chat joined, and then the phone gets no notifications for it
   - [x] Talk: verify against a production Nextcloud (in daily use since 1.1)

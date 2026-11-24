@@ -11,9 +11,10 @@ import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { backend, isLive } from "./backend";
 import { useCardInsets } from "./callCard";
-import { currentSettings, isMac } from "./settings";
+import { currentSettings, isMac, onSettingsChanged } from "./settings";
+import { applyCameraLevel, cameraConstraints, cameraLevel, openedAt, type CameraLevel } from "./videoQuality";
 import { openMic } from "./voice";
-import { currentEffect, processCamera, switchEffect, type CameraEffect } from "./cameraEffects";
+import { currentEffect, processCamera, rawCamera, switchEffect, type CameraEffect } from "./cameraEffects";
 import { pickScreen, screenStopped } from "./screenShare";
 
 const API = "/ocs/v2.php/apps/spreed/api";
@@ -192,6 +193,10 @@ export class TalkCall {
   private userId: string | null = null;
   /** Started with "Start call silently": the others aren't rung. */
   silent = false;
+  /** The camera quality last set (videoQuality.ts), for the camera it was set on; when we last spoke. */
+  private quality?: { camera: MediaStreamTrack; level: CameraLevel };
+  private spokeAt = 0;
+  private spokeTimer?: number;
 
   constructor(conversation: string, private update: (s: TalkCallState) => void) {
     const [account, token] = conversation.split("|") as [string, string];
@@ -202,6 +207,28 @@ export class TalkCall {
   private set(patch: Partial<TalkCallState>) {
     this.state = { ...this.state, ...patch, peers: [...this.peers.values()].map(({ sid, name, stream, screen, audioOn, videoOn, speaking, handRaised }) => ({ sid, name, stream, screen, audioOn, videoOn, speaking, handRaised })) };
     this.update(this.state);
+    this.adjustQuality();
+  }
+
+  /**
+   * The camera at the quality chosen in the settings, or Automatic's for the call as it is now
+   * (who has a camera or microphone on, whether you speak or did in the last 5 seconds, a
+   * background effect); changed only when that differs. Also after the setting changes.
+   */
+  adjustQuality() {
+    const track = this.state.local?.getVideoTracks()[0];
+    if (!track || track.readyState === "ended" || this.closed) return;
+    const camera = rawCamera(track);
+    const peers = [...this.peers.values()];
+    const level = cameraLevel({
+      videos: peers.filter((p) => p.videoOn).length,
+      audios: peers.filter((p) => p.audioOn).length,
+      speaking: this.state.speakingSelf || Date.now() - this.spokeAt < 5000,
+      effect: camera !== track,
+    });
+    if (this.quality?.camera === camera && this.quality.level === level) return;
+    this.quality = { camera, level };
+    void applyCameraLevel(camera, level).then((size) => log(`camera quality: ${level}${currentSettings().cameraQuality === "auto" ? " (automatic)" : ""}${size ? `, ${size}` : ""}`));
   }
 
   /** The Nextcloud address, for the signalling server's backend check. */
@@ -516,6 +543,12 @@ export class TalkCall {
 
   /** Our speaking meter: the ring on our own tile, and "speaking" for everyone else. */
   private onSpeaking = (speakingSelf: boolean) => {
+    // Automatic keeps full quality for 5 seconds after you stop speaking (as Talk does).
+    if (this.state.speakingSelf && !speakingSelf) {
+      this.spokeAt = Date.now();
+      window.clearTimeout(this.spokeTimer);
+      this.spokeTimer = window.setTimeout(() => this.adjustQuality(), 5100);
+    }
     this.set({ speakingSelf });
     if (!this.state.muted) this.dc(speakingSelf ? "speaking" : "stoppedSpeaking");
   };
@@ -763,7 +796,10 @@ export class TalkCall {
     if (!local || !old) return;
     const want = id ? { deviceId: { exact: id } } : true;
     try {
-      const opened = await navigator.mediaDevices.getUserMedia(audio ? { audio: want } : { video: want });
+      // Another camera opens at the quality in use.
+      const level = this.quality?.level ?? cameraLevel();
+      const opened = await navigator.mediaDevices.getUserMedia(audio ? { audio: want } : { video: cameraConstraints(level, id ? { exact: id } : undefined) });
+      if (!audio) openedAt(opened.getVideoTracks()[0], level);
       const raw = (audio ? opened.getAudioTracks() : opened.getVideoTracks())[0]!;
       const track = audio ? raw : await processCamera(raw);
       track.enabled = old.enabled;
@@ -864,21 +900,26 @@ function watchMic(track: MediaStreamTrack) {
   track.onended = () => log(`microphone stopped: ${track.label}`);
 }
 
-/** The camera picked now, or else the saved one (found by name if its id changed); null: none. */
-async function openCamera(cameraId?: string | null): Promise<MediaStream | null> {
+/**
+ * The camera picked now, or else the saved one (found by name if its id changed), at the quality
+ * for a call just starting (videoQuality.ts); null: none.
+ */
+async function openCamera(cameraId?: string | null, effect = false): Promise<MediaStream | null> {
   const { cameraId: saved, deviceLabels } = currentSettings();
   const id = cameraId ?? saved;
+  const level = cameraLevel({ videos: 0, audios: 0, speaking: false, effect });
   try {
-    let stream = await navigator.mediaDevices.getUserMedia({ video: id ? { deviceId: { ideal: id } } : true });
+    let stream = await navigator.mediaDevices.getUserMedia({ video: cameraConstraints(level, id ? { ideal: id } : undefined) });
     const want = deviceLabels.videoinput;
     if (!cameraId && saved && want && stream.getVideoTracks()[0]?.label !== want) {
       const match = (await navigator.mediaDevices.enumerateDevices()).find((d) => d.kind === "videoinput" && d.label === want);
       if (match) {
         log(`camera opened again: the saved one (${want}) had another id`);
         stream.getTracks().forEach((t) => t.stop());
-        stream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: match.deviceId } } });
+        stream = await navigator.mediaDevices.getUserMedia({ video: cameraConstraints(level, { exact: match.deviceId }) });
       }
     }
+    openedAt(stream.getVideoTracks()[0], level);
     return stream;
   } catch (e) {
     log(`no camera: ${String(e)}`);
@@ -891,7 +932,7 @@ async function openMedia(video: boolean, micId?: string | null, cameraId?: strin
   const [mic, cam] = await Promise.all([
     micId ? navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: micId } } }) : openMic(),
     // No camera: audio only.
-    video ? openCamera(cameraId) : null,
+    video ? openCamera(cameraId, effects && currentEffect() !== "none") : null,
   ]);
   for (const t of cam?.getVideoTracks() ?? []) mic.addTrack(effects ? await processCamera(t) : t);
   return mic;
@@ -1030,6 +1071,8 @@ export function useTalkCallEngine(onError: (message: string) => void): TalkCalls
   const [call, setCall] = useState<TalkCallState | null>(null);
   const current = useRef<TalkCall | null>(null);
   useEffect(() => () => void current.current?.leave("the call page closed"), []);
+  // Camera quality chosen in the settings (also from the call's own settings window).
+  useEffect(() => onSettingsChanged(() => current.current?.adjustQuality()), []);
   useEffect(() => {
     if (call?.error) onError(call.error);
   }, [call?.error]); // eslint-disable-line react-hooks/exhaustive-deps

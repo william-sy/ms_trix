@@ -1,3 +1,4 @@
+import type { CameraQuality } from "./videoQuality";
 import type { Ringtone } from "./ringtone";
 import { setLanguage, type Key } from "./i18n";
 
@@ -66,6 +67,8 @@ export interface Settings {
   cameraId: string | null;
   /** Camera background in calls: "none", "blur", "blur-strong", "preset:<id>" or "custom". */
   cameraEffect: string;
+  /** How sharp the camera is sent in calls; "auto" as Talk's web app does it (videoQuality.ts). */
+  cameraQuality: CameraQuality;
   /** Their names, to find the same device again if its id changes. */
   deviceLabels: Record<string, string>;
   /** Enter sends (Shift+Enter = new line); off: Enter = new line, ⌘/Ctrl+Enter sends. */
@@ -122,6 +125,7 @@ const defaults: Settings = {
   speakerId: null,
   cameraId: null,
   cameraEffect: "none",
+  cameraQuality: "auto",
   deviceLabels: {},
   enterSends: true,
   density: "comfortable",

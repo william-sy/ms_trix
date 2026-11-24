@@ -5,6 +5,7 @@ import type { Settings } from "./settings";
 import { startMeter } from "./voice";
 import { BackgroundPicker } from "./BackgroundPicker";
 import { processCamera, switchEffect } from "./cameraEffects";
+import { CAMERA_QUALITIES, type CameraQuality } from "./videoQuality";
 
 type Section = { settings: Settings; set: (patch: Partial<Settings>) => void };
 
@@ -99,6 +100,13 @@ export function AudioVideoSettings({ settings, set }: Section) {
       <section>
         <h2>{t("av.camera")}</h2>
         {picker("videoinput", settings.cameraId, pick("videoinput", "cameraId"))}
+        <label className="av-quality">
+          <span>{t("av.quality")}</span>
+          <select value={settings.cameraQuality} onChange={(e) => set({ cameraQuality: e.target.value as CameraQuality })}>
+            {CAMERA_QUALITIES.map((q) => <option key={q} value={q}>{t(`av.quality.${q}`)}</option>)}
+          </select>
+        </label>
+        <p className="hint">{t(settings.cameraQuality === "auto" ? "av.qualityAutoHint" : "av.qualityHint")}</p>
         <CameraTest deviceId={resolve("videoinput", settings.cameraId)} effect={settings.cameraEffect} onStarted={() => unnamed && void refresh(false)} />
       </section>
       <section>
