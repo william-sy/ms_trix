@@ -35,8 +35,9 @@
   that can't load. Once the server answers, everything catches up and chats that were really
   removed go. For Nextcloud: a maintenance or login page no longer counts as "no conversations",
   a server that doesn't answer at all (VPN off) is noticed after 15 seconds instead of hanging,
-  and errors say what went wrong (refused, unknown host, timed out) instead of only "error
-  sending request".
+  errors say what went wrong (refused, unknown host, timed out) instead of only "error
+  sending request", and a Nextcloud with Files but without Talk isn't offline: it has no chats,
+  and is asked whether it has Talk every 10 minutes instead of failing every 5 seconds.
 - **The minimised call can be moved:** drag it to another corner of the window; it stays there
   for the next call. In its corner it keeps clear of the message box, so Send stays clickable.
 

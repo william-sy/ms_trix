@@ -78,6 +78,8 @@ const POLL_EVERY: Duration = Duration::from_secs(5);
 /// deleted or left elsewhere, so they disappear here within half a minute. (Talk's docs ask for at
 /// least one every 5 minutes; one list request per 30 s is still light.)
 const FULL_REFRESH: Duration = Duration::from_secs(30);
+/// How often a Nextcloud without Talk is asked whether it has Talk now.
+const WITHOUT_TALK_EVERY: Duration = Duration::from_secs(600);
 const BACKFILL: u32 = 30;
 
 /// Stored in the OS keychain by the host.
@@ -286,6 +288,11 @@ impl TalkAdapter {
     pub fn restore(account: Account, blob: &[u8]) -> Result<Arc<Self>> {
         let session: Session = serde_json::from_slice(blob).map_err(err)?;
         Ok(Arc::new(Self::new(account, session)))
+    }
+
+    /// The server answers but has no Talk (only Files, say); false when it doesn't answer.
+    async fn without_talk(&self) -> bool {
+        matches!(self.ocs(self.request(Method::GET, "/ocs/v2.php/cloud/capabilities")).await, Ok(Some((data, _))) if data["capabilities"].is_object() && data["capabilities"]["spreed"].is_null())
     }
 
     /// Whether this server's Talk has `name` (its capabilities, asked once).
@@ -896,12 +903,21 @@ impl ProtocolAdapter for TalkAdapter {
             let mut connected = false;
             loop {
                 let full = last_full.elapsed() >= FULL_REFRESH;
+                let mut wait = POLL_EVERY;
                 match this.poll_once(&tx, if full { None } else { since }, full).await {
                     Ok(next) => {
                         since = next.or(since);
                         if full {
                             last_full = std::time::Instant::now();
                         }
+                        if !std::mem::replace(&mut connected, true) {
+                            let _ = tx.send(AdapterEvent::Connected);
+                        }
+                    }
+                    // A Nextcloud with Files but without Talk is online, it just has no chats: asked
+                    // again now and then, in case Talk gets turned on.
+                    Err(_) if this.without_talk().await => {
+                        wait = WITHOUT_TALK_EVERY;
                         if !std::mem::replace(&mut connected, true) {
                             let _ = tx.send(AdapterEvent::Connected);
                         }
@@ -915,7 +931,7 @@ impl ProtocolAdapter for TalkAdapter {
                     break;
                 }
                 tokio::select! {
-                    _ = tokio::time::sleep(POLL_EVERY) => {}
+                    _ = tokio::time::sleep(wait) => {}
                     _ = this.wake.notified() => {}
                 }
             }
