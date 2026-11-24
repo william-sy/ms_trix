@@ -234,7 +234,8 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
   };
 
   useEffect(() => {
-    if (currentHit) document.querySelector(`[data-msg="${CSS.escape(currentHit.id)}"]`)?.scrollIntoView({ block: "center" });
+    if (!currentHit) return;
+    document.querySelector(`[data-msg="${CSS.escape(currentHit.id)}"]`)?.scrollIntoView({ block: "center" });
     noteScroll();
   }, [currentHit?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 

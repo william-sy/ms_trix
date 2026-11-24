@@ -1,5 +1,5 @@
 // Small behaviours many dialogs and menus share.
-import { useCallback, useEffect, useRef, type DependencyList, type RefObject } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, type DependencyList, type RefObject } from "react";
 
 /** Escape closes it. */
 export function useEscape(onClose: () => void) {
@@ -29,23 +29,40 @@ export function useClickOutside(ref: RefObject<HTMLElement | null>, active: bool
  */
 export function useStickToBottom(ref: RefObject<HTMLElement | null>, deps: DependencyList) {
   const pinned = useRef(true);
+  const lastTop = useRef(0);
+  const atBottom = (el: HTMLElement) => el.scrollHeight - el.scrollTop - el.clientHeight < 24;
   const note = useCallback(() => {
     const el = ref.current;
-    if (el) pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
+    if (!el) return;
+    pinned.current = atBottom(el);
+    lastTop.current = el.scrollTop;
   }, [ref]);
-  useEffect(() => {
+  // Before any scroll event of the newly shown list, so its position counts from its own bottom.
+  useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
     pinned.current = true;
-    const stick = () => { if (pinned.current) el.scrollTop = el.scrollHeight; };
+    const stick = () => {
+      if (!pinned.current) return;
+      el.scrollTop = el.scrollHeight;
+      lastTop.current = el.scrollTop;
+    };
+    // Only moving up lets go: a scroll event can arrive after more has grown below (the jump to
+    // the bottom of a chat just opened, before its pictures load), and that's still the bottom.
+    const onScroll = () => {
+      if (atBottom(el)) pinned.current = true;
+      else if (el.scrollTop < lastTop.current - 1) pinned.current = false;
+      lastTop.current = el.scrollTop;
+    };
     // The list's own size, and each message in it (new ones too).
     const resize = new ResizeObserver(stick);
     resize.observe(el);
     for (const child of el.children) resize.observe(child);
     const added = new MutationObserver((records) => records.forEach((r) => r.addedNodes.forEach((n) => n instanceof Element && resize.observe(n))));
     added.observe(el, { childList: true });
-    el.addEventListener("scroll", note, { passive: true });
-    return () => { resize.disconnect(); added.disconnect(); el.removeEventListener("scroll", note); };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    stick();
+    return () => { resize.disconnect(); added.disconnect(); el.removeEventListener("scroll", onScroll); };
   }, deps); // eslint-disable-line react-hooks/exhaustive-deps
   return note;
 }
