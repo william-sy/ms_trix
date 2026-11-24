@@ -13,6 +13,7 @@ import { currentSettings, onSettingsChanged, updateSettings } from "./settings";
 import { callLog, registerPlayer, type TalkCalls, type TalkPeerView } from "./talkCalls";
 import type { Conversation } from "./types";
 import { formatDuration } from "./voice";
+import { CAMERA_QUALITIES, type CameraQuality } from "./videoQuality";
 
 type Player = HTMLMediaElement & { setSinkId?: (id: string) => Promise<void> };
 
@@ -92,7 +93,18 @@ function DeviceSelect({ kind, devices, value, onPick }: {
   );
 }
 
-/** In a Talk call: microphone, speaker and camera, switched without leaving. */
+/** The camera's quality (the same setting as in Settings); the call changes it at once. */
+function QualitySelect() {
+  const [quality, setQuality] = useState(currentSettings().cameraQuality);
+  useEffect(() => onSettingsChanged((s) => setQuality(s.cameraQuality)), []);
+  return (
+    <select value={quality} title={t(quality === "auto" ? "av.qualityAutoHint" : "av.qualityHint")} onChange={(e) => updateSettings({ cameraQuality: e.target.value as CameraQuality })}>
+      {CAMERA_QUALITIES.map((q) => <option key={q} value={q}>{t(`av.quality.${q}`)}</option>)}
+    </select>
+  );
+}
+
+/** In a Talk call: microphone, speaker, camera and its quality, switched without leaving. */
 function DeviceButton({ calls }: { calls: TalkCalls }) {
   const [open, setOpen] = useState(false);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
@@ -107,6 +119,7 @@ function DeviceButton({ calls }: { calls: TalkCalls }) {
           {mic && <><b>{t("av.microphone")}</b><DeviceSelect kind="audioinput" devices={devices} value={inUse(mic)} onPick={(id) => calls.switchDevice("audioinput", id)} /></>}
           <b>{t("av.speaker")}</b><SpeakerPicker />
           {camera && <><b>{t("av.camera")}</b><DeviceSelect kind="videoinput" devices={devices} value={inUse(camera)} onPick={(id) => calls.switchDevice("videoinput", id)} /></>}
+          {camera && <><b>{t("av.quality")}</b><QualitySelect /></>}
         </div>
       )}
     </span>
@@ -408,6 +421,7 @@ function PreJoin({ calls, name, onPopOut }: { calls: TalkCalls; name: string; on
           <label>{t("av.microphone")}<DeviceSelect kind="audioinput" devices={devices} value={micId ?? inUse(call.local?.getAudioTracks()[0])} onPick={(id) => { setMicId(id); calls.reprepare(hasCamera, id, cameraId); }} /></label>
           <label>{t("av.speaker")}<SpeakerPicker /></label>
           <label>{t("av.camera")}<DeviceSelect kind="videoinput" devices={devices} value={cameraId ?? inUse(call.local?.getVideoTracks()[0])} onPick={(id) => { setCameraId(id); calls.reprepare(true, micId, id); }} /></label>
+          {hasCamera && <label>{t("av.quality")}<QualitySelect /></label>}
           <div className="call-controls">
             <button className={`call-btn ${call.muted ? "off" : ""}`} title={call.muted ? t("mxcall.unmute") : t("mxcall.mute")} onClick={() => calls.setMuted(!call.muted)}>{call.muted ? <MicOffIcon /> : <MicIcon />}</button>
             <button className={`call-btn ${call.cameraOn ? "" : "off"}`} title={call.cameraOn ? t("mxcall.cameraOff") : t("mxcall.cameraOn")}
