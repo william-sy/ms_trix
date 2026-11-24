@@ -57,6 +57,8 @@
 
 1.6 (released 2026-11-23): see RELEASE_NOTES.md. Renamed to Trixcomm; updates by themselves.
 
+1.7 (released 2026-11-24): see RELEASE_NOTES.md. Files, Find a time, offline accounts, camera quality.
+
 1.5 (released 2026-11-22), besides what's in RELEASE_NOTES.md:
 - [x] Activity: a way to clear it (empty the feed, or remove single items)
 - [x] Tables in the composer (size grid, 6 × 6 at most); Talk messages rendered from Markdown;
@@ -442,7 +444,7 @@ built yet is visibly disabled in the UI with a "coming soon" tooltip.
         participants (CSV), poll drafts; Permissions: all / restricted / advanced;
         Danger zone: lock, archive, leave, delete conversation, delete chat messages
   - [ ] Talk: start/stop call recording (backlog; needs the recording server)
-  - [x] Camera quality (2026-11-25, 1.7): Automatic (Talk's rule: full while you speak and below
+  - [x] Camera quality (2026-11-24, 1.7): Automatic (Talk's rule: full while you speak and below
         20 cameras, lower in very big calls; HD at most with a background effect) or High 1080p,
         HD 720p, Standard 480p, Low 360p, in the audio & video settings; Talk calls change it
         live, Matrix calls at the next camera. Details of what Talk does: _notes/talk-calls.md

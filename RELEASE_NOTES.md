@@ -1,6 +1,6 @@
 # Release notes
 
-## 1.7 (not released yet)
+## 1.7.0 (2026-11-24)
 
 ### New
 - **Find a time** in New meeting (and Edit): as soon as you add people, everyone's free and busy
@@ -40,14 +40,12 @@
   and is asked whether it has Talk every 10 minutes instead of failing every 5 seconds.
 - **The minimised call can be moved:** drag it to another corner of the window; it stays there
   for the next call. In its corner it keeps clear of the message box, so Send stays clickable.
-
 - **New meetings in your account's time zone:** a meeting made in Trixcomm is saved in the
   calendar's time zone as your Nextcloud account has it (or the one of your working hours), not
   in UTC, so Nextcloud and other calendar apps show and edit it in the right zone. When that zone
   differs from your computer's, the dialog says so; the times you pick are your computer's.
-
-- **Camera quality** (Settings → Audio & video, and in a Talk call's ⚙︎ menu and before joining): *Automatic* sends
-  your camera the way Talk's own app does, in full quality (up to 1080p) while you speak and in
+- **Camera quality** (Settings → Audio & video, and in a Talk call's ⚙︎ menu and before
+  joining): *Automatic* sends your camera the way Talk's own app does, in full quality (up to 1080p) while you speak and in
   calls with fewer than 20 cameras, lower in very big calls, and HD at most with a background
   effect. Or pick High (1080p), HD (720p), Standard (480p) or Low (360p, saves data). Before,
   calls used the camera's default, usually 640×480, so others saw you softer than Talk users.
