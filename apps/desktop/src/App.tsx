@@ -207,7 +207,8 @@ export function App() {
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [activitySelected, setActivitySelected] = useState<string | null>(null);
   // A message to scroll to (from Activity, search or a link), only for its own conversation:
-  // other chats would page back through their whole history looking for it.
+  // other chats would page back through their whole history looking for it. The chat clears it
+  // once it has jumped there.
   const [focusMessage, setFocusState] = useState<{ conversation: string; message: string } | null>(null);
   const setFocusMessage = (conversation: string, message: string | null) => setFocusState(message ? { conversation, message } : null);
   // Activity newer than seenAt counts on the rail badge; opening the feed clears it.
@@ -825,7 +826,7 @@ export function App() {
             )}
             {/* The calendar, notes and files fill the whole width, like Teams; the other views are a list beside the chat. */}
             {view === "calendar" || view === "notes" || view === "files" ? null : selected ? (
-              <ChatView conv={selected} messages={timeline(state, selected)} dispatch={act} onNotice={setNotice} focusMessage={focusMessage?.conversation === selected.id ? focusMessage.message : null}
+              <ChatView conv={selected} messages={timeline(state, selected)} dispatch={act} onNotice={setNotice} focusMessage={focusMessage?.conversation === selected.id ? focusMessage.message : null} onFocused={() => setFocusState(null)}
                 onLoadOlder={(limit) => loadOlder(selected.id, limit)} onLoadThread={(root) => loadThread(selected.id, root)}
                 onCommand={(name, args) => runCommand(selected.id, name, args)} attachments={staged[selected.id] ?? []} upload={uploads[selected.id]} onPreview={(m) => setPreview({ conversation: selected.id, message: m })}
                 threadAttachments={(root) => staged[stagingKey(selected.id, root)] ?? []}

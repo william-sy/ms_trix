@@ -63,9 +63,11 @@ interface Props {
   allConvs: Conversation[];
   /** Message to scroll to and highlight (from the Activity feed). */
   focusMessage?: string | null;
+  /** The focus message has been taken over, so it can be forgotten. */
+  onFocused?: () => void;
 }
 
-export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLoadThread, onCommand, attachments, threadAttachments, onPickFiles, onAddFiles, onRemoveAttachment, onAccept, onDecline, onLeave, focusMessage, upload, onPreview, allConvs }: Props) {
+export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLoadThread, onCommand, attachments, threadAttachments, onPickFiles, onAddFiles, onRemoveAttachment, onAccept, onDecline, onLeave, focusMessage, onFocused, upload, onPreview, allConvs }: Props) {
   const posts = conv.kind === "channel";
   const openProfile = useOpenProfile();
   // Send later: what's waiting here, and a scheduled message put back in the composer to edit.
@@ -269,8 +271,15 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
     setCloudPicker(false);
   };
   useEffect(() => setTab("chat"), [conv.id]);
-  const target = jump ?? focusMessage;
+  const target = jump;
   useEffect(() => setJump(null), [conv.id]);
+  // A message opened from Activity, search or a link is jumped to once; coming back to the chat
+  // later opens it at the newest message again.
+  useEffect(() => {
+    if (!focusMessage) return;
+    goTo(focusMessage);
+    onFocused?.();
+  }, [focusMessage]); // eslint-disable-line react-hooks/exhaustive-deps
   // Not loaded yet: page back until it is (bounded), then the effect below scrolls to it.
   const messagesRef = useRef(messages);
   messagesRef.current = messages;

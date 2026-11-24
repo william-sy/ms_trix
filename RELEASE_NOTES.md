@@ -53,6 +53,9 @@
   or a picture loading at the end no longer ends up cut off below the edge (nor when the typing
   line appears or the message box grows). A thread opens at its newest reply and follows new
   ones the same way. Scrolled up to read, nothing moves.
+- A chat opened at a mention from Activity (or a search result or link) jumped back to that
+  message every time you came back to it. It's jumped to once now; later the chat opens at the
+  newest message.
 
 ## 1.6.0 (2026-11-23)
 
