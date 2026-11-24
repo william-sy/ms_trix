@@ -56,6 +56,8 @@
 - A chat opened at a mention from Activity (or a search result or link) jumped back to that
   message every time you came back to it. It's jumped to once now; later the chat opens at the
   newest message.
+- A picture that's gone from the server (a 404) shows as *Picture not available* instead of a
+  broken image, and isn't fetched again on every redraw (which filled the log with errors).
 
 ## 1.6.0 (2026-11-23)
 

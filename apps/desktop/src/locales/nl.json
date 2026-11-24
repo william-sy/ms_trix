@@ -417,6 +417,7 @@
   "login.username": "Gebruikersnaam",
   "login.usernamePlaceholder": "@jij:server of jij",
   "login.waiting": "Wachten",
+  "media.missing": "Afbeelding niet beschikbaar",
   "media.open": "Openen",
   "media.openDefault": "Openen in standaardapp",
   "media.openInApp": "Openen in app",

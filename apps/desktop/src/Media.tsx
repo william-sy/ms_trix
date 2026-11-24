@@ -17,16 +17,30 @@ export interface MediaActions {
 /** The most a picture takes in a bubble. */
 const MAX_W = 360, MAX_H = 320;
 
+/** Pictures that failed to load (deleted, gone from the server), by address, and when; the app
+ *  answers them as missing for ten minutes too, so they aren't fetched on every redraw. */
+const missing = new Map<string, number>();
+const isMissing = (src: string) => Date.now() - (missing.get(src) ?? 0) < 600_000;
+
 /** Image, sticker or file chip inside a message bubble; `cell`: one picture in a gallery. */
 export function MediaBody({ media, account, actions, cell }: { media: Media; account: string; actions: MediaActions; cell?: boolean }) {
   const src = mediaUrl(account, media.id);
   // Once loaded, its own width (scaled to fit): the bubble then wraps the picture, instead of
   // stretching to the full size of, say, a wide screenshot.
   const [width, setWidth] = useState<number | null>(null);
+  const [failed, setFailed] = useState(() => !!src && isMissing(src));
   const onContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     actions.menu(media, e.clientX, e.clientY);
   };
+  if ((media.kind === "image" || media.kind === "sticker") && src && failed) {
+    return (
+      <span className="msg-missing" title={media.name} onContextMenu={onContextMenu}>
+        <MissingPictureIcon />
+        {t("media.missing")}
+      </span>
+    );
+  }
   if ((media.kind === "image" || media.kind === "sticker") && src) {
     return (
       <img className={media.kind === "sticker" ? "msg-sticker" : "msg-image"} src={src} alt={media.name} loading="lazy"
@@ -35,6 +49,7 @@ export function MediaBody({ media, account, actions, cell }: { media: Media; acc
           const img = e.currentTarget;
           if (!cell && media.kind === "image" && img.naturalWidth) setWidth(Math.round(img.naturalWidth * Math.min(1, MAX_W / img.naturalWidth, MAX_H / img.naturalHeight)));
         }}
+        onError={() => { missing.set(src, Date.now()); setFailed(true); }}
         onClick={() => actions.view(media)} onContextMenu={onContextMenu} />
     );
   }
@@ -159,3 +174,14 @@ function resample(values: number[], n: number): number[] {
   });
 }
 
+/** A picture frame with a slash through it. */
+function MissingPictureIcon() {
+  return (
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <circle cx="9" cy="10" r="1.5" />
+      <path d="M21 16l-5-5-8 8" />
+      <path d="M3 3l18 18" />
+    </svg>
+  );
+}

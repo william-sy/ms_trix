@@ -1871,6 +1871,12 @@ async fn serve_media(app: AppHandle, request: tauri::http::Request<Vec<u8>>) -> 
         request.uri().query()?.split('&').find_map(|kv| kv.strip_prefix(name)?.strip_prefix('=')?.parse::<u32>().ok())
     };
     let thumbnail = param("w").zip(param("h"));
+    // A picture that just failed (deleted, or gone from the server) isn't asked for again on every
+    // redraw: it stays missing for a while, and is logged once.
+    let key = format!("{path}?{thumbnail:?}");
+    if missing_media().lock().unwrap().get(&key).is_some_and(|at| at.elapsed() < MISSING_FOR) {
+        return fail(StatusCode::NOT_FOUND);
+    }
     let Some(adapter) = app.state::<AppState>().engine.lock().unwrap().adapter(&AccountId(account.to_owned())) else {
         return fail(StatusCode::NOT_FOUND);
     };
@@ -1899,9 +1905,20 @@ async fn serve_media(app: AppHandle, request: tauri::http::Request<Vec<u8>>) -> 
         }
         Err(e) => {
             log::warn!("media {media}: {e}");
+            let mut missing = missing_media().lock().unwrap();
+            missing.retain(|_, at| at.elapsed() < MISSING_FOR);
+            missing.insert(key, std::time::Instant::now());
             fail(StatusCode::BAD_GATEWAY)
         }
     }
+}
+
+/// How long a picture that failed to load is answered as missing without asking the server again.
+const MISSING_FOR: std::time::Duration = std::time::Duration::from_secs(600);
+
+fn missing_media() -> &'static Mutex<std::collections::HashMap<String, std::time::Instant>> {
+    static MISSING: std::sync::OnceLock<Mutex<std::collections::HashMap<String, std::time::Instant>>> = std::sync::OnceLock::new();
+    MISSING.get_or_init(Default::default)
 }
 
 fn sniff_mime(bytes: &[u8]) -> &'static str {

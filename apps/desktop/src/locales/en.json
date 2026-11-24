@@ -417,6 +417,7 @@
   "login.username": "Username",
   "login.usernamePlaceholder": "@you:server or you",
   "login.waiting": "Waiting",
+  "media.missing": "Picture not available",
   "media.open": "Open",
   "media.openDefault": "Open in default app",
   "media.openInApp": "Open in app",
