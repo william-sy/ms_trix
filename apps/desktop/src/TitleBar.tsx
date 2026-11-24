@@ -127,7 +127,9 @@ export function TitleBar({ orgFilter, query, onQuery, onAddAccount, onSignOut, o
         <button type="button" className={`search-case ${matchCase ? "on" : ""}`} title={t("search.matchCase")} aria-pressed={matchCase}
           onMouseDown={(e) => e.preventDefault()} onClick={() => setMatchCase(!matchCase)}>Aa</button>
         {showHits && query.trim().length >= 2 && isLive && (
-          <div className="menu search-results">
+          // Keeps the focus in the box: on macOS a clicked button doesn't take it, so the box's blur
+          // closed the results before the click reached the hit.
+          <div className="menu search-results" onMouseDown={(e) => e.preventDefault()}>
             <div className="menu-title">{t("search.messages")}</div>
             {hits.length === 0 && <p className="empty small">{t("search.none")}</p>}
             {hits.map((h) => (

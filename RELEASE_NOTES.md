@@ -67,6 +67,8 @@
   newest message.
 - A picture that's gone from the server (a 404) shows as *Picture not available* instead of a
   broken image, and isn't fetched again on every redraw (which filled the log with errors).
+- Search on macOS: clicking a result closed the results without opening the message. It opens
+  now (in its chat, or as a preview when it's further back than the chat has loaded).
 
 ## 1.6.0 (2026-11-23)
 
