@@ -668,13 +668,19 @@ export function App() {
         const txn = crypto.randomUUID();
         const me = [...(messagesRef.current[action.id] ?? [])].reverse().find((m) => m.fromMe && !m.system && !m.local);
         const { text, emote, html, replyTo, threadRoot } = action.message;
-        const now = Date.now();
-        dispatch({ type: "localSend", key: action.id, message: {
-          id: `local:${txn}`, sender: me?.sender ?? "", senderId: me?.senderId, avatar: me?.avatar, fromMe: true, ts: now,
-          time: new Date(now).toLocaleString(locale(), { weekday: "long", hour: "2-digit", minute: "2-digit" }),
-          body: emote ? `* ${me?.sender ?? ""} ${text}` : text, html, replyTo, threadRoot, status: "sending", local: { txn, outgoing: action.message },
-        } });
-        return void sendLocal(action.id, txn, action.message);
+        // Formatted as it will be sent (a code block, a list, bold), not raw Markdown until the
+        // server's copy arrives; rendering takes a millisecond. Shown first, then sent, so the
+        // copy is there to be replaced.
+        const formatted = html || emote ? Promise.resolve(html ?? null) : backend.renderMarkdown(text).catch(() => null);
+        return void formatted.then((rendered) => {
+          const now = Date.now();
+          dispatch({ type: "localSend", key: action.id, message: {
+            id: `local:${txn}`, sender: me?.sender ?? "", senderId: me?.senderId, avatar: me?.avatar, fromMe: true, ts: now,
+            time: new Date(now).toLocaleString(locale(), { weekday: "long", hour: "2-digit", minute: "2-digit" }),
+            body: emote ? `* ${me?.sender ?? ""} ${text}` : text, html: rendered ?? undefined, replyTo, threadRoot, status: "sending", local: { txn, outgoing: action.message },
+          } });
+          return sendLocal(action.id, txn, action.message);
+        });
       }
       case "retrySend": {
         const local = messagesRef.current[action.id]?.find((m) => m.local?.txn === action.txn)?.local;
