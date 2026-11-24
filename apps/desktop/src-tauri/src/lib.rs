@@ -1202,6 +1202,11 @@ async fn cloud_mkdir(state: State<'_, AppState>, account: String, path: String) 
     adapter_for(&state, &account)?.cloud_mkdir(&path).await.map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+async fn cloud_delete(state: State<'_, AppState>, account: String, path: String) -> CmdResult<()> {
+    adapter_for(&state, &account)?.cloud_delete(&path).await.map_err(|e| e.to_string())
+}
+
 /// A read-only public link to a stored file or folder.
 #[tauri::command]
 async fn cloud_share_link(state: State<'_, AppState>, account: String, path: String) -> CmdResult<String> {
@@ -2629,6 +2634,7 @@ pub fn run() {
             cloud_search,
             cloud_upload_paths,
             cloud_mkdir,
+            cloud_delete,
             cloud_share_link,
             open_cloud_file,
             attach_cloud_file,

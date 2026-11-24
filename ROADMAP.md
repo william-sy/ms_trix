@@ -125,8 +125,20 @@ plus the open items further down). S: a few hours, M: a day or two, L: several d
 12. [x] L. Files in the rail (Nextcloud, like OneDrive in Teams): folders (browsing exists for the
        📎 menu), recent files and search; upload by drag and drop; open, download, share a link or
        into a chat; documents open in Nextcloud Office (done 2026-11-24, to be verified on a real
-       Nextcloud). Later: rename, move, delete, favourites, shared with you, chunked upload for
-       very large files
+       Nextcloud); delete (to Nextcloud's deleted files, 2026-11-24). Later: rename, move,
+       favourites, shared with you, chunked upload for very large files
+       - [ ] S–M. Gallery (idea 2026-11-24): pictures and videos in Files open in the app's own
+             viewer instead of the browser, with ‹ › (and arrow keys) through the other pictures
+             and videos of the folder, recent list or search results; videos play there. Builds
+             on the chat's Lightbox (single picture today); full size through the existing
+             `file:<id>:<path>` media, previews for the strip. Maybe a grid view for folders of
+             photos. Other files keep opening in Nextcloud
+       - [ ] M. Show in Files (idea 2026-11-24): a Nextcloud file in a chat (a Talk file message,
+             or a link to your own Nextcloud: `/f/<id>`, or one of your own share links `/s/…`)
+             gets "Show in Files" and opens there, the Files tab at its folder with the file
+             highlighted, instead of the browser. Talk file messages know the path in your
+             storage; a file id is found with a SEARCH on oc:fileid, a share link through your
+             own shares (OCS files_sharing). Links to other servers keep opening in the browser
 13. [ ] L. Accessibility for screen readers and keyboard: a label on every icon button (about 440
        buttons, a third have a tooltip now); the message list as a list, new messages announced;
        arrow keys through messages, F6 between panes; focus kept in dialogs and given back after;

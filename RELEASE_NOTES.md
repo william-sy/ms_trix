@@ -15,8 +15,8 @@
   through all your files. Drop files on it to upload them to the folder you're in (or use
   Upload; nothing is overwritten, a name that's taken gets "(2)"), make a folder. Open a file in
   Nextcloud (documents in Nextcloud Office) or on this computer, download it, copy a view-only
-  link, or send it to any chat: in a Talk chat on the same Nextcloud it's shared as a file,
-  elsewhere as a link.
+  link, send it to any chat (in a Talk chat on the same Nextcloud it's shared as a file,
+  elsewhere as a link), or delete it (it goes to Deleted files in Nextcloud).
 - **The minimised call can be moved:** drag it to another corner of the window; it stays there
   for the next call. In its corner it keeps clear of the message box, so Send stays clickable.
 

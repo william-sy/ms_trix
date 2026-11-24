@@ -1634,6 +1634,17 @@ impl ProtocolAdapter for TalkAdapter {
         }
     }
 
+    async fn cloud_delete(&self, path: &str) -> Result<()> {
+        // Never the whole storage.
+        let encoded = dav::encode_path(path).filter(|e| !e.is_empty()).ok_or_else(|| err("bad path"))?;
+        let status = self.request(Method::DELETE, &format!("{}{encoded}", self.files_root().await)).send().await.map_err(net)?.status();
+        match status {
+            s if s.is_success() || s == StatusCode::NOT_FOUND => Ok(()),
+            StatusCode::FORBIDDEN | StatusCode::LOCKED => Err(err("you can't delete this (shared with you read-only, or in use)")),
+            s => Err(err(format!("could not delete: {s}"))),
+        }
+    }
+
     async fn cloud_web_url(&self, file_id: &str) -> Result<String> {
         if file_id.is_empty() || !file_id.chars().all(|c| c.is_ascii_digit()) {
             return Err(err("unknown file"));

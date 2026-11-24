@@ -449,6 +449,10 @@ pub trait ProtocolAdapter: Send + Sync {
     async fn cloud_mkdir(&self, _path: &str) -> Result<()> {
         Err(AdapterError::Unsupported("files"))
     }
+    /// Deletes a stored file or folder (Nextcloud keeps it in its deleted files for a while).
+    async fn cloud_delete(&self, _path: &str) -> Result<()> {
+        Err(AdapterError::Unsupported("files"))
+    }
     /// A stored file or folder in the server's web interface (documents open in its office app).
     async fn cloud_web_url(&self, _file_id: &str) -> Result<String> {
         Err(AdapterError::Unsupported("files"))

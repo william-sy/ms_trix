@@ -8,8 +8,8 @@ import type { CloudFile, Conversation, Org } from "./types";
 
 // Nextcloud Files in the rail (like OneDrive in Teams): your folders, recently changed files and
 // a search through everything; upload by dropping files on it; open a file in Nextcloud
-// (documents in Nextcloud Office) or on this computer, download it, copy a link, or send it into
-// a chat (shared into a Talk chat on the same Nextcloud, a link elsewhere).
+// (documents in Nextcloud Office) or on this computer, download it, copy a link, send it into a
+// chat (shared into a Talk chat on the same Nextcloud, a link elsewhere), or delete it.
 
 type Section = "files" | "recent";
 
@@ -143,7 +143,14 @@ export function FilesPane({ orgs, convs }: { orgs: Org[]; convs: Conversation[] 
   };
 
   const media = (f: CloudFile) => `file:${f.fileId ?? ""}:${f.path}`;
-  const act = (what: "web" | "local" | "download" | "link" | "send" | "folder", f: CloudFile) => {
+  const remove = (f: CloudFile) => {
+    if (!confirm(t(f.dir ? "files.deleteFolderConfirm" : "files.deleteConfirm", { name: f.name }))) return;
+    backend.cloudDelete(account, f.path)
+      .then(() => { setFiles((list) => list?.filter((x) => x.path !== f.path) ?? null); setNotice(t("files.deleted", { name: f.name })); })
+      .catch((e) => setError(String(e)));
+  };
+
+  const act = (what: "web" | "local" | "download" | "link" | "send" | "folder" | "delete", f: CloudFile) => {
     setMenu(null);
     const fail = (e: unknown) => setError(String(e));
     if (what === "web") return f.fileId ? void backend.openCloudFile(account, f.fileId).catch(fail) : undefined;
@@ -151,6 +158,7 @@ export function FilesPane({ orgs, convs }: { orgs: Org[]; convs: Conversation[] 
     if (what === "download") return void backend.saveMedia(account, media(f), f.name).then((saved) => saved && setNotice(t("files.saved", { name: f.name })), fail);
     if (what === "link") return void backend.cloudShareLink(account, f.path).then((link) => navigator.clipboard.writeText(link)).then(() => setNotice(t("files.linkCopied")), fail);
     if (what === "send") return setSending(f);
+    if (what === "delete") return remove(f);
     setPath(folderOf(f.path));
   };
   const open = (f: CloudFile) => (f.dir ? setPath(f.path) : act("web", f));
@@ -253,6 +261,8 @@ export function FilesPane({ orgs, convs }: { orgs: Org[]; convs: Conversation[] 
           <button className="menu-item" onClick={() => act("link", menu.file)}>{t("files.copyLink")}</button>
           <button className="menu-item" onClick={() => act("send", menu.file)}>{t("files.sendToChat")}</button>
           {flat && <button className="menu-item" onClick={() => act("folder", menu.file)}>{t("files.showInFolder")}</button>}
+          <div className="menu-sep" />
+          <button className="menu-item danger" onClick={() => act("delete", menu.file)}>{t("files.delete")}</button>
         </ContextMenu>
       )}
       {sending && (
