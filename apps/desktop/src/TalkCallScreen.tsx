@@ -410,11 +410,19 @@ function PreJoin({ calls, name, onPopOut }: { calls: TalkCalls; name: string; on
       <header className="call-head"><b>{name}</b><span className="muted">{t("talkcall.prejoin")}</span><span className="spacer" />
         {onPopOut && <button className="icon-btn" title={t("call.ownWindow")} onClick={onPopOut}><NewWindowIcon /></button>}</header>
       <div className="prejoin-body">
-        <div className={`prejoin-preview ${call.speakingSelf && !call.muted ? "speaking" : ""}`}>
-          {call.starting ? (
-            // The first time (after a restart or sleep) the camera can take a few seconds.
-            <span className="prejoin-starting"><i className="spinner" />{t(call.starting === "video" ? "talkcall.startingCamera" : "talkcall.startingMic")}</span>
-          ) : hasCamera && call.cameraOn ? <Video key={call.local?.getVideoTracks()[0]?.id} stream={call.local} muted mirror className="talk-tile-video" /> : <span className="muted">{t("talkcall.cameraOff")}</span>}
+        {/* The preview with the microphone and camera buttons under it, as in the call. */}
+        <div className="prejoin-stage">
+          <div className={`prejoin-preview ${call.speakingSelf && !call.muted ? "speaking" : ""}`}>
+            {call.starting ? (
+              // The first time (after a restart or sleep) the camera can take a few seconds.
+              <span className="prejoin-starting"><i className="spinner" />{t(call.starting === "video" ? "talkcall.startingCamera" : "talkcall.startingMic")}</span>
+            ) : hasCamera && call.cameraOn ? <Video key={call.local?.getVideoTracks()[0]?.id} stream={call.local} muted mirror className="talk-tile-video" /> : <span className="muted">{t("talkcall.cameraOff")}</span>}
+          </div>
+          <div className="call-controls">
+            <button className={`call-btn ${call.muted ? "off" : ""}`} title={call.muted ? t("mxcall.unmute") : t("mxcall.mute")} onClick={() => calls.setMuted(!call.muted)}>{call.muted ? <MicOffIcon /> : <MicIcon />}</button>
+            <button className={`call-btn ${call.cameraOn ? "" : "off"}`} title={call.cameraOn ? t("mxcall.cameraOff") : t("mxcall.cameraOn")}
+              onClick={() => (hasCamera ? calls.setCamera(!call.cameraOn) : calls.reprepare(true, micId, cameraId))}>{hasCamera && call.cameraOn ? <CameraIcon /> : <CameraOffIcon />}</button>
+          </div>
         </div>
         <div className="prejoin-side">
           {/* The device in use (saved in Settings, or the system's) until another is picked. */}
@@ -422,11 +430,6 @@ function PreJoin({ calls, name, onPopOut }: { calls: TalkCalls; name: string; on
           <label>{t("av.speaker")}<SpeakerPicker /></label>
           <label>{t("av.camera")}<DeviceSelect kind="videoinput" devices={devices} value={cameraId ?? inUse(call.local?.getVideoTracks()[0])} onPick={(id) => { setCameraId(id); calls.reprepare(true, micId, id); }} /></label>
           {hasCamera && <label>{t("av.quality")}<QualitySelect /></label>}
-          <div className="call-controls">
-            <button className={`call-btn ${call.muted ? "off" : ""}`} title={call.muted ? t("mxcall.unmute") : t("mxcall.mute")} onClick={() => calls.setMuted(!call.muted)}>{call.muted ? <MicOffIcon /> : <MicIcon />}</button>
-            <button className={`call-btn ${call.cameraOn ? "" : "off"}`} title={call.cameraOn ? t("mxcall.cameraOff") : t("mxcall.cameraOn")}
-              onClick={() => (hasCamera ? calls.setCamera(!call.cameraOn) : calls.reprepare(true, micId, cameraId))}>{hasCamera && call.cameraOn ? <CameraIcon /> : <CameraOffIcon />}</button>
-          </div>
           {hasCamera && (
             <div className="prejoin-bg">
               <span>{t("bg.title")}</span>

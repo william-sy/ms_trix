@@ -960,7 +960,8 @@ mark { background: rgba(255, 196, 0, 0.45); color: inherit; border-radius: 2px; 
 .prejoin-preview.speaking { box-shadow: 0 0 0 3px var(--accent); }
 .prejoin-side { display: flex; flex-direction: column; gap: 12px; width: 280px; }
 .prejoin-side label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: rgba(255, 255, 255, 0.75); }
-.prejoin-side .call-controls { justify-content: flex-start; padding: 4px 0; }
+.prejoin-stage { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.prejoin-stage .call-controls { justify-content: center; padding: 0; }
 .prejoin-actions { display: flex; gap: 8px; }
 .prejoin-actions .btn.primary { flex: 1; }
 
