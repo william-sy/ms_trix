@@ -418,6 +418,10 @@ export const backend = {
     return cached ? { orgs: cached[0].map(toOrg), convs: cached[1].map(toConversation) } : null;
   },
   conversations: async () => (await invoke<ConversationWire[]>("conversations")).map(toConversation),
+  /** Each account's link to its server, by account id. */
+  connections: () => invoke<Record<string, Connection>>("connections"),
+  /** Tries an account's server again now, instead of at its next retry. */
+  reconnect: (account: string) => invoke<void>("reconnect", { account }),
   teams: () => invoke<TeamView[]>("teams"),
   activity: () => invoke<ActivityItem[]>("activity"),
   /** Full history (local encrypted index) plus loaded messages; optionally one conversation. */
@@ -672,6 +676,7 @@ export interface BackendEvents {
   messages: (msgs: { key: string; message: Message }[]) => void;
   restored: () => void;
   accountError: (userId: string, error: string) => void;
+  connection: (account: string, connection: Connection) => void;
   teams: (teams: TeamView[]) => void;
   activity: (items: ActivityItem[]) => void;
   verification: (v: Verification) => void;
@@ -706,6 +711,14 @@ export interface UpdateInfo {
   version: string;
   /** The release's notes (Markdown). */
   notes: string | null;
+}
+
+/** An account's link to its server. */
+export interface Connection {
+  /** Synced at least once this run, so its chat list is the server's. */
+  connected: boolean;
+  /** Why the server can't be reached right now. */
+  error: string | null;
 }
 
 export interface UploadProgress {
@@ -743,7 +756,7 @@ export const onPollChanged = (cb: (conversation: string, poll: string) => void) 
 /** 1:1 call events (m.call.*) for the call engine in calls.ts. */
 export const onCallSignal = (cb: (sig: CallSignal) => void) => listen<CallSignal>("trix://call", (e) => cb(e.payload));
 
-/** Fired on window when the signed-in accounts change, e.g. so failed pictures retry. */
+/** Fired on window when the signed-in accounts change or one reconnects, e.g. so failed pictures retry. */
 export const ACCOUNTS_CHANGED = "Trixcomm:accounts";
 
 export async function subscribe(on: BackendEvents): Promise<UnlistenFn> {
@@ -758,6 +771,10 @@ export async function subscribe(on: BackendEvents): Promise<UnlistenFn> {
     listen<Verification>("trix://verification", (e) => on.verification(e.payload)),
     listen<UploadProgress>("trix://upload", (e) => on.upload(e.payload)),
     listen<[string, string]>("trix://account-error", (e) => on.accountError(...e.payload)),
+    listen<[string, Connection]>("trix://connection", (e) => {
+      on.connection(...e.payload);
+      if (e.payload[1].connected && !e.payload[1].error) window.dispatchEvent(new Event(ACCOUNTS_CHANGED));
+    }),
   ]);
   return () => offs.forEach((off) => off());
 }

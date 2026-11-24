@@ -27,6 +27,16 @@
   opens Files at its folder with the file highlighted. Clicking a link to one of your own
   Nextcloud files in any chat (a file link, or a share link you made) does the same instead of
   opening the browser; links to anything else still open in the browser.
+- **An account whose server can't be reached stays in the app:** its chats stay in the list as
+  they were last time, instead of disappearing (and they aren't dropped from the list saved for
+  the next start either). It shows as *Offline* in the organizations menu and in Settings →
+  Accounts, and a line above the chat list says so, with **Reconnect** to try again at once (it
+  also retries by itself every few seconds); in its chats, the same line replaces the history
+  that can't load. Once the server answers, everything catches up and chats that were really
+  removed go. For Nextcloud: a maintenance or login page no longer counts as "no conversations",
+  a server that doesn't answer at all (VPN off) is noticed after 15 seconds instead of hanging,
+  and errors say what went wrong (refused, unknown host, timed out) instead of only "error
+  sending request".
 - **The minimised call can be moved:** drag it to another corner of the window; it stays there
   for the next call. In its corner it keeps clear of the message box, so Send stays clickable.
 

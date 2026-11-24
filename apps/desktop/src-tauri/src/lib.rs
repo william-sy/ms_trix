@@ -14,7 +14,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use futures::StreamExt;
 use tauri::{AppHandle, Emitter, Manager, State, WindowEvent};
 use tauri_plugin_opener::OpenerExt;
-use trix_core::adapter::SecurityStatus;
+use trix_core::adapter::{AdapterEvent, SecurityStatus};
 use trix_core::engine::{ActivityItem, NotificationKind, NotifyPrefs, SearchHit, TeamView};
 use trix_core::{Account, AccountId, VerificationAction, DeviceAuth, DeviceInfo, SignOutDevice, CommandOutput, ConversationId, DirectoryRoom, Member, Presence, Profile, RoomDetails, ConversationView, Effect, Engine, MessageId, MessageView, Outcome, Outgoing, ProtocolAdapter};
 use trix_matrix::{Credentials, LoginMethods, MatrixAdapter};
@@ -35,6 +35,51 @@ struct AppState {
     tray_unread: Mutex<(u32, String)>,
     /// Do not disturb until this time (ms since 1970; 0: off): no system notifications or sounds.
     dnd_until: std::sync::atomic::AtomicU64,
+    /// Whether each account's server answers, by account id.
+    connections: Mutex<std::collections::HashMap<String, Connection>>,
+}
+
+/// An account's link to its server, for the account lists (Offline, Reconnect).
+#[derive(Clone, Default, PartialEq, serde::Serialize)]
+struct Connection {
+    /// Synced at least once this run, so its chat list is the server's.
+    connected: bool,
+    /// Why the server can't be reached right now.
+    error: Option<String>,
+}
+
+/// Records an account's link (`error`: None when it synced) and tells the UI when it changed.
+fn set_connection(app: &AppHandle, account: &str, error: Option<String>) {
+    let state = app.state::<AppState>();
+    let changed = {
+        let mut all = state.connections.lock().unwrap();
+        let current = all.entry(account.to_owned()).or_default();
+        let next = Connection { connected: current.connected || error.is_none(), error };
+        (*current != next).then(|| {
+            *current = next.clone();
+            next
+        })
+    };
+    if let Some(connection) = changed {
+        // Pictures that failed while it was away can load now.
+        if connection.error.is_none() {
+            let prefix = format!("{account}/");
+            missing_media().lock().unwrap().retain(|key, _| !key.starts_with(&prefix));
+        }
+        let _ = app.emit("trix://connection", (account, connection));
+    }
+}
+
+#[tauri::command]
+fn connections(state: State<'_, AppState>) -> std::collections::HashMap<String, Connection> {
+    state.connections.lock().unwrap().clone()
+}
+
+/// Tries an account's server again now, instead of at its next retry.
+#[tauri::command]
+fn reconnect(state: State<'_, AppState>, account: String) -> CmdResult<()> {
+    adapter_for(&state, &account)?.wake();
+    Ok(())
 }
 
 /// Notification sound per kind: "none", "default" (the OS sound) or, on
@@ -603,7 +648,17 @@ fn save_chat_list(app: &AppHandle) {
     }
     let Some(index) = state.search.clone() else { return };
     let views = state.engine.lock().unwrap().conversations();
-    let Ok(json) = serde_json::to_value(&views) else { return };
+    let Ok(mut json) = serde_json::to_value(&views) else { return };
+    // An account that hasn't synced this run (its server is down) keeps last run's chats.
+    let waiting: std::collections::HashSet<String> = state.connections.lock().unwrap().iter().filter(|(_, c)| !c.connected).map(|(id, _)| id.clone()).collect();
+    if !waiting.is_empty() {
+        let keys: std::collections::HashSet<&str> = views.iter().map(|v| v.key.as_str()).collect();
+        let saved = read_chat_list(&state).and_then(|v| v.as_array().cloned()).unwrap_or_default();
+        let kept: Vec<_> = saved.into_iter().filter(|v| v["account"].as_str().is_some_and(|a| waiting.contains(a)) && v["key"].as_str().is_some_and(|k| !keys.contains(k))).collect();
+        if let Some(list) = json.as_array_mut() {
+            list.extend(kept);
+        }
+    }
     match index.seal(&json) {
         Ok(data) => {
             if let Err(e) = std::fs::write(state.data_dir.join(CHAT_LIST_FILE), data) {
@@ -618,9 +673,12 @@ fn save_chat_list(app: &AppHandle) {
 #[tauri::command]
 async fn cached_chat_list(app: AppHandle) -> Option<(Vec<Account>, serde_json::Value)> {
     let state = app.state::<AppState>();
-    let index = state.search.clone()?;
+    Some((accounts::load(&state.data_dir), read_chat_list(&state)?))
+}
+
+fn read_chat_list(state: &AppState) -> Option<serde_json::Value> {
     let data = std::fs::read(state.data_dir.join(CHAT_LIST_FILE)).ok()?;
-    Some((accounts::load(&state.data_dir), index.unseal(&data).ok()?))
+    state.search.as_ref()?.unseal(&data).ok()
 }
 
 /// The Activity feed survives restarts; it's small, so rewrite it whole.
@@ -725,8 +783,14 @@ fn apply(app: &AppHandle, out: Outcome) {
 
 
 async fn start(app: AppHandle, adapter: Arc<dyn ProtocolAdapter>) -> CmdResult<()> {
+    let account = adapter.account().id.0;
+    app.state::<AppState>().connections.lock().unwrap().insert(account.clone(), Connection::default());
+    let _ = app.emit("trix://connection", (&account, Connection::default()));
     app.state::<AppState>().engine.lock().unwrap().add_adapter(adapter.clone());
-    let stream = adapter.start().await.map_err(|e| e.to_string())?;
+    let stream = adapter.start().await.map_err(|e| {
+        set_connection(&app, &account, Some(e.to_string()));
+        e.to_string()
+    })?;
     let (receipts, typing) = *app.state::<AppState>().privacy.lock().unwrap();
     if !(receipts && typing) {
         let adapter = adapter.clone();
@@ -749,14 +813,24 @@ async fn start(app: AppHandle, adapter: Arc<dyn ProtocolAdapter>) -> CmdResult<(
         let mut chunks = stream.ready_chunks(512);
         while let Some(events) = chunks.next().await {
             let mut combined = Outcome::default();
+            let mut link = None;
             {
                 let state = app.state::<AppState>();
                 let mut engine = state.engine.lock().unwrap();
                 for ev in events {
+                    match &ev {
+                        AdapterEvent::ConnectionLost { reason } => link = Some(Some(reason.clone())),
+                        AdapterEvent::Connected => link = Some(None),
+                        _ => {}
+                    }
                     combined.merge(engine.handle(ev, now()));
                 }
             }
             apply(&app, combined);
+            // After the conversations that came with it, so the UI can drop saved ones that are gone.
+            if let Some(error) = link {
+                set_connection(&app, &account, error);
+            }
         }
     });
     Ok(())
@@ -842,6 +916,7 @@ async fn sign_out(app: AppHandle, account: String) -> CmdResult<()> {
         }
     }
     accounts::remove(&state.data_dir, &account)?;
+    state.connections.lock().unwrap().remove(&account.0);
     if let Some(index) = state.search.clone() {
         let _ = index.remove_account(&account.0);
     }
@@ -2495,7 +2570,7 @@ pub fn run() {
             let mut engine = Engine::new();
             engine.restore_activity(load_activity(&data_dir));
             let search = search::open(&data_dir);
-            app.manage(AppState { engine: Mutex::new(engine), search, data_dir, sounds: Default::default(), privacy: Mutex::new((true, true)), close_to_tray: Default::default(), tray_unread: Default::default(), chat_list_dirty: Default::default(), dnd_until: Default::default() });
+            app.manage(AppState { engine: Mutex::new(engine), search, data_dir, sounds: Default::default(), privacy: Mutex::new((true, true)), close_to_tray: Default::default(), tray_unread: Default::default(), chat_list_dirty: Default::default(), dnd_until: Default::default(), connections: Default::default() });
             // Save the chat list (encrypted) now and then, so the next start can show it at once.
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
@@ -2641,6 +2716,8 @@ pub fn run() {
             hide_share_overlay,
             stop_sharing,
             cached_chat_list,
+            connections,
+            reconnect,
             security_status,
             recover,
             set_typing,

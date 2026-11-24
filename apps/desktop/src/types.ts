@@ -19,6 +19,8 @@ export interface Org {
   avatar?: string;
   presence: "available" | "busy" | "away" | "offline";
   status?: string;
+  /** Why its server can't be reached right now (shown as Offline, with Reconnect). */
+  offline?: string;
 }
 
 export type ConversationKind = "direct" | "group" | "room" | "channel" | "meeting" | "team";

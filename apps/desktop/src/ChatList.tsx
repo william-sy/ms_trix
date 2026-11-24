@@ -4,7 +4,8 @@ import { CallIcon, ChevronIcon, ComposeIcon, DraftIcon, MoreIcon, MuteIcon, Sear
 import { Avatar } from "./Avatar";
 import { OrgAvatar } from "./OrgSwitcher";
 import { matches } from "./shortcuts";
-import { isUnread, useOrg, type Action, type OrgFilter } from "./store";
+import { isUnread, useOrg, useOrgs, type Action, type OrgFilter } from "./store";
+import { OfflineBanner } from "./Offline";
 import type { Conversation } from "./types";
 import { t } from "./i18n";
 import { markTerm } from "./searchQuery";
@@ -118,6 +119,7 @@ export function ChatList({ query, convs, orgFilter, selectedId, dispatch, onNewC
     );
 
   const menuConv = menu && convs.find((c) => c.id === menu.id);
+  const orgsInView = useOrgs().filter((o) => orgFilter === "all" || o.id === orgFilter);
 
   return (
     <aside className="chat-list">
@@ -150,6 +152,7 @@ export function ChatList({ query, convs, orgFilter, selectedId, dispatch, onNewC
           </button>
         ))}
       </div>
+      <OfflineBanner orgs={orgsInView} />
       <div className="list-scroll">
         {drafts.length > 0 && (
           <div className="section">

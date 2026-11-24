@@ -34,6 +34,7 @@ import { capabilities } from "./mock";
 import { useEscape, useStickToBottom } from "./hooks";
 import { PinnedBar, PinnedDialog, usePinned } from "./Pinned";
 import { TranslationLine, useTranslation } from "./Translate";
+import { ReconnectButton } from "./Offline";
 
 interface Props {
   conv: Conversation;
@@ -139,6 +140,10 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
 
   const [hasMore, setHasMore] = useState(true);
   const [loadingOlder, setLoadingOlder] = useState(false);
+  // Older messages couldn't be fetched: not tried again by itself (that would repeat forever
+  // while the server is down) until the chat or the account's connection changes.
+  const [olderFailed, setOlderFailed] = useState(false);
+  useEffect(() => setOlderFailed(false), [conv.id, org.offline]);
   const [search, setSearch] = useState<string | null>(null);
   const searchInput = useRef<HTMLInputElement>(null);
   const [hit, setHit] = useState(0);
@@ -216,7 +221,9 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
     try {
       setHasMore(await onLoadOlder());
     } catch (e) {
-      onNotice(String(e));
+      setOlderFailed(true);
+      // An offline account says so in the chat already.
+      if (!org.offline) onNotice(String(e));
     } finally {
       setLoadingOlder(false);
     }
@@ -244,8 +251,8 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
   // A short chat can't be scrolled up, so keep fetching until it fills the view.
   useEffect(() => {
     const el = scroller.current;
-    if (el && hasMore && !loadingOlder && el.scrollHeight <= el.clientHeight + 40) loadOlder();
-  }, [conv.id, mainList.length, hasMore, loadingOlder]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (el && hasMore && !loadingOlder && !olderFailed && el.scrollHeight <= el.clientHeight + 40) loadOlder();
+  }, [conv.id, mainList.length, hasMore, loadingOlder, olderFailed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Jump target: a search hit picked here, or a message opened from Activity / global search.
   const [jump, setJump] = useState<string | null>(null);
@@ -493,7 +500,10 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
         {!isInvite && tab === "chat" && <>
         {org.protocol === "matrix" && conv.encrypted && <IdentityBanner account={conv.orgId} conversation={conv.id} onNotice={onNotice} />}
         <div className="messages" ref={scroller} onScroll={onScroll}>
-          <div className="history-edge">{loadingOlder ? t("chatView.loadingOlder") : hasMore ? "" : t("chatView.beginning")}</div>
+          <div className="history-edge">
+            {org.offline ? <span className="offline-line">{t("chatView.offline", { name: org.name })} <ReconnectButton accounts={[org.id]} /></span>
+              : loadingOlder ? t("chatView.loadingOlder") : hasMore ? "" : t("chatView.beginning")}
+          </div>
           {mainList.map((m, i) => {
             if (m.system) {
               // Runs of 3+ room events collapse into one summary line, like Element.

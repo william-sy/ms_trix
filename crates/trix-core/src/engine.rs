@@ -692,7 +692,7 @@ impl Engine {
             AdapterEvent::CallSignal(c) => out.call_signals.push(c),
             AdapterEvent::PollChanged { conversation, poll } => out.poll_changes.push((conversation.key(), poll)),
             AdapterEvent::SessionChanged { account, session } => out.sessions.push((account, session)),
-            AdapterEvent::ConnectionLost { .. } | AdapterEvent::ConnectionRestored => {}
+            AdapterEvent::ConnectionLost { .. } | AdapterEvent::Connected => {}
         }
         out
     }

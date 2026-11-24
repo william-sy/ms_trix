@@ -3,6 +3,7 @@ import { AllOrgsIcon, CheckIcon, PlusIcon } from "./Icons";
 import { useOrgs, type OrgFilter } from "./store";
 import type { Org } from "./types";
 import { t } from "./i18n";
+import { ReconnectButton } from "./Offline";
 
 const isMac = navigator.platform.toLowerCase().includes("mac");
 const mod = isMac ? "⌘" : "Ctrl+";
@@ -61,6 +62,7 @@ export function OrgSwitcher({ current, unread, onSelect, onAddAccount }: Props) 
     <div className="org-switcher" ref={ref}>
       <button className={`org-tile ${open ? "active" : ""}`} onClick={() => setOpen(!open)} title={t("org.switch")}>
         {currentOrg ? <OrgAvatar org={currentOrg} /> : <span className="org-avatar all"><AllOrgsIcon /></span>}
+        {orgs.some((o) => o.offline && (!currentOrg || o.id === currentOrg.id)) && <span className="offline-dot on-tile" title={t("offline.label")} />}
         {elsewhere > 0 && <span className="badge">{elsewhere}</span>}
         <span className="rail-label">{currentOrg?.name ?? t("org.all")}</span>
       </button>
@@ -73,8 +75,9 @@ export function OrgSwitcher({ current, unread, onSelect, onAddAccount }: Props) 
             name={t("org.allLong")} sub={t("org.combined")} count={Object.values(unread).reduce((a, b) => a + b, 0)} />
           {orgs.map((o, i) => (
             <OrgRow key={o.id} selected={current === o.id} onClick={() => pick(o.id)} shortcut={i < 9 ? `${mod}${i + 1}` : undefined}
-              icon={<OrgAvatar org={o} size={28} />} name={o.name} sub={o.userId} protocol={o.protocol} count={unread[o.id] ?? 0} />
+              icon={<OrgAvatar org={o} size={28} />} name={o.name} sub={o.userId} protocol={o.protocol} count={unread[o.id] ?? 0} offline={o.offline} />
           ))}
+          {orgs.some((o) => o.offline) && <ReconnectButton className="menu-item" accounts={orgs.filter((o) => o.offline).map((o) => o.id)} />}
           <div className="menu-sep" />
           <button className="menu-item" role="menuitem" onClick={() => { setOpen(false); onAddAccount(); }}><PlusIcon /> {t("org.add")}</button>
         </div>
@@ -83,13 +86,15 @@ export function OrgSwitcher({ current, unread, onSelect, onAddAccount }: Props) 
   );
 }
 
-function OrgRow(p: { selected: boolean; onClick: () => void; icon: ReactNode; name: string; sub: string; protocol?: string; count: number; shortcut?: string }) {
+function OrgRow(p: { selected: boolean; onClick: () => void; icon: ReactNode; name: string; sub: string; protocol?: string; count: number; shortcut?: string; offline?: string }) {
   return (
     <button className={`org-row ${p.selected ? "selected" : ""}`} role="menuitemradio" aria-checked={p.selected} onClick={p.onClick}>
       {p.icon}
       <span className="org-row-text">
         <span className="org-row-name">{p.name} {p.protocol && <span className={`proto proto-${p.protocol}`}>{p.protocol}</span>}</span>
-        <span className="org-row-sub">{p.sub}</span>
+        {p.offline
+          ? <span className="org-row-sub offline" title={p.offline}><span className="offline-dot" /> {t("offline.label")}</span>
+          : <span className="org-row-sub">{p.sub}</span>}
       </span>
       {p.count > 0 && <span className="count">{p.count}</span>}
       {p.shortcut && <kbd>{p.shortcut}</kbd>}

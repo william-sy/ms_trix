@@ -177,12 +177,13 @@ impl Shared {
         }
         // First the server's cached history, then from the last message seen after a reconnect.
         let mut since = HISTORY.to_owned();
-        let mut lost = false;
+        // Whether the server answered last time (None: not tried yet).
+        let mut up = None;
         let mut wait = Duration::from_secs(2);
         loop {
             let url = format!("{}/{}/json?since={since}", session.server, session.topics.join(","));
-            if let Err(reason) = self.listen(&http, &url, session.token.as_deref(), &tx, &mut since, &mut lost, &mut wait).await {
-                if !std::mem::replace(&mut lost, true) {
+            if let Err(reason) = self.listen(&http, &url, session.token.as_deref(), &tx, &mut since, &mut up, &mut wait).await {
+                if std::mem::replace(&mut up, Some(false)) != Some(false) {
                     let _ = tx.send(AdapterEvent::ConnectionLost { reason });
                 }
             }
@@ -196,13 +197,13 @@ impl Shared {
 
     /// One connection: passes on messages until it closes (Ok) or fails.
     #[allow(clippy::too_many_arguments)]
-    async fn listen(&self, http: &reqwest::Client, url: &str, token: Option<&str>, tx: &mpsc::UnboundedSender<AdapterEvent>, since: &mut String, lost: &mut bool, wait: &mut Duration) -> std::result::Result<(), String> {
+    async fn listen(&self, http: &reqwest::Client, url: &str, token: Option<&str>, tx: &mpsc::UnboundedSender<AdapterEvent>, since: &mut String, up: &mut Option<bool>, wait: &mut Duration) -> std::result::Result<(), String> {
         let mut response = authorized(http.get(url), token).send().await.map_err(|e| e.to_string())?;
         if !response.status().is_success() {
             return Err(format!("the server answered {}", response.status()));
         }
-        if std::mem::take(lost) {
-            let _ = tx.send(AdapterEvent::ConnectionRestored);
+        if std::mem::replace(up, Some(true)) != Some(true) {
+            let _ = tx.send(AdapterEvent::Connected);
         }
         *wait = Duration::from_secs(2);
         let mut buffer: Vec<u8> = vec![];

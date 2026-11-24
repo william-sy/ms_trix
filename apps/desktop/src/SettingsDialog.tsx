@@ -14,6 +14,7 @@ import { EmojiSettings } from "./EmojiSettings";
 import { playRingtone, RINGTONES, type Ringtone } from "./ringtone";
 import { checkForUpdate, installUpdate, updateText, useUpdates } from "./updates";
 import type { Org } from "./types";
+import { ReconnectButton } from "./Offline";
 
 interface Props {
   initialTab?: SettingsTab;
@@ -224,6 +225,11 @@ function AccountCard({ org, settings, set }: { org: Org } & Section) {
           )}
           <span className="muted">{org.userId}</span>
           <span className="muted">{org.name} · {t(`settings.protocol.${org.protocol}`)}</span>
+          {org.offline && (
+            <span className="offline-line">
+              <span className="offline-dot" /> {t("offline.label")}: {org.offline} <ReconnectButton accounts={[org.id]} />
+            </span>
+          )}
         </div>
         {/* Colour of this account's tile in the org switcher and its badges. */}
         <label className="org-color" title={t("settings.accounts.color")}>

@@ -2815,22 +2815,22 @@ async fn room_changed(client: &Client, tx: &mpsc::UnboundedSender<AdapterEvent>,
 }
 
 async fn classic_sync(client: Client, tx: mpsc::UnboundedSender<AdapterEvent>, account: AccountId, index: Arc<Mutex<Index>>) {
-    let lost = Arc::new(Mutex::new(false));
+    let connected = Arc::new(Mutex::new(false));
     let result = client
         .sync_with_result_callback(SyncSettings::default(), |response| {
-            let (client, tx, account, lost, index) = (client.clone(), tx.clone(), account.clone(), lost.clone(), index.clone());
+            let (client, tx, account, connected, index) = (client.clone(), tx.clone(), account.clone(), connected.clone(), index.clone());
             async move {
                 let response = match response {
                     Ok(r) => r,
                     Err(e) => {
-                        *lost.lock().unwrap() = true;
+                        *connected.lock().unwrap() = false;
                         let _ = tx.send(AdapterEvent::ConnectionLost { reason: e.to_string() });
                         tokio::time::sleep(Duration::from_secs(5)).await;
                         return Ok(LoopCtrl::Continue);
                     }
                 };
-                if std::mem::take(&mut *lost.lock().unwrap()) {
-                    let _ = tx.send(AdapterEvent::ConnectionRestored);
+                if !std::mem::replace(&mut *connected.lock().unwrap(), true) {
+                    let _ = tx.send(AdapterEvent::Connected);
                 }
                 let rooms = response.rooms.joined.keys().chain(response.rooms.invited.keys()).chain(response.rooms.left.keys());
                 for room_id in rooms {
@@ -2939,7 +2939,7 @@ async fn sliding_sync(
     *handle.lock().unwrap() = Some(sync.clone());
 
     let mut started = false;
-    let mut lost = false;
+    let mut connected = false;
     loop {
         let stream = sync.sync();
         futures::pin_mut!(stream);
@@ -2949,8 +2949,8 @@ async fn sliding_sync(
                     if !std::mem::replace(&mut started, true) {
                         tokio::spawn(poll_presence(client.clone(), tx.clone()));
                     }
-                    if std::mem::take(&mut lost) {
-                        let _ = tx.send(AdapterEvent::ConnectionRestored);
+                    if !std::mem::replace(&mut connected, true) {
+                        let _ = tx.send(AdapterEvent::Connected);
                     }
                     for room_id in &summary.rooms {
                         room_changed(&client, &tx, &account, &index, room_id).await;
@@ -2958,7 +2958,7 @@ async fn sliding_sync(
                 }
                 Err(e) if !started => return Err(e),
                 Err(e) => {
-                    lost = true;
+                    connected = false;
                     let _ = tx.send(AdapterEvent::ConnectionLost { reason: e.to_string() });
                     break;
                 }

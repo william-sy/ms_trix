@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ContextMenu } from "./ContextMenu";
 import { showInFiles } from "./filesNav";
 import { formatDuration } from "./voice";
-import { backend, isLive, mediaUrl } from "./backend";
+import { ACCOUNTS_CHANGED, backend, isLive, mediaUrl } from "./backend";
 import type { Message } from "./types";
 import { t } from "./i18n";
 import { useEscape } from "./hooks";
@@ -24,11 +24,20 @@ const isMissing = (src: string) => Date.now() - (missing.get(src) ?? 0) < 600_00
 
 /** Image, sticker or file chip inside a message bubble; `cell`: one picture in a gallery. */
 export function MediaBody({ media, account, actions, cell }: { media: Media; account: string; actions: MediaActions; cell?: boolean }) {
-  const src = mediaUrl(account, media.id);
+  const url = mediaUrl(account, media.id);
   // Once loaded, its own width (scaled to fit): the bubble then wraps the picture, instead of
   // stretching to the full size of, say, a wide screenshot.
   const [width, setWidth] = useState<number | null>(null);
-  const [failed, setFailed] = useState(() => !!src && isMissing(src));
+  const [failed, setFailed] = useState(() => !!url && isMissing(url));
+  // An account coming back (its server was down): try once more.
+  const [retry, setRetry] = useState(0);
+  useEffect(() => {
+    if (!failed || !url) return;
+    const again = () => { missing.delete(url); setFailed(false); setRetry((n) => n + 1); };
+    window.addEventListener(ACCOUNTS_CHANGED, again);
+    return () => window.removeEventListener(ACCOUNTS_CHANGED, again);
+  }, [failed, url]);
+  const src = url && retry ? `${url}?retry=${retry}` : url;
   const onContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     actions.menu(media, e.clientX, e.clientY);
@@ -49,7 +58,7 @@ export function MediaBody({ media, account, actions, cell }: { media: Media; acc
           const img = e.currentTarget;
           if (!cell && media.kind === "image" && img.naturalWidth) setWidth(Math.round(img.naturalWidth * Math.min(1, MAX_W / img.naturalWidth, MAX_H / img.naturalHeight)));
         }}
-        onError={() => { missing.set(src, Date.now()); setFailed(true); }}
+        onError={() => { missing.set(url!, Date.now()); setFailed(true); }}
         onClick={() => actions.view(media)} onContextMenu={onContextMenu} />
     );
   }

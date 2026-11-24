@@ -105,8 +105,11 @@ pub enum AdapterEvent {
     /// The synced marked-unread flag changed (possibly from another device).
     MarkedUnread { conversation: ConversationId, value: bool, at: Timestamp },
     PresenceChanged { user_id: String, presence: Presence, status: Option<String> },
+    /// The server can't be reached (sent again on every failed try while it lasts).
     ConnectionLost { reason: String },
-    ConnectionRestored,
+    /// Synced with the server: the first time this run, or again after `ConnectionLost`. The
+    /// first one means the conversations have been listed.
+    Connected,
     /// An emoji verification started, moved on, or ended.
     Verification(Verification),
     UploadProgress(UploadProgress),

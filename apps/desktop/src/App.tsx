@@ -2,7 +2,7 @@ import { useCallback, useEffect, useReducer, useRef, useState, type ReactNode } 
 import { isTalkModerator, talkRoom } from "./TalkSettings";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { backend, isLive, pickedUrl, subscribe, videoThumb, type ActivityItem, type PickedFile, type DirectoryRoom, type SecurityStatus, type TeamView, type UploadProgress, type Verification } from "./backend";
+import { backend, isLive, pickedUrl, subscribe, videoThumb, type ActivityItem, type Connection, type PickedFile, type DirectoryRoom, type SecurityStatus, type TeamView, type UploadProgress, type Verification } from "./backend";
 import { BellIcon, CalendarIcon, CallIcon, ChatIcon, FilesIcon, MoreIcon, NotesIcon, TeamsIcon } from "./Icons";
 import { NotesPane } from "./NotesPane";
 import { FilesPane } from "./FilesPane";
@@ -328,15 +328,29 @@ export function App() {
     }).catch(() => {});
   }, []);
   const restoredRef = useRef(false);
+  // Each account's link to its server: Offline (with Reconnect) in the account lists.
+  const [connections, setConnections] = useState<Record<string, Connection>>({});
+  const connectionsRef = useRef(connections);
   const reconcile = async () => {
     restoredRef.current = true;
     setBooting(false);
     const live = await backend.conversations();
-    const keep = new Set(live.map((c) => c.id));
     dispatch({ type: "upsertConvs", convs: live });
-    const stale = stateRef.current.convs.filter((c) => !keep.has(c.id)).map((c) => c.id);
-    if (stale.length) dispatch({ type: "removeConvs", keys: stale });
+    dropGone(live, (account) => connectionsRef.current[account]?.connected ?? true);
     dispatch({ type: "setOrgs", orgs: await backend.accounts() });
+  };
+  // Saved chats the server no longer has. An account that hasn't synced yet (its server may be
+  // down) keeps them until it has.
+  const dropGone = (live: Conversation[], synced: (account: string) => boolean) => {
+    const keep = new Set(live.map((c) => c.id));
+    const stale = stateRef.current.convs.filter((c) => synced(c.orgId) && !keep.has(c.id)).map((c) => c.id);
+    if (stale.length) dispatch({ type: "removeConvs", keys: stale });
+  };
+  const setConnection = (account: string, connection: Connection) => {
+    const was = connectionsRef.current[account];
+    connectionsRef.current = { ...connectionsRef.current, [account]: connection };
+    setConnections(connectionsRef.current);
+    if (connection.connected && !was?.connected && restoredRef.current) void backend.conversations().then((live) => dropGone(live, (a) => a === account));
   };
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -361,8 +375,11 @@ export function App() {
         setVerification((cur) => (!cur || cur.flowId === v.flowId || cur.state.kind === "done" || cur.state.kind === "cancelled" ? v : cur));
       },
       accountError: (userId, error) => setNotice(t("app.reconnectFailed", { user: userId, error })),
+      connection: setConnection,
     }).then(async (unlisten) => {
       off = unlisten;
+      connectionsRef.current = { ...(await backend.connections()), ...connectionsRef.current };
+      setConnections(connectionsRef.current);
       // Early on, accounts are still reconnecting; don't replace the saved list with an empty one.
       const orgs = await backend.accounts();
       if (orgs.length) dispatch({ type: "setOrgs", orgs });
@@ -747,7 +764,7 @@ export function App() {
   const securityOrg = state.orgs.find((o) => o.id === securityFor);
 
   return (
-    <OrgsContext.Provider value={state.orgs.map((o) => ({ ...o, color: settings.orgColors[o.id] ?? o.color, ...shownPresence[o.id], ...(autoAway.has(o.id) ? { presence: "away" as const } : {}) }))}>
+    <OrgsContext.Provider value={state.orgs.map((o) => ({ ...o, color: settings.orgColors[o.id] ?? o.color, ...shownPresence[o.id], ...(autoAway.has(o.id) ? { presence: "away" as const } : {}), offline: connections[o.id]?.error ?? undefined }))}>
     <ProfileContext.Provider value={openProfile}>
     <RoomLinkContext.Provider value={openRoomLink}>
     <HashtagContext.Provider value={setHashtag}>

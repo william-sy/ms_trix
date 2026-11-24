@@ -106,13 +106,17 @@ plus the open items further down). S: a few hours, M: a day or two, L: several d
 9. [ ] M. Saved messages and "remind me about this": Save in a message's ⋯ menu, a Saved list;
        Matrix in your account data (syncs between your own devices), reminders by the app (like
        send later); Talk through its own reminder API (so Talk's other clients remind you too)
-10. [ ] M–L. Chat beside the call (idea 2026-11-23, like Teams' meeting chat): 💬 in the call's
+10. [ ] M. Messages in an offline chat (idea 2026-11-24): an account whose server can't be
+       reached keeps its chat list (done in 1.7), but a Talk chat opened then is empty until the
+       server is back. Show the messages kept in the local (encrypted) search index instead,
+       marked as saved, until the server answers again
+11. [ ] M–L. Chat beside the call (idea 2026-11-23, like Teams' meeting chat): 💬 in the call's
        header opens the conversation's chat as a panel on the right (the stage narrows; its own
        window grows if there's room), with an unread count while closed; docked and in its own
        window. Messages already reach every webview (trix://messages); the work is moving sending,
        editing and reactions out of App.tsx (`act`) into a hook both windows use, then ChatView and
        Composer as they are. Files by drag and drop can follow. Talk calls only for now
-11. [x] L. Find a time (requested 2026-11-23, Teams' scheduling assistant; done 2026-11-24, to be
+12. [x] L. Find a time (requested 2026-11-23, Teams' scheduling assistant; done 2026-11-24, to be
        verified on a real Nextcloud): in New meeting (and
        Edit), everyone's free and busy times for the chosen day under People: a row per person, you
        included, the chosen time framed, click a free spot to move there; a dot on each person
@@ -122,7 +126,7 @@ plus the open items further down). S: a few hours, M: a day or two, L: several d
        outside their working hours marked unavailable if they set them; busy blocks only, no
        titles. Only for people on the same Nextcloud; email guests show as unknown. Check first
        that the Nextcloud in use answers it (one request)
-12. [x] L. Files in the rail (Nextcloud, like OneDrive in Teams): folders (browsing exists for the
+13. [x] L. Files in the rail (Nextcloud, like OneDrive in Teams): folders (browsing exists for the
        📎 menu), recent files and search; upload by drag and drop; open, download, share a link or
        into a chat; documents open in Nextcloud Office (done 2026-11-24, to be verified on a real
        Nextcloud); delete (to Nextcloud's deleted files), rename and move (2026-11-24). Later:
@@ -139,23 +143,23 @@ plus the open items further down). S: a few hours, M: a day or two, L: several d
              highlighted, instead of the browser. Talk file messages know the path in your
              storage; a file id is found with a SEARCH on oc:fileid, a share link through your
              own shares (OCS files_sharing). Links to other servers keep opening in the browser
-13. [ ] L. Accessibility for screen readers and keyboard: a label on every icon button (about 440
+14. [ ] L. Accessibility for screen readers and keyboard: a label on every icon button (about 440
        buttons, a third have a tooltip now); the message list as a list, new messages announced;
        arrow keys through messages, F6 between panes; focus kept in dialogs and given back after;
        tested with VoiceOver (and NVDA on Windows if possible)
-14. [ ] L. Matrix 1:1 calls in their own window (signalling lives in the main window; needs a
+15. [ ] L. Matrix 1:1 calls in their own window (signalling lives in the main window; needs a
        hand-over, as Talk calls have)
-15. [ ] L. Tabs in chats: Matrix room widgets (a website, a shared notepad, a dashboard) as tabs that
+16. [ ] L. Tabs in chats: Matrix room widgets (a website, a shared notepad, a dashboard) as tabs that
        sync with Element, "Add website tab"; for Talk a linked note or a Nextcloud Deck board
-16. [ ] L. Mini games, not during calls; our own designs. Matrix: two players in a direct chat with
+17. [ ] L. Mini games, not during calls; our own designs. Matrix: two players in a direct chat with
        moves as our own (encrypted, invisible) event type, only the invite and result as normal
        messages; both need Trixcomm (a room widget would make it playable in Element Desktop/Web too).
        Talk: not for two players (every move would be a visible chat line). Single-player puzzles
        work for everyone. L for the first game with its frame, each next one smaller
-17. [ ] S per language. More languages: quick to translate, but each needs someone who speaks it to
+18. [ ] S per language. More languages: quick to translate, but each needs someone who speaks it to
        check the result
-18. [ ] XL each. Zulip and Mattermost (own lists below)
-19. [ ] XL. Mobile (Tauri mobile or UniFFI)
+19. [ ] XL each. Zulip and Mattermost (own lists below)
+20. [ ] XL. Mobile (Tauri mobile or UniFFI)
 
 Dropped 2026-11-22 (not needed for now; back on the list if someone asks): export a chat,
 phishing list (OpenPhish), calendar on other CalDAV servers and on Exchange, email add-on (unread

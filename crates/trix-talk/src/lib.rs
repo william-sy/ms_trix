@@ -89,8 +89,20 @@ struct Session {
 }
 
 /// A request that didn't get through (no network, server unreachable).
+/// "error sending request for url (…)" says little: without the address, with the innermost
+/// cause (refused, no such host, timed out).
 fn net(e: reqwest::Error) -> AdapterError {
-    AdapterError::Network(e.to_string())
+    let mut cause = None;
+    let mut source = std::error::Error::source(&e);
+    while let Some(s) = source {
+        cause = Some(s.to_string());
+        source = s.source();
+    }
+    let text = e.without_url().to_string();
+    AdapterError::Network(match cause {
+        Some(cause) if !text.contains(&cause) => format!("{text}: {cause}"),
+        _ => text,
+    })
 }
 
 fn err(e: impl std::fmt::Display) -> AdapterError {
@@ -244,9 +256,15 @@ pub async fn login(server: &str, open_url: Box<dyn FnOnce(String) -> Result<()> 
 
 /// Nextcloud names the app password after the User-Agent ("Trixcomm (Desktop)").
 /// Keeps cookies: Talk ties joining a conversation and then its call to the same
-/// (cookie-based) session, like its own apps do.
+/// (cookie-based) session, like its own apps do. A server that doesn't answer at all (VPN down)
+/// fails after 15 seconds instead of the system's minute or more.
 fn client() -> reqwest::Client {
-    reqwest::Client::builder().user_agent(concat!("Trixcomm (Desktop) ", env!("CARGO_PKG_VERSION"))).cookie_store(true).build().unwrap_or_default()
+    reqwest::Client::builder()
+        .user_agent(concat!("Trixcomm (Desktop) ", env!("CARGO_PKG_VERSION")))
+        .cookie_store(true)
+        .connect_timeout(Duration::from_secs(15))
+        .build()
+        .unwrap_or_default()
 }
 
 fn placeholder_account(id: AccountId, session: &Session) -> Account {
@@ -627,13 +645,16 @@ impl TalkAdapter {
     }
 
     async fn room_list(&self, modified_since: Option<i64>) -> Result<(Vec<Value>, Option<i64>)> {
-        let mut req = self.request(Method::GET, ROOM).query(&[("includeStatus", "true"), ("noStatusUpdate", "1")]);
+        let mut req = self.request(Method::GET, ROOM).timeout(Duration::from_secs(30)).query(&[("includeStatus", "true"), ("noStatusUpdate", "1")]);
         if let Some(since) = modified_since {
             req = req.query(&[("modifiedSince", since.to_string())]);
         }
         let Some((data, headers)) = self.ocs(req).await? else { return Ok((vec![], modified_since)) };
         let next = headers.get("X-Nextcloud-Talk-Modified-Before").and_then(|v| v.to_str().ok()).and_then(|v| v.parse().ok());
-        Ok((data.as_array().cloned().unwrap_or_default(), next))
+        // Something else answering (a maintenance or login page) isn't an empty list: that would
+        // count every conversation as left.
+        let rooms = data.as_array().cloned().ok_or_else(|| AdapterError::Network("Nextcloud didn't answer (maintenance or a login page?)".into()))?;
+        Ok((rooms, next))
     }
 
     /// Messages before `before` (None = newest), oldest first, plus the next paging id.
@@ -872,7 +893,7 @@ impl ProtocolAdapter for TalkAdapter {
         let task = tokio::spawn(async move {
             let mut since = None;
             let mut last_full = std::time::Instant::now() - FULL_REFRESH;
-            let mut lost = false;
+            let mut connected = false;
             loop {
                 let full = last_full.elapsed() >= FULL_REFRESH;
                 match this.poll_once(&tx, if full { None } else { since }, full).await {
@@ -881,12 +902,12 @@ impl ProtocolAdapter for TalkAdapter {
                         if full {
                             last_full = std::time::Instant::now();
                         }
-                        if std::mem::take(&mut lost) {
-                            let _ = tx.send(AdapterEvent::ConnectionRestored);
+                        if !std::mem::replace(&mut connected, true) {
+                            let _ = tx.send(AdapterEvent::Connected);
                         }
                     }
                     Err(e) => {
-                        lost = true;
+                        connected = false;
                         let _ = tx.send(AdapterEvent::ConnectionLost { reason: e.to_string() });
                     }
                 }
