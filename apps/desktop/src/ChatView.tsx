@@ -31,7 +31,7 @@ import { parseQuery, queryMatches } from "./searchQuery";
 import { useOpenProfile } from "./Profile";
 import { summarize } from "./roomEvents";
 import { capabilities } from "./mock";
-import { useEscape } from "./hooks";
+import { useEscape, useStickToBottom } from "./hooks";
 import { PinnedBar, PinnedDialog, usePinned } from "./Pinned";
 import { TranslationLine, useTranslation } from "./Translate";
 
@@ -100,6 +100,7 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
   const openCall = () =>
     isLive ? backend.openCall(conv.id, t("call.window", { name: conv.name })).catch((e) => onNotice(String(e))) : onNotice(t("desktopOnly.newChat"));
   const scroller = useRef<HTMLDivElement>(null);
+  const threadScroller = useRef<HTMLDivElement>(null);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [forwarding, setForwarding] = useState<Message | null>(null);
   const [threadId, setThreadId] = useState<string | null>(null);
@@ -189,9 +190,10 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
   }, [conv.id]);
 
   // Stick to the bottom for new messages; keep the reading position when older ones are prepended.
-  // New chat: start at the bottom. New message at the end: follow it if we were at the bottom.
-  // Older messages added at the top: keep what's on screen in place. Anything else (a picture
-  // finishing loading, a reaction) leaves the scroll position alone.
+  // New chat: start at the bottom. New message at the end: follow it if we were near the bottom.
+  // Older messages added at the top: keep what's on screen in place. Anything that grows while
+  // you're at the bottom (a reaction, a big emoji, the sent tick, a picture loading) keeps the
+  // bottom in view (useStickToBottom, below); scrolled up, it leaves the position alone.
   const scrollState = useRef({ conv: "", firstId: "", lastId: "", height: 0, top: 0 });
   useLayoutEffect(() => {
     const el = scroller.current;
@@ -233,6 +235,7 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
 
   useEffect(() => {
     if (currentHit) document.querySelector(`[data-msg="${CSS.escape(currentHit.id)}"]`)?.scrollIntoView({ block: "center" });
+    noteScroll();
   }, [currentHit?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // A short chat can't be scrolled up, so keep fetching until it fills the view.
@@ -328,6 +331,7 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
     requestAnimationFrame(() => {
       const el = document.querySelector(`[data-msg="${CSS.escape(m.threadRoot ?? m.id)}"]`);
       el?.scrollIntoView({ block: "center" });
+      noteScroll();
       el?.classList.add("flash");
       window.setTimeout(() => el?.classList.remove("flash"), 1600);
     });
@@ -342,6 +346,9 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
 
   const send = (m: Outgoing) => dispatch({ type: "send", id: conv.id, message: m });
   const isInvite = !!conv.invitedBy;
+  // At the bottom, the list stays there as messages grow (see above); a thread opens at its newest reply.
+  const noteScroll = useStickToBottom(scroller, [conv.id, tab, isInvite]);
+  useStickToBottom(threadScroller, [threadId]);
   const messageActions = (m: Message) => ({
     onReact: (emoji: string) => dispatch({ type: "react", id: conv.id, target: m.id, emoji }),
     onEdit: (text: string) => dispatch({ type: "edit", id: conv.id, target: m.id, text }),
@@ -570,7 +577,7 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
             <span className="spacer" />
             <button className="icon-btn" title={t("chatView.closeThread")} onClick={() => setThreadId(null)}>✕</button>
           </header>
-          <div className="messages">
+          <div className="messages" ref={threadScroller}>
             {threadRoot ? <MessageItem m={threadRoot} account={conv.orgId} conversation={conv.id} grouped={false} media={mediaUi.actions} {...messageActions(threadRoot)} /> : <p className="empty">{t("chatView.threadRootMissing")}</p>}
             <div className="thread-divider">{t("chatView.threadReplies", { count: replies.get(threadId)?.length ?? 0 })}</div>
             {(replies.get(threadId) ?? []).map((m, i, all) => (

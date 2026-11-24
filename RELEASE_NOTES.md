@@ -37,6 +37,10 @@
   removed them again straight away, so the meeting was saved without them. An address you typed
   but didn't add yet now counts when you click Send.
 - The minimised call covered the Send button.
+- Chats stay scrolled to the bottom while you're there: a reaction, a big emoji, the sent tick
+  or a picture loading at the end no longer ends up cut off below the edge (nor when the typing
+  line appears or the message box grows). A thread opens at its newest reply and follows new
+  ones the same way. Scrolled up to read, nothing moves.
 
 ## 1.6.0 (2026-11-23)
 
