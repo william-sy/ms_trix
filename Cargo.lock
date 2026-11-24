@@ -3724,6 +3724,7 @@ name = "ms-trix-desktop"
 version = "1.6.0"
 dependencies = [
  "base64 0.22.1",
+ "block2",
  "futures",
  "keyring",
  "log",

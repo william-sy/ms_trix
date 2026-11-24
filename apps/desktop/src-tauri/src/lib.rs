@@ -94,6 +94,34 @@ fn present_notification(app: &AppHandle, title: &str, body: &str, kind: Notifica
     }
 }
 
+/// macOS: the mouse's back and forward buttons (4 and 5) go to the app as "trix://mouse-nav"
+/// ("back" / "forward"), for Files; WebKit doesn't hand them to the page as such. Windows and
+/// Linux pages see them themselves (mouse button 3 and 4).
+#[cfg(target_os = "macos")]
+fn watch_mouse_navigation(app: &AppHandle) {
+    use objc2_app_kit::{NSEvent, NSEventMask, NSEventType};
+    let app = app.clone();
+    let handler = block2::RcBlock::new(move |event: std::ptr::NonNull<NSEvent>| -> *mut NSEvent {
+        // SAFETY: AppKit hands the monitor a valid event, on the main thread.
+        let e = unsafe { event.as_ref() };
+        let way = match e.buttonNumber() {
+            3 => "back",
+            4 => "forward",
+            _ => return event.as_ptr(),
+        };
+        // Acted on when let go; the press is only kept from the page.
+        if e.r#type() == NSEventType::OtherMouseUp {
+            let _ = app.emit_to("main", "trix://mouse-nav", way);
+        }
+        // Handled here, so the page doesn't also get it (as a middle click).
+        std::ptr::null_mut()
+    });
+    // SAFETY: the handler returns the event it was given or null, as a monitor must.
+    let monitor = unsafe { NSEvent::addLocalMonitorForEventsMatchingMask_handler(NSEventMask::OtherMouseUp | NSEventMask::OtherMouseDown, &handler) };
+    // For as long as the app runs.
+    std::mem::forget(monitor);
+}
+
 type CmdResult<T> = Result<T, String>;
 
 const SHARE_BORDER: &str = "share-border";
@@ -2468,6 +2496,7 @@ pub fn run() {
                 let activity = NSProcessInfo::processInfo().beginActivityWithOptions_reason(NSActivityOptions::UserInitiatedAllowingIdleSystemSleep, &NSString::from_str("Receiving messages"));
                 // For as long as the app runs.
                 std::mem::forget(activity);
+                watch_mouse_navigation(app.handle());
             }
             // The computer slept: a jump in the clock. Every account reconnects at once rather
             // than waiting out a connection that died meanwhile (up to a minute for Matrix).

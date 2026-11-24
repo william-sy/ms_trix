@@ -47,7 +47,9 @@ reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # Same versions Tauri uses; the system spell checker (composer suggestions).
-objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "NSSpellChecker", "NSResponder", "NSView"] }
+objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "NSSpellChecker", "NSResponder", "NSView", "NSEvent", "block2"] }
+# Same version objc2-app-kit uses; the mouse's back/forward buttons (an event monitor's handler).
+block2 = "0.6.2"
 objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSString", "NSRange", "NSArray", "NSObjCRuntime", "NSTextCheckingResult", "NSOrthography", "NSDictionary", "NSProcessInfo"] }
 
 [target.'cfg(windows)'.dependencies]

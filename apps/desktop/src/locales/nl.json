@@ -1045,6 +1045,8 @@
   "files.moved": "{name} verplaatst naar {folder}",
   "files.noFolders": "Geen mappen hierin.",
   "files.view": "Bekijken",
+  "files.back": "Terug (terugknop van de muis, ⌘[ / Alt+←)",
+  "files.forward": "Vooruit (⌘] / Alt+→)",
   "files.notFound": "Dat bestand staat (niet meer) in deze map.",
   "files.showInFiles": "Tonen in Bestanden",
   "gallery.count": "{n} van {total}",

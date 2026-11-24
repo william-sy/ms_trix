@@ -1045,6 +1045,8 @@
   "files.moved": "Moved {name} to {folder}",
   "files.noFolders": "No folders in here.",
   "files.view": "View",
+  "files.back": "Back (mouse back button, ⌘[ / Alt+←)",
+  "files.forward": "Forward (⌘] / Alt+→)",
   "files.notFound": "That file isn't in this folder (any more).",
   "files.showInFiles": "Show in Files",
   "gallery.count": "{n} of {total}",

@@ -20,6 +20,9 @@
   to Deleted files in Nextcloud). Pictures and videos open in a **gallery** in the app: ‹ › or
   the arrow keys go through the other pictures and videos of the folder (or of Recent, or the
   search results), with Download, Open on this computer and Open in Nextcloud at the top.
+- **Back and forward in Files** with the mouse's back and forward buttons, ⌘[ and ⌘] (Alt+← and
+  Alt+→ on Windows and Linux) or the ‹ › buttons at the top: to the previous folder, Recent or
+  search. In the gallery, back closes it first.
 - **Show in Files:** a file in a Talk chat has *Show in Files* in its menu (right-click), which
   opens Files at its folder with the file highlighted. Clicking a link to one of your own
   Nextcloud files in any chat (a file link, or a share link you made) does the same instead of

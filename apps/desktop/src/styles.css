@@ -1304,6 +1304,8 @@ a.link-warn::after { content: " ⚠"; }
 .files-nav-item.active { background: var(--bg-selected); font-weight: 600; }
 .files-main { position: relative; flex: 1; display: flex; flex-direction: column; min-width: 0; }
 .files-head { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--border); }
+.files-history { display: flex; gap: 0; margin-left: -6px; }
+.files-history .icon-btn { font-size: 20px; line-height: 1; width: 28px; }
 .files-head h2 { font-size: 17px; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .files-crumbs { min-width: 0; font-size: 16px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .files-crumbs .link { font-weight: 600; }

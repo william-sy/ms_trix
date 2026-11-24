@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { backend, mediaUrl } from "./backend";
+import { listen } from "@tauri-apps/api/event";
+import { backend, isLive, mediaUrl } from "./backend";
 import { formatSize } from "./Composer";
 import { ContextMenu } from "./ContextMenu";
 import { ChatPickerDialog } from "./ForwardDialog";
@@ -7,6 +8,7 @@ import { Gallery, inGallery } from "./Gallery";
 import type { FilesReveal } from "./filesNav";
 import { useEscape } from "./hooks";
 import { locale, t } from "./i18n";
+import { isMac } from "./settings";
 import type { CloudFile, Conversation, Org } from "./types";
 
 // Nextcloud Files in the rail (like OneDrive in Teams): your folders, recently changed files and
@@ -16,6 +18,10 @@ import type { CloudFile, Conversation, Org } from "./types";
 // chat (shared into a Talk chat on the same Nextcloud, a link elsewhere), rename, move or delete it.
 
 type Section = "files" | "recent";
+
+/** Where Files is: an account's folder, Recent, or a search. */
+interface Place { account: string; section: Section; path: string; query: string }
+const samePlace = (a: Place, b: Place) => a.account === b.account && a.section === b.section && a.path === b.path && a.query.trim() === b.query.trim();
 
 const FOLDER = "trix.filesFolder";
 const ACCOUNT = "trix.filesAccount";
@@ -73,13 +79,38 @@ export function FilesPane({ orgs, convs, reveal }: { orgs: Org[]; convs: Convers
   const [upload, setUpload] = useState<{ done: number; total: number } | null>(null);
   const [dropping, setDropping] = useState(false);
 
-  const setAccount = (id: string) => { setAccountState(id); write(ACCOUNT, id); setPathState(read(`${FOLDER}.${id}`) ?? "/"); };
-  const setPath = (p: string) => { setPathState(p); write(`${FOLDER}.${account}`, p); setSection("files"); setQuery(""); };
+  // Back and forward through the places you've been (the mouse's back and forward buttons,
+  // ⌘[ and ⌘] or Alt+← and Alt+→, the ‹ › buttons): a folder, Recent, a search, on an account.
+  const [history, setHistory] = useState<{ back: Place[]; ahead: Place[] }>({ back: [], ahead: [] });
+  const here: Place = { account, section, path, query };
+  const goTo = (next: Place, record = true) => {
+    if (record && !samePlace(next, here)) setHistory((h) => ({ back: [...h.back, here].slice(-50), ahead: [] }));
+    setAccountState(next.account);
+    write(ACCOUNT, next.account);
+    setPathState(next.path);
+    write(`${FOLDER}.${next.account}`, next.path);
+    setSection(next.section);
+    setQuery(next.query);
+  };
+  const goBack = () => {
+    const prev = history.back[history.back.length - 1];
+    if (!prev) return;
+    setHistory((h) => ({ back: h.back.slice(0, -1), ahead: [...h.ahead, here] }));
+    goTo(prev, false);
+  };
+  const goForward = () => {
+    const next = history.ahead[history.ahead.length - 1];
+    if (!next) return;
+    setHistory((h) => ({ back: [...h.back, here], ahead: h.ahead.slice(0, -1) }));
+    goTo(next, false);
+  };
+  const setAccount = (id: string, record = true) => goTo({ account: id, section: "files", path: read(`${FOLDER}.${id}`) ?? "/", query: "" }, record);
+  const setPath = (p: string, record = true) => goTo({ account, section: "files", path: p, query: "" }, record);
   const searching = query.trim().length >= 2;
 
   // An account that left the view (organization switched): the first one that's there.
   useEffect(() => {
-    if (!orgs.some((o) => o.id === account) && orgs[0]) setAccount(orgs[0].id);
+    if (!orgs.some((o) => o.id === account) && orgs[0]) setAccount(orgs[0].id, false);
   }, [orgs.map((o) => o.id).join("|")]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -92,7 +123,7 @@ export function FilesPane({ orgs, convs, reveal }: { orgs: Org[]; convs: Convers
       load.then((list) => live && setFiles(list), (e) => {
         if (!live) return;
         // A remembered folder may be gone; back to the top once.
-        if (!searching && section === "files" && path !== "/") setPath("/");
+        if (!searching && section === "files" && path !== "/") setPath("/", false);
         else { setError(String(e)); setFiles([]); }
       });
     }, searching ? 300 : 0);
@@ -104,13 +135,7 @@ export function FilesPane({ orgs, convs, reveal }: { orgs: Org[]; convs: Convers
     // Each request once, as soon as its account is in view.
     if (!reveal || reveal.at === revealed.current || !orgs.some((o) => o.id === reveal.account)) return;
     revealed.current = reveal.at;
-    const folder = folderOf(reveal.path);
-    setAccountState(reveal.account);
-    write(ACCOUNT, reveal.account);
-    setPathState(folder);
-    write(`${FOLDER}.${reveal.account}`, folder);
-    setSection("files");
-    setQuery("");
+    goTo({ account: reveal.account, section: "files", path: folderOf(reveal.path), query: "" });
     setViewing(null);
     // Looked for once that folder is listed (again, also when it's the one in view).
     setFiles(null);
@@ -125,6 +150,36 @@ export function FilesPane({ orgs, convs, reveal }: { orgs: Org[]; convs: Convers
     const timer = window.setTimeout(() => setHighlight(null), 2500);
     return () => window.clearTimeout(timer);
   }, [files, highlight]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The mouse's back and forward buttons: from the host on macOS, as mouse buttons 3 and 4
+  // elsewhere. Back closes the gallery first.
+  const nav = useRef({ back: goBack, forward: goForward });
+  nav.current = { back: () => (viewing !== null ? setViewing(null) : goBack()), forward: goForward };
+  useEffect(() => {
+    const off = isLive ? listen<string>("trix://mouse-nav", (e) => (e.payload === "back" ? nav.current.back() : nav.current.forward())) : null;
+    const onMouse = (e: MouseEvent) => {
+      if (isMac || (e.button !== 3 && e.button !== 4)) return;
+      // Keeps the web view from going back in its own history.
+      e.preventDefault();
+      if (e.type === "mouseup") (e.button === 3 ? nav.current.back : nav.current.forward)();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      const way = isMac ? (e.metaKey && e.key === "[" ? "back" : e.metaKey && e.key === "]" ? "forward" : null)
+        : e.altKey && e.key === "ArrowLeft" ? "back" : e.altKey && e.key === "ArrowRight" ? "forward" : null;
+      if (!way) return;
+      e.preventDefault();
+      nav.current[way]();
+    };
+    window.addEventListener("mousedown", onMouse);
+    window.addEventListener("mouseup", onMouse);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      void off?.then((f) => f());
+      window.removeEventListener("mousedown", onMouse);
+      window.removeEventListener("mouseup", onMouse);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, []);
 
   useEffect(() => {
     const close = () => setMenu(null);
@@ -243,10 +298,14 @@ export function FilesPane({ orgs, convs, reveal }: { orgs: Org[]; convs: Convers
           </select>
         )}
         <button className={`files-nav-item ${section === "files" && !searching ? "active" : ""}`} onClick={() => setPath(path)}>📁 {t("files.myFiles")}</button>
-        <button className={`files-nav-item ${section === "recent" && !searching ? "active" : ""}`} onClick={() => { setSection("recent"); setQuery(""); }}>🕘 {t("files.recent")}</button>
+        <button className={`files-nav-item ${section === "recent" && !searching ? "active" : ""}`} onClick={() => goTo({ account, section: "recent", path, query: "" })}>🕘 {t("files.recent")}</button>
       </nav>
       <section className={`files-main ${dropping ? "dropping" : ""}`}>
         <header className="files-head">
+          <span className="files-history">
+            <button className="icon-btn" title={t("files.back")} disabled={!history.back.length} onClick={goBack}>‹</button>
+            <button className="icon-btn" title={t("files.forward")} disabled={!history.ahead.length} onClick={goForward}>›</button>
+          </span>
           {searching ? <h2>{t("files.results", { query: query.trim() })}</h2>
             : section === "recent" ? <h2>{t("files.recent")}</h2>
             : (
