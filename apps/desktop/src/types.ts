@@ -200,6 +200,20 @@ export interface Attendee {
   user?: string;
 }
 
+/** Someone's busy times from their Nextcloud; `busy` null when it doesn't know them. */
+export interface FreeBusy {
+  email: string;
+  busy: BusyTime[] | null;
+}
+
+export interface BusyTime {
+  /** Milliseconds since 1970. */
+  start: number;
+  end: number;
+  /** BUSY, BUSY-TENTATIVE or BUSY-UNAVAILABLE (outside their working hours). */
+  kind: string;
+}
+
 export interface NewEvent {
   calendar: string;
   summary: string;

@@ -108,6 +108,32 @@ fn square_png(data: &[u8]) -> Option<Vec<u8>> {
     Some(out.into_inner())
 }
 
+/// Files and folders in a PROPFIND or SEARCH answer, with their paths from the storage root.
+fn cloud_entries(xml: &str) -> Vec<CloudFile> {
+    let marker = "/remote.php/dav/files/";
+    dav::multistatus(xml)
+        .into_iter()
+        .filter_map(|r| {
+            let href = dav::decode(&r.href);
+            // Strip "…/remote.php/dav/files/<user>" to get the path from the storage root.
+            let after = &href[href.find(marker)? + marker.len()..];
+            let path = after.split_once('/').map(|(_, p)| format!("/{}", p.trim_end_matches('/'))).unwrap_or_else(|| "/".into());
+            let dir = r.types.iter().any(|t| t == "collection");
+            let name = path.rsplit('/').next().unwrap_or_default().to_owned();
+            let size = r.props.get(if dir { "size" } else { "getcontentlength" }).and_then(|v| v.trim().parse().ok()).unwrap_or(0);
+            Some(CloudFile {
+                name,
+                path,
+                dir,
+                size,
+                mime: r.props.get("getcontenttype").cloned(),
+                modified: r.props.get("getlastmodified").cloned(),
+                file_id: r.props.get("fileid").cloned(),
+            })
+        })
+        .collect()
+}
+
 fn now() -> Timestamp {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
 }
@@ -1544,33 +1570,75 @@ impl ProtocolAdapter for TalkAdapter {
     async fn cloud_files(&self, path: &str) -> Result<Vec<CloudFile>> {
         let encoded = dav::encode_path(path).ok_or_else(|| err("bad path"))?;
         let xml = self.dav("PROPFIND", &format!("{}{encoded}/", self.files_root().await), "1", dav::PROPFIND_FILES.into()).await?;
-        let marker = "/remote.php/dav/files/";
-        let mut files: Vec<CloudFile> = dav::multistatus(&xml)
-            .into_iter()
-            .filter_map(|r| {
-                let href = dav::decode(&r.href);
-                // Strip "…/remote.php/dav/files/<user>" to get the path from the storage root.
-                let after = &href[href.find(marker)? + marker.len()..];
-                let path = after.split_once('/').map(|(_, p)| format!("/{}", p.trim_end_matches('/'))).unwrap_or_else(|| "/".into());
-                let dir = r.types.iter().any(|t| t == "collection");
-                let name = path.rsplit('/').next().unwrap_or_default().to_owned();
-                let size = r.props.get(if dir { "size" } else { "getcontentlength" }).and_then(|v| v.trim().parse().ok()).unwrap_or(0);
-                Some(CloudFile {
-                    name,
-                    path,
-                    dir,
-                    size,
-                    mime: r.props.get("getcontenttype").cloned(),
-                    modified: r.props.get("getlastmodified").cloned(),
-                    file_id: r.props.get("fileid").cloned(),
-                })
-            })
-            .collect();
+        let mut files = cloud_entries(&xml);
         // The first entry is the folder itself.
         let own = format!("/{}", path.trim_matches('/'));
         files.retain(|f| f.path != own && !f.name.is_empty());
         files.sort_by(|a, b| b.dir.cmp(&a.dir).then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase())));
         Ok(files)
+    }
+
+    async fn cloud_recent(&self) -> Result<Vec<CloudFile>> {
+        let since = now() / 1000 - 30 * 86_400;
+        let query = dav::files_search(&self.dav_user().await, dav::FileQuery::Recent { since });
+        Ok(cloud_entries(&self.dav("SEARCH", "/remote.php/dav/", "0", query).await?))
+    }
+
+    async fn cloud_search(&self, term: &str) -> Result<Vec<CloudFile>> {
+        if term.trim().is_empty() {
+            return Ok(vec![]);
+        }
+        let query = dav::files_search(&self.dav_user().await, dav::FileQuery::Name(term));
+        let mut files = cloud_entries(&self.dav("SEARCH", "/remote.php/dav/", "0", query).await?);
+        files.retain(|f| f.path != "/");
+        Ok(files)
+    }
+
+    async fn cloud_upload(&self, folder: &str, name: &str, data: Vec<u8>) -> Result<String> {
+        let folder = dav::encode_path(folder).map(|_| format!("/{}", folder.trim_matches('/'))).ok_or_else(|| err("bad path"))?;
+        let name = name.replace(['/', '\\'], "_");
+        if name.trim().is_empty() || name == "." || name == ".." {
+            return Err(err("bad file name"));
+        }
+        // Like Nextcloud: "report (2).pdf" when "report.pdf" is taken.
+        let (stem, ext) = match name.rfind('.') {
+            Some(dot) if dot > 0 => (&name[..dot], &name[dot..]),
+            _ => (name.as_str(), ""),
+        };
+        let root = self.files_root().await;
+        let at = |candidate: &str| format!("{}/{candidate}", folder.trim_end_matches('/'));
+        for n in 1..=99 {
+            let candidate = if n == 1 { name.clone() } else { format!("{stem} ({n}){ext}") };
+            let href = format!("{root}{}", dav::encode_path(&at(&candidate)).ok_or_else(|| err("bad path"))?);
+            if self.request(Method::HEAD, &href).send().await.map_err(net)?.status() != StatusCode::NOT_FOUND {
+                continue;
+            }
+            // Never over a file that appeared in the meantime.
+            let status = self.request(Method::PUT, &href).header("If-None-Match", "*").body(data).send().await.map_err(net)?.status();
+            return match status {
+                s if s.is_success() => Ok(at(&candidate)),
+                StatusCode::INSUFFICIENT_STORAGE => Err(err("your Nextcloud storage is full")),
+                s => Err(err(format!("upload failed: {s}"))),
+            };
+        }
+        Err(err("too many files with that name"))
+    }
+
+    async fn cloud_mkdir(&self, path: &str) -> Result<()> {
+        let encoded = dav::encode_path(path).filter(|e| !e.is_empty()).ok_or_else(|| err("bad path"))?;
+        let status = self.request(Method::from_bytes(b"MKCOL").unwrap(), &format!("{}{encoded}", self.files_root().await)).send().await.map_err(net)?.status();
+        match status {
+            s if s.is_success() => Ok(()),
+            StatusCode::METHOD_NOT_ALLOWED => Err(err("there is already something with that name")),
+            s => Err(err(format!("could not make the folder: {s}"))),
+        }
+    }
+
+    async fn cloud_web_url(&self, file_id: &str) -> Result<String> {
+        if file_id.is_empty() || !file_id.chars().all(|c| c.is_ascii_digit()) {
+            return Err(err("unknown file"));
+        }
+        Ok(format!("{}/index.php/f/{file_id}", self.session.server))
     }
 
     async fn share_cloud_file(&self, conversation: &ConversationId, path: &str, caption: Option<&str>) -> Result<()> {
@@ -1843,6 +1911,38 @@ impl ProtocolAdapter for TalkAdapter {
             // The same person can match on name and address.
             .filter(|a| seen.insert(a.email.to_lowercase()))
             .take(10)
+            .collect())
+    }
+
+    async fn free_busy(&self, people: &[String], from: &str, to: &str) -> Result<Vec<FreeBusy>> {
+        if !dav::valid_time(from) || !dav::valid_time(to) {
+            return Err(err("bad time"));
+        }
+        let (_, me) = self.whoami().await;
+        let me = me.ok_or_else(|| err("set an email address in your Nextcloud profile to see when people are free"))?;
+        let uid = format!("{}-{}@trixcomm", now(), Alphanumeric.sample_string(&mut rand::rng(), 12));
+        // You first, so your own busy times show too.
+        let mut people: Vec<String> = people.iter().map(|p| p.trim().to_owned()).filter(|p| !p.eq_ignore_ascii_case(me.email.trim())).collect();
+        people.insert(0, me.email.trim().to_owned());
+        let body = dav::freebusy_request(&uid, &stamp_now(), me.email.trim(), &people, from, to);
+        let outbox = format!("{}outbox/", self.calendars_root().await);
+        let response = self
+            .request(Method::POST, &outbox)
+            .header("Content-Type", "text/calendar; charset=utf-8")
+            .header("Accept", "application/xml")
+            .body(body)
+            .send()
+            .await
+            .map_err(net)?;
+        let status = response.status();
+        if !status.is_success() {
+            return Err(err(format!("Nextcloud gave no free/busy times: {status}")));
+        }
+        let replies = dav::freebusy_replies(&response.text().await.map_err(err)?);
+        // In the order asked; an address the server left out is unknown.
+        Ok(people
+            .iter()
+            .map(|p| replies.iter().find(|r| r.email.eq_ignore_ascii_case(p)).cloned().unwrap_or(FreeBusy { email: p.clone(), busy: None }))
             .collect())
     }
 

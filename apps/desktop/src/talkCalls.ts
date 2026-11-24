@@ -10,6 +10,7 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { backend, isLive } from "./backend";
+import { useCardInsets } from "./callCard";
 import { currentSettings, isMac } from "./settings";
 import { openMic } from "./voice";
 import { currentEffect, processCamera, switchEffect, type CameraEffect } from "./cameraEffects";
@@ -1009,6 +1010,8 @@ export function useTalkCallHost(describe: (conversation: string) => { account: s
     const off = listen<string | null>("trix://call-window", (e) => setInCall(e.payload));
     return () => void off.then((f) => f());
   }, []);
+  // Minimised in the app, the call's card stays clear of the message box and headers.
+  useCardInsets(isLive && !!inCall, (insets) => void backend.callCardInsets(insets).catch(() => {}));
   return {
     call: inCall ? { conversation: inCall, phase: "connected" } : null,
     start: (conversation, video, silent) => {

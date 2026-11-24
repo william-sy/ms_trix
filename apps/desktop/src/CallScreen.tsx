@@ -3,6 +3,7 @@ import { dndActive } from "./dnd";
 import { playRingtone } from "./ringtone";
 import { Avatar } from "./Avatar";
 import { CallIcon, CameraIcon, CameraOffIcon, ExpandIcon, MicIcon, MicOffIcon, PopInIcon, ShareScreenIcon } from "./Icons";
+import { useInPageCard } from "./callCard";
 import { useCallWindow } from "./callWindow";
 import type { Calls, CallState } from "./calls";
 import { t } from "./i18n";
@@ -75,6 +76,7 @@ export function CallScreen({ calls, conversation }: Props) {
   const call = calls.call;
   const [now, setNow] = useState(Date.now());
   const win = useCallWindow();
+  const card = useInPageCard(!!call?.minimized);
   useRingtone(!!call && call.phase === "ringing", call?.direction === "in");
   useEffect(() => {
     if (call?.phase !== "connected") return;
@@ -123,7 +125,7 @@ export function CallScreen({ calls, conversation }: Props) {
 
   if (call.minimized) {
     return (
-      <div className="call-mini">
+      <div ref={card.ref} className="call-mini" style={card.style} {...card.handlers}>
         <Media stream={call.remote} audioOnly={!camera} className="call-mini-video" />
         {!camera && avatar}
         <div className="call-mini-text"><b>{name}</b><span>{status}</span></div>

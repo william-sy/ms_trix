@@ -2,10 +2,11 @@
 // and the app falls back to mock data.
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import type { Attendee, Calendar, CalendarEvent, CloudFile, Conversation, ConversationKind, Member, Message, NewEvent, Note, NoteChange, Org, Outgoing, Protocol } from "./types";
+import type { Attendee, Calendar, CalendarEvent, CloudFile, Conversation, FreeBusy, ConversationKind, Member, Message, NewEvent, Note, NoteChange, Org, Outgoing, Protocol } from "./types";
 import { locale, t } from "./i18n";
 import { describeEvent, type RoomEvent } from "./roomEvents";
 import type { NotifyPrefs, Sounds } from "./settings";
+import type { CardInsets, Corner } from "./callCard";
 
 export interface DeviceInfo {
   id: string;
@@ -443,6 +444,16 @@ export const backend = {
   turnServers: (account: string) => invoke<{ uris: string[]; username: string; password: string } | null>("turn_servers", { account }),
   setTexts: (texts: Record<string, string>) => invoke<void>("set_texts", { texts }),
   cloudFiles: (account: string, path: string) => invoke<CloudFile[]>("cloud_files", { account, path }),
+  /** Files changed in the last month, newest first. */
+  cloudRecent: (account: string) => invoke<CloudFile[]>("cloud_recent", { account }),
+  cloudSearch: (account: string, term: string) => invoke<CloudFile[]>("cloud_search", { account, term }),
+  /** Uploads local files (picked or dropped) into a folder, never over an existing one; their new paths. */
+  cloudUploadPaths: (account: string, folder: string, paths: string[]) => invoke<string[]>("cloud_upload_paths", { account, folder, paths }),
+  cloudMkdir: (account: string, path: string) => invoke<void>("cloud_mkdir", { account, path }),
+  /** A read-only public link. */
+  cloudShareLink: (account: string, path: string) => invoke<string>("cloud_share_link", { account, path }),
+  /** In the browser, in Nextcloud (documents open in Nextcloud Office). */
+  openCloudFile: (account: string, fileId: string) => invoke<void>("open_cloud_file", { account, fileId }),
   /** Shares a Nextcloud file into the chat; returns a public link instead when the chat is on another account. */
   attachCloudFile: (account: string, path: string, key: string, caption: string | null) =>
     invoke<string | null>("attach_cloud_file", { account, path, key, caption }),
@@ -509,7 +520,12 @@ export const backend = {
   openCallWindow: (params: string, title: string, docked: boolean) => invoke<void>("open_call_window", { params, title, docked }),
   popOutCall: () => invoke<void>("pop_out_call"),
   popInCall: () => invoke<void>("pop_in_call"),
-  dockCallWindow: (minimized: boolean, height: number) => invoke<void>("dock_call_window", { minimized, height }),
+  dockCallWindow: (minimized: boolean, height: number, corner?: Corner) => invoke<void>("dock_call_window", { minimized, height, corner: corner ?? null }),
+  /** The minimised call's card is being dragged (from its corner); let go, it goes to the nearest corner. */
+  dragCallCard: (dx: number, dy: number) => invoke<void>("drag_call_card", { dx, dy }),
+  dropCallCard: () => invoke<Corner>("drop_call_card"),
+  /** What the call's card keeps clear of in the app window. */
+  callCardInsets: (insets: CardInsets) => invoke<void>("call_card_insets", { insets }),
   callPageSize: (width: number, height: number) => invoke<void>("call_page_size", { width, height }),
   focusCallWindow: () => invoke<void>("focus_call_window"),
   closeCallWindow: () => invoke<void>("close_call_window"),
@@ -518,6 +534,8 @@ export const backend = {
   setAudioOutput: (id: number) => invoke<void>("set_audio_output", { id }),
   forwardMessage: (key: string, message: string, target: string, note: string | null) => invoke<void>("forward_message", { key, message, target, note }),
   calendarPeople: (account: string, term: string) => invoke<Attendee[]>("calendar_people", { account, term }),
+  /** You (first) and `people`: when each is busy between `from` and `to` (UTC iCalendar times). */
+  calendarFreeBusy: (account: string, people: string[], from: string, to: string) => invoke<FreeBusy[]>("calendar_free_busy", { account, people, from, to }),
   conversationLink: (key: string) => invoke<string>("conversation_link", { key }),
   shared: (key: string, kind: "media" | "files" | "links", before: number | null) => invoke<SharedItem[]>("shared", { key, kind, before }),
   /** Messages in the local index, or null when there's no index (keychain unavailable). */

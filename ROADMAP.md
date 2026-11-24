@@ -112,7 +112,8 @@ plus the open items further down). S: a few hours, M: a day or two, L: several d
        window. Messages already reach every webview (trix://messages); the work is moving sending,
        editing and reactions out of App.tsx (`act`) into a hook both windows use, then ChatView and
        Composer as they are. Files by drag and drop can follow. Talk calls only for now
-11. [ ] L. Find a time (requested 2026-11-23, Teams' scheduling assistant): in New meeting (and
+11. [x] L. Find a time (requested 2026-11-23, Teams' scheduling assistant; done 2026-11-24, to be
+       verified on a real Nextcloud): in New meeting (and
        Edit), everyone's free and busy times for the chosen day under People: a row per person, you
        included, the chosen time framed, click a free spot to move there; a dot on each person
        (free, busy, unknown); "Suggest a time" lists the next slots of the same length when
@@ -121,9 +122,11 @@ plus the open items further down). S: a few hours, M: a day or two, L: several d
        outside their working hours marked unavailable if they set them; busy blocks only, no
        titles. Only for people on the same Nextcloud; email guests show as unknown. Check first
        that the Nextcloud in use answers it (one request)
-12. [ ] L. Files in the rail (Nextcloud, like OneDrive in Teams): folders (browsing exists for the
+12. [x] L. Files in the rail (Nextcloud, like OneDrive in Teams): folders (browsing exists for the
        📎 menu), recent files and search; upload by drag and drop; open, download, share a link or
-       into a chat; documents open in Nextcloud Office
+       into a chat; documents open in Nextcloud Office (done 2026-11-24, to be verified on a real
+       Nextcloud). Later: rename, move, delete, favourites, shared with you, chunked upload for
+       very large files
 13. [ ] L. Accessibility for screen readers and keyboard: a label on every icon button (about 440
        buttons, a third have a tooltip now); the message list as a list, new messages announced;
        arrow keys through messages, F6 between panes; focus kept in dialogs and given back after;
@@ -432,7 +435,7 @@ built yet is visibly disabled in the UI with a "coming soon" tooltip.
   - [x] Calendar: day / work week / week / month views; repeating meetings: change or delete this
         occurrence (own copy / EXDATE) or the whole series (moves in its own time zone)
 - [ ] Mobile (Tauri mobile or UniFFI)
-- [ ] GitHub releases with a download page, and auto-update (own update key, free); the repo and CI
+- [x] GitHub releases with a download page, and auto-update (own update key, free); the repo and CI
       builds for macOS, Windows and Linux exist since 1.0
 - [ ] Signing: Developer ID + notarisation (macOS), code signing (Windows); also unlocks clicking a
       notification to open the chat on macOS/Windows

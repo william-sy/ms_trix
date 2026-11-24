@@ -1,7 +1,5 @@
 # Trixcomm
 
-*Formerly ms_trix.*
-
 One desktop app for your chats, meetings and calendar, on open protocols. Trixcomm feels like
 Microsoft Teams, but works with **Matrix** (end-to-end encrypted) and **Nextcloud Talk**, and with
 several organisations at once.
@@ -61,6 +59,8 @@ Talk meeting settings, right in the room's info panel:
 **Calendar**
 - Nextcloud calendar: day, work week, week and month; meetings with a Talk room; repeating
   meetings (edit one or the whole series)
+- Find a time: everyone's free and busy times while you plan a meeting, and suggested times when
+  everyone is free
 - A reminder five minutes before each meeting, with Join; on top of your other windows, or
   inside the app if you prefer
 
@@ -69,6 +69,10 @@ Talk meeting settings, right in the room's info panel:
 ![The calendar's month view](images/calendar-month.png)
 
 ![A meeting reminder with Dismiss, Open chat and Join](images/meeting%20reminder.png)
+
+**Files**
+- Your Nextcloud files: folders, recent files and search; upload by dropping files; open
+  documents in Nextcloud Office, copy a link, or send a file to any chat
 
 **Make it yours**
 - Light and dark themes, accent colours, text size, compact layout, your own colours per account

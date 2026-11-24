@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { backend } from "./backend";
+import { storedCorner } from "./callCard";
 import { warmUpEffects } from "./cameraEffects";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { t } from "./i18n";
@@ -73,7 +74,7 @@ export function CallWindow() {
     if (!call) return;
     const card = docked && minimized ? document.querySelector<HTMLElement>(".call-mini") : null;
     if (!card) return void backend.dockCallWindow(minimized, 0).catch(() => {});
-    const report = () => void backend.dockCallWindow(true, Math.ceil(card.getBoundingClientRect().height)).catch(() => {});
+    const report = () => void backend.dockCallWindow(true, Math.ceil(card.getBoundingClientRect().height), storedCorner()).catch(() => {});
     report();
     const observer = new ResizeObserver(report);
     observer.observe(card);

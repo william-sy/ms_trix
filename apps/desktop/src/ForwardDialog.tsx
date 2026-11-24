@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Avatar } from "./Avatar";
 import { backend } from "./backend";
 import { t } from "./i18n";
@@ -9,6 +9,18 @@ import { useEscape } from "./hooks";
 
 /** Forward a message to another chat, on any account (Teams' Forward, with "Add a message"). */
 export function ForwardDialog({ message, from, convs, onClose, onDone }: { message: Message; from: string; convs: Conversation[]; onClose: () => void; onDone: (name: string) => void }) {
+  return (
+    <ChatPickerDialog title={t("forward.title")} convs={convs} onClose={onClose}
+      preview={<><b>{message.sender}</b><span>{message.media ? `📎 ${message.media.name}` : message.body}</span></>}
+      onSend={async (target, note) => { await backend.forwardMessage(from, message.id, target.id, note); onDone(target.name); }} />
+  );
+}
+
+/** Pick a chat on any account and add a message: forwarding, or sending a file from Files. */
+export function ChatPickerDialog({ title, preview, convs, onSend, onClose }: {
+  title: string; preview: ReactNode; convs: Conversation[];
+  onSend: (target: Conversation, note: string | null) => Promise<void>; onClose: () => void;
+}) {
   const orgs = useOrgs();
   const [term, setTerm] = useState("");
   const [target, setTarget] = useState<Conversation | null>(null);
@@ -31,8 +43,7 @@ export function ForwardDialog({ message, from, convs, onClose, onDone }: { messa
     setBusy(true);
     setError(null);
     try {
-      await backend.forwardMessage(from, message.id, target.id, note.trim() || null);
-      onDone(target.name);
+      await onSend(target, note.trim() || null);
     } catch (e) {
       setError(String(e));
       setBusy(false);
@@ -43,11 +54,8 @@ export function ForwardDialog({ message, from, convs, onClose, onDone }: { messa
     <div className="login-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="login-card forward-dialog">
         <button className="icon-btn close" onClick={onClose} title={t("common.closeEsc")}>✕</button>
-        <h1>{t("forward.title")}</h1>
-        <div className="forward-preview">
-          <b>{message.sender}</b>
-          <span>{message.media ? `📎 ${message.media.name}` : message.body}</span>
-        </div>
+        <h1>{title}</h1>
+        <div className="forward-preview">{preview}</div>
         {target ? (
           <div className="forward-target">
             <Avatar account={target.orgId} media={target.avatar} name={target.name} className={`small kind-${target.kind}`} channel={target.kind === "channel"} />

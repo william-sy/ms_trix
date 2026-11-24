@@ -688,6 +688,26 @@ pub struct Attendee {
     pub user: Option<String>,
 }
 
+/// Someone's busy times, as their server reports them (Nextcloud free/busy): across all their
+/// calendars, repeats expanded, no titles. `busy` is None when the server doesn't know them
+/// (an address that isn't one of its users).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FreeBusy {
+    pub email: String,
+    pub busy: Option<Vec<BusyTime>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BusyTime {
+    /// Milliseconds since 1970 (UTC).
+    pub start: i64,
+    pub end: i64,
+    /// iCalendar FBTYPE: BUSY, BUSY-TENTATIVE or BUSY-UNAVAILABLE (outside their working hours).
+    pub kind: String,
+}
+
 /// A new event from the calendar's "New meeting" dialog (or the new state of an edited one).
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]

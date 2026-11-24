@@ -433,6 +433,26 @@ pub trait ProtocolAdapter: Send + Sync {
     async fn cloud_link(&self, _path: &str) -> Result<String> {
         Err(AdapterError::Unsupported("files"))
     }
+    /// Files changed recently (the last month), newest first.
+    async fn cloud_recent(&self) -> Result<Vec<CloudFile>> {
+        Err(AdapterError::Unsupported("files"))
+    }
+    /// Files and folders anywhere whose name contains `term`, newest first.
+    async fn cloud_search(&self, _term: &str) -> Result<Vec<CloudFile>> {
+        Err(AdapterError::Unsupported("files"))
+    }
+    /// Stores `data` as `name` in `folder` without replacing anything ("name (2).ext" when the
+    /// name is taken); returns the new file's path.
+    async fn cloud_upload(&self, _folder: &str, _name: &str, _data: Vec<u8>) -> Result<String> {
+        Err(AdapterError::Unsupported("files"))
+    }
+    async fn cloud_mkdir(&self, _path: &str) -> Result<()> {
+        Err(AdapterError::Unsupported("files"))
+    }
+    /// A stored file or folder in the server's web interface (documents open in its office app).
+    async fn cloud_web_url(&self, _file_id: &str) -> Result<String> {
+        Err(AdapterError::Unsupported("files"))
+    }
     async fn calendars(&self) -> Result<Vec<Calendar>> {
         Err(AdapterError::Unsupported("calendar"))
     }
@@ -492,6 +512,11 @@ pub trait ProtocolAdapter: Send + Sync {
     /// People to invite: (name, email address) matching `term`.
     async fn calendar_people(&self, _term: &str) -> Result<Vec<Attendee>> {
         Ok(vec![])
+    }
+    /// When you and `people` (email addresses) are busy between `from` and `to` (UTC,
+    /// "20261124T000000Z"): you first, then the others in the order asked.
+    async fn free_busy(&self, _people: &[String], _from: &str, _to: &str) -> Result<Vec<FreeBusy>> {
+        Err(AdapterError::Unsupported("free/busy"))
     }
     /// A web address people can use to join a conversation (Talk meeting link).
     async fn conversation_link(&self, _conversation: &ConversationId) -> Result<String> {

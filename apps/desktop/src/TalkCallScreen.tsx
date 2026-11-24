@@ -3,6 +3,7 @@ import { canPickSpeaker, SpeakerPicker } from "./SpeakerPicker";
 import { BackgroundPicker } from "./BackgroundPicker";
 import { rawCamera } from "./cameraEffects";
 import { useRingtone } from "./CallScreen";
+import { useDockedCardDrag } from "./callCard";
 import { Avatar } from "./Avatar";
 import { backend } from "./backend";
 import { dndActive } from "./dnd";
@@ -193,6 +194,7 @@ export function TalkCallScreen({ calls, conversation, docked, onPopOut, onPopIn 
   const [layoutMenu, setLayoutMenu] = useState(false);
   const [page, setPage] = useState(0);
   const [pinned, setPinned] = useState<string | null>(null);
+  const cardDrag = useDockedCardDrag();
   // Who's on stage, and since when; and since when each person has been talking (see below).
   const stageOwner = useRef<{ sid: string; since: number } | null>(null);
   const talkingSince = useRef(new Map<string, number>());
@@ -263,7 +265,7 @@ export function TalkCallScreen({ calls, conversation, docked, onPopOut, onPopIn 
   if (call.minimized && docked) {
     const speaker = onStage;
     return (
-      <div className="call-mini">
+      <div className="call-mini" {...cardDrag}>
         {speaker ? tile(speaker) : selfTile()}
         {sound(call.peers.filter((p) => p !== speaker))}
         <div className="call-mini-text"><b>{name}</b><span>{status} · {t("talkcall.people", { count: call.peers.length + 1 })}</span></div>

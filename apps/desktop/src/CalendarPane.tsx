@@ -6,6 +6,7 @@ import { locale, t } from "./i18n";
 import { icalLocal, localZone, rrule, vtimezone, weekOfMonth, type Repeat, type RepeatEnd } from "./recurrence";
 import type { Attendee, Calendar, CalendarEvent, Conversation, Org } from "./types";
 import { useEscape } from "./hooks";
+import { FindTime, type Availability } from "./FindTime";
 
 interface Props {
   /** Nextcloud accounts in view. */
@@ -410,7 +411,11 @@ function EventDialog({ item, chat, writable, onClose, onEdit, onDeleted, onOpenC
 }
 
 /** People to invite: chips, with suggestions from the Nextcloud user directory; any email address works too. */
-function AttendeePicker({ account, value, onChange }: { account: string; value: Attendee[]; onChange: (v: Attendee[]) => void }) {
+function AttendeePicker({ account, value, onChange, availability }: {
+  account: string; value: Attendee[]; onChange: (v: Attendee[]) => void;
+  /** Free or busy at the chosen time, by lower-case address (Find a time). */
+  availability?: Record<string, Availability>;
+}) {
   const [term, setTerm] = useState("");
   const [found, setFound] = useState<Attendee[]>([]);
   useEffect(() => {
@@ -429,18 +434,24 @@ function AttendeePicker({ account, value, onChange }: { account: string; value: 
       <div className="attendee-chips">
         {value.map((a) => (
           <span key={a.email} className="attendee-chip" title={a.email}>
+            {availability?.[a.email.trim().toLowerCase()] && (
+              <span className={`availability ${availability[a.email.trim().toLowerCase()]}`} title={t(`findTime.${availability[a.email.trim().toLowerCase()]!}`)} />
+            )}
             {a.name || a.email}
             <button type="button" aria-label={t("calendar.removePerson")} onClick={() => onChange(value.filter((v) => v !== a))}>✕</button>
           </span>
         ))}
+        {/* A typed address counts when you move on (to Send, say) without adding it first. */}
         <input value={term} placeholder={value.length ? "" : t("calendar.peoplePlaceholder")} onChange={(e) => setTerm(e.target.value)}
+          onBlur={() => typedEmail && add({ email: term.trim() })}
           onKeyDown={(e) => {
             if (e.key === "Enter" && (found[0] || typedEmail)) { e.preventDefault(); add(found[0] ?? { email: term.trim() }); }
             if (e.key === "Backspace" && !term && value.length) onChange(value.slice(0, -1));
           }} />
       </div>
       {(found.length > 0 || typedEmail) && (
-        <div className="menu attendee-suggestions">
+        // Keeps the focus in the box, so picking someone isn't also a blur that adds the typed text.
+        <div className="menu attendee-suggestions" onMouseDown={(e) => e.preventDefault()}>
           {found.map((a) => (
             <button type="button" key={a.email} className="menu-item person" onClick={() => add(a)}>
               <Avatar account={account} media={a.user ? `user:${a.user}` : undefined} name={a.name ?? a.email} />
@@ -543,6 +554,7 @@ function MeetingDialog({ orgs, calendars, editing, series = false, prefill, onCl
   const [location, setLocation] = useState(editing?.event.location ?? "");
   const [description, setDescription] = useState(editing?.event.description ?? prefill?.details ?? "");
   const [attendees, setAttendees] = useState<Attendee[]>(editing?.event.attendees ?? []);
+  const [availability, setAvailability] = useState<Record<string, Availability>>({});
   // Repeating (new meetings only; a series being edited keeps its rule).
   const [repeat, setRepeat] = useState<Repeat>("none");
   const [days, setDays] = useState<number[]>([]);
@@ -552,6 +564,8 @@ function MeetingDialog({ orgs, calendars, editing, series = false, prefill, onCl
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const target = writable.find((w) => w.calendar.id === calendar);
+  // Find a time: everyone's free and busy times, for a meeting with people at a time of day.
+  const scheduling = attendees.length > 0 && !allDay;
 
   const save = async () => {
     if (!target || !title.trim()) return;
@@ -598,7 +612,7 @@ function MeetingDialog({ orgs, calendars, editing, series = false, prefill, onCl
 
   return (
     <div className="login-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="login-card new-meeting">
+      <div className={`login-card new-meeting ${scheduling ? "scheduling" : ""}`}>
         <button className="icon-btn close" onClick={onClose} title={t("common.closeEsc")}>✕</button>
         <h1>{editing ? t("calendar.editMeeting") : t("calendar.newMeeting")}</h1>
         {editing?.event.recurrenceId && <p className="muted">🔁 {series ? t("calendar.editingSeries") : t("calendar.editingOccurrence")}</p>}
@@ -619,7 +633,17 @@ function MeetingDialog({ orgs, calendars, editing, series = false, prefill, onCl
               </select>
             </label>
           )}
-          <label>{t("calendar.people")}{target && <AttendeePicker account={target.account} value={attendees} onChange={setAttendees} />}</label>
+          {/* Not a <label>: a label passes clicks on to its first button, which after adding someone is
+              that person's ✕, so they were removed again straight away. */}
+          <div className="form-field">
+            <span>{t("calendar.people")}</span>
+            {target && <AttendeePicker account={target.account} value={attendees} onChange={setAttendees} availability={scheduling ? availability : undefined} />}
+          </div>
+          {scheduling && target && (
+            <FindTime account={target.account} people={attendees} date={date} from={from} to={to} onAvailability={setAvailability}
+              editing={editing && !editing.allDay ? { start: editing.start, end: editing.end } : undefined}
+              onPick={(d, f, t2) => { setDate(d); setFrom(f); setTo(t2); }} />
+          )}
           {!editing && <label className="toggle-row"><input type="checkbox" checked={online} onChange={(e) => setOnline(e.target.checked)} /><span>{t("calendar.online")}</span></label>}
           {!online && <label>{t("calendar.location")}<input value={location} onChange={(e) => setLocation(e.target.value)} /></label>}
           <label>{t("calendar.description")}<textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} /></label>

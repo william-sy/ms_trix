@@ -281,8 +281,45 @@ struct CallDock {
     /// Docked and minimised: the card's height.
     mini: Option<f64>,
     title: String,
+    /// The card's corner (right, bottom), and how far it is being dragged from there.
+    corner: (bool, bool),
+    drag: Option<(f64, f64)>,
+    /// What the card keeps clear of in the main window, as its page measured it.
+    insets: CardInsets,
 }
-static CALL_DOCK: Mutex<CallDock> = Mutex::new(CallDock { popped: false, mini: None, title: String::new() });
+
+impl CallDock {
+    const fn new() -> Self {
+        CallDock { popped: false, mini: None, title: String::new(), corner: (true, true), drag: None, insets: CardInsets { top: 0.0, left: 0.0, boxes: Vec::new() } }
+    }
+}
+
+/// The app's headers (`top`), rail (`left`) and message boxes (`boxes`: left, right, top), from callCard.ts.
+#[derive(serde::Deserialize, Clone)]
+struct CardInsets {
+    top: f64,
+    left: f64,
+    boxes: Vec<[f64; 3]>,
+}
+
+static CALL_DOCK: Mutex<CallDock> = Mutex::new(CallDock::new());
+
+/// Where the card goes in its corner: right of the rail, under the headers, above a message box
+/// (with its Send button) below it; then as far as it's being dragged, inside the window. The
+/// same rule as callCard.ts `cardOrigin`.
+fn card_origin(dock: &CallDock, size: tauri::LogicalSize<f64>, height: f64) -> tauri::LogicalPosition<f64> {
+    let (right, bottom) = dock.corner;
+    let insets = &dock.insets;
+    let x = if right { size.width - MINI_WIDTH - MINI_MARGIN } else { insets.left + MINI_MARGIN };
+    let y = if bottom {
+        let floor = insets.boxes.iter().filter(|[l, r, _]| *l < x + MINI_WIDTH && *r > x).map(|b| b[2]).fold(size.height, f64::min);
+        floor - height - MINI_MARGIN
+    } else {
+        insets.top + MINI_MARGIN
+    };
+    let (dx, dy) = dock.drag.unwrap_or_default();
+    tauri::LogicalPosition::new((x + dx).min(size.width - MINI_WIDTH).max(0.0), (y + dy).min(size.height - height).max(0.0))
+}
 
 /// The size of `window`'s content. On macOS read from its content view: Tauri measures a window
 /// it thinks has no child webviews (one the call was moved into) by its first webview, so the call
@@ -312,19 +349,13 @@ fn content_size(window: &tauri::Window) -> Option<tauri::LogicalSize<f64>> {
 /// Where the call belongs: filling its own window, or docked in the main window (filling it, or
 /// the card in the corner).
 fn call_bounds(app: &AppHandle) -> Option<(tauri::Webview, tauri::LogicalPosition<f64>, tauri::LogicalSize<f64>)> {
-    let (popped, mini) = {
-        let dock = CALL_DOCK.lock().unwrap();
-        (dock.popped, dock.mini)
-    };
+    let popped = CALL_DOCK.lock().unwrap().popped;
     let window = app.get_window(if popped { CALL_POPOUT } else { "main" })?;
     let webview = app.get_webview(CALL_WINDOW)?;
     let size = content_size(&window)?;
-    Some(match mini.filter(|_| !popped) {
-        Some(height) => (
-            webview,
-            tauri::LogicalPosition::new((size.width - MINI_WIDTH - MINI_MARGIN).max(0.0), (size.height - height - MINI_MARGIN).max(0.0)),
-            tauri::LogicalSize::new(MINI_WIDTH, height),
-        ),
+    let dock = CALL_DOCK.lock().unwrap();
+    Some(match dock.mini.filter(|_| !dock.popped) {
+        Some(height) => (webview, card_origin(&dock, size, height), tauri::LogicalSize::new(MINI_WIDTH, height)),
         None => (webview, tauri::LogicalPosition::new(0.0, 0.0), size),
     })
 }
@@ -385,7 +416,10 @@ async fn open_call_window(app: AppHandle, params: String, title: String, docked:
     }
     let hash: String = url::form_urlencoded::byte_serialize(params.as_bytes()).collect();
     let builder = tauri::webview::WebviewBuilder::new(CALL_WINDOW, tauri::WebviewUrl::App(format!("index.html#talk-call={hash}").into())).transparent(true);
-    *CALL_DOCK.lock().unwrap() = CallDock { popped: !docked, mini: None, title: title.clone() };
+    {
+        let mut dock = CALL_DOCK.lock().unwrap();
+        (dock.popped, dock.mini, dock.drag, dock.title) = (!docked, None, None, title.clone());
+    }
     let origin = tauri::LogicalPosition::new(0.0, 0.0);
     if docked {
         let main = app.get_window("main").ok_or("no main window")?;
@@ -430,14 +464,17 @@ async fn pop_in_call(app: AppHandle) -> CmdResult<()> {
     Ok(())
 }
 
-/// The call screen was minimised or restored: docked, it becomes the card in the corner (of
-/// `height`) or fills the app again; in its own window, the window is minimised (while you
-/// share your screen) or comes back.
+/// The call screen was minimised or restored: docked, it becomes the card in a corner (of
+/// `height`; `corner` "tl", "tr", "bl" or "br") or fills the app again; in its own window, the
+/// window is minimised (while you share your screen) or comes back.
 #[tauri::command]
-async fn dock_call_window(app: AppHandle, minimized: bool, height: f64) {
+async fn dock_call_window(app: AppHandle, minimized: bool, height: f64, corner: Option<String>) {
     let popped = {
         let mut dock = CALL_DOCK.lock().unwrap();
         dock.mini = minimized.then_some(height);
+        if let Some(corner) = corner.as_deref().filter(|c| matches!(*c, "tl" | "tr" | "bl" | "br")) {
+            dock.corner = (corner.ends_with('r'), corner.starts_with('b'));
+        }
         dock.popped
     };
     if !popped {
@@ -445,6 +482,43 @@ async fn dock_call_window(app: AppHandle, minimized: bool, height: f64) {
     }
     if let Some(window) = app.get_window(CALL_POPOUT) {
         let _ = if minimized { window.minimize() } else { window.unminimize() };
+    }
+}
+
+/// The card is being dragged, (dx, dy) from its corner.
+#[tauri::command]
+async fn drag_call_card(app: AppHandle, dx: f64, dy: f64) {
+    CALL_DOCK.lock().unwrap().drag = Some((dx, dy));
+    place_call(&app);
+}
+
+/// The card was let go: it goes to the nearest corner, which is returned ("br", …) to be remembered.
+#[tauri::command]
+async fn drop_call_card(app: AppHandle) -> String {
+    let size = app.get_window("main").and_then(|w| content_size(&w));
+    let corner = {
+        let mut dock = CALL_DOCK.lock().unwrap();
+        if let (Some(size), Some(height)) = (size, dock.mini) {
+            let at = card_origin(&dock, size, height);
+            dock.corner = (at.x + MINI_WIDTH / 2.0 > size.width / 2.0, at.y + height / 2.0 > size.height / 2.0);
+        }
+        dock.drag = None;
+        format!("{}{}", if dock.corner.1 { 'b' } else { 't' }, if dock.corner.0 { 'r' } else { 'l' })
+    };
+    place_call(&app);
+    corner
+}
+
+/// The main window's headers, rail and message boxes moved (see CardInsets): the card keeps clear.
+#[tauri::command]
+async fn call_card_insets(app: AppHandle, insets: CardInsets) {
+    let mini = {
+        let mut dock = CALL_DOCK.lock().unwrap();
+        dock.insets = insets;
+        dock.mini.is_some() && !dock.popped
+    };
+    if mini {
+        place_call(&app);
     }
 }
 
@@ -471,7 +545,10 @@ async fn close_call_window(app: AppHandle) {
     if let Some(window) = app.get_window(CALL_POPOUT) {
         let _ = window.destroy();
     }
-    *CALL_DOCK.lock().unwrap() = CallDock { popped: false, mini: None, title: String::new() };
+    {
+        let mut dock = CALL_DOCK.lock().unwrap();
+        (dock.popped, dock.mini, dock.drag, dock.title) = (false, None, None, String::new());
+    }
 }
 
 /// Which conversation the call is in, so the app shows it as busy / in a call.
@@ -1091,6 +1168,53 @@ async fn cloud_files(state: State<'_, AppState>, account: String, path: String) 
     adapter_for(&state, &account)?.cloud_files(&path).await.map_err(|e| e.to_string())
 }
 
+/// Recently changed files of a Nextcloud account (the Files view).
+#[tauri::command]
+async fn cloud_recent(state: State<'_, AppState>, account: String) -> CmdResult<Vec<trix_core::CloudFile>> {
+    adapter_for(&state, &account)?.cloud_recent().await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn cloud_search(state: State<'_, AppState>, account: String, term: String) -> CmdResult<Vec<trix_core::CloudFile>> {
+    adapter_for(&state, &account)?.cloud_search(&term).await.map_err(|e| e.to_string())
+}
+
+/// Uploads files picked or dropped into a folder; returns their paths in Files.
+#[tauri::command]
+async fn cloud_upload_paths(state: State<'_, AppState>, account: String, folder: String, paths: Vec<String>) -> CmdResult<Vec<String>> {
+    let adapter = adapter_for(&state, &account)?;
+    let mut stored = vec![];
+    for path in paths {
+        let path = PathBuf::from(path);
+        if path.is_dir() {
+            return Err(format!("{} is a folder; only files can be uploaded", path.display()));
+        }
+        let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| "file".into());
+        let read = path.clone();
+        let data = tauri::async_runtime::spawn_blocking(move || std::fs::read(read)).await.map_err(|e| e.to_string())?.map_err(|e| format!("{name}: {e}"))?;
+        stored.push(adapter.cloud_upload(&folder, &name, data).await.map_err(|e| format!("{name}: {e}"))?);
+    }
+    Ok(stored)
+}
+
+#[tauri::command]
+async fn cloud_mkdir(state: State<'_, AppState>, account: String, path: String) -> CmdResult<()> {
+    adapter_for(&state, &account)?.cloud_mkdir(&path).await.map_err(|e| e.to_string())
+}
+
+/// A read-only public link to a stored file or folder.
+#[tauri::command]
+async fn cloud_share_link(state: State<'_, AppState>, account: String, path: String) -> CmdResult<String> {
+    adapter_for(&state, &account)?.cloud_link(&path).await.map_err(|e| e.to_string())
+}
+
+/// Opens a stored file in the Nextcloud web interface (documents in Nextcloud Office).
+#[tauri::command]
+async fn open_cloud_file(app: AppHandle, account: String, file_id: String) -> CmdResult<()> {
+    let url = adapter_for(&app.state::<AppState>(), &account)?.cloud_web_url(&file_id).await.map_err(|e| e.to_string())?;
+    app.opener().open_url(url, None::<&str>).map_err(|e| e.to_string())
+}
+
 /// Attaches a stored file to a chat: shared into the conversation when it's on the same
 /// Nextcloud, otherwise returns a public link for the UI to send as a message.
 #[tauri::command]
@@ -1226,6 +1350,15 @@ async fn save_background_video(state: State<'_, AppState>, request: tauri::ipc::
 #[tauri::command]
 async fn background_video(state: State<'_, AppState>) -> CmdResult<tauri::ipc::Response> {
     std::fs::read(state.data_dir.join(BACKGROUND_FILE)).map(tauri::ipc::Response::new).map_err(|e| e.to_string())
+}
+
+/// When you (first) and `people` (email addresses) are busy between `from` and `to` (UTC iCalendar times).
+#[tauri::command]
+async fn calendar_free_busy(state: State<'_, AppState>, account: String, people: Vec<String>, from: String, to: String) -> CmdResult<Vec<trix_core::FreeBusy>> {
+    adapter_for(&state, &account)?.free_busy(&people, &from, &to).await.map_err(|e| {
+        log::info!("free/busy for {account}: {e}");
+        e.to_string()
+    })
 }
 
 #[tauri::command]
@@ -2399,6 +2532,9 @@ pub fn run() {
             reminder_action,
             pop_in_call,
             dock_call_window,
+            drag_call_card,
+            drop_call_card,
+            call_card_insets,
             call_page_size,
             save_background_video,
             background_video,
@@ -2489,6 +2625,12 @@ pub fn run() {
             send_call_event,
             turn_servers,
             cloud_files,
+            cloud_recent,
+            cloud_search,
+            cloud_upload_paths,
+            cloud_mkdir,
+            cloud_share_link,
+            open_cloud_file,
             attach_cloud_file,
             calendars,
             notes,
@@ -2503,6 +2645,7 @@ pub fn run() {
             update_event,
             delete_event,
             calendar_people,
+            calendar_free_busy,
             respond_event,
             notify,
             conversation_link,

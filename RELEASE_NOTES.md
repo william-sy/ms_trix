@@ -1,5 +1,31 @@
 # Release notes
 
+## 1.7 (not released yet)
+
+### New
+- **Find a time** in New meeting (and Edit): as soon as you add people, everyone's free and busy
+  times for the meeting's day show under People, you included, with the chosen time framed.
+  Click a free spot to move the meeting there, or ‹ › to another day. A dot on each person says
+  whether they're free at the chosen time (busy, tentative, outside their working hours, or
+  unknown). *Suggest a time* lists the next times in the coming week when everyone is free,
+  within working hours (8:00–18:00 on weekdays); one click picks one. Nextcloud answers this
+  itself, across all of someone's calendars, without showing what their meetings are; it works
+  for people on the same Nextcloud (email guests show as unknown).
+- **Files** in the rail (Nextcloud): your folders, files changed in the last month, and a search
+  through all your files. Drop files on it to upload them to the folder you're in (or use
+  Upload; nothing is overwritten, a name that's taken gets "(2)"), make a folder. Open a file in
+  Nextcloud (documents in Nextcloud Office) or on this computer, download it, copy a view-only
+  link, or send it to any chat: in a Talk chat on the same Nextcloud it's shared as a file,
+  elsewhere as a link.
+- **The minimised call can be moved:** drag it to another corner of the window; it stays there
+  for the next call. In its corner it keeps clear of the message box, so Send stays clickable.
+
+### Fixed
+- Calendar: inviting someone by typing their address and clicking *Invite …* added them and
+  removed them again straight away, so the meeting was saved without them. An address you typed
+  but didn't add yet now counts when you click Send.
+- The minimised call covered the Send button.
+
 ## 1.6.0 (2026-11-23)
 
 ### New

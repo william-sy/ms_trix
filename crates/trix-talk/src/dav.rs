@@ -6,7 +6,7 @@ use std::collections::HashMap;
 
 use quick_xml::events::Event;
 use quick_xml::Reader;
-use trix_core::{Attendee, CalendarEvent, NewEvent};
+use trix_core::{Attendee, BusyTime, CalendarEvent, FreeBusy, NewEvent};
 
 /// One `<d:response>` of a multistatus reply.
 #[derive(Debug, Default)]
@@ -120,6 +120,37 @@ pub const PROPFIND_FILES: &str = r#"<?xml version="1.0"?>
 <d:propfind xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns">
   <d:prop><d:displayname/><d:getcontentlength/><d:getcontenttype/><d:getlastmodified/><d:resourcetype/><oc:fileid/><oc:size/></d:prop>
 </d:propfind>"#;
+
+/// What a files search looks for: recently changed files (since a Unix time), or names containing a term.
+pub enum FileQuery<'a> {
+    Recent { since: u64 },
+    Name(&'a str),
+}
+
+/// A WebDAV SEARCH (as Nextcloud's own Files app does it) through all of `user`'s files, newest first.
+pub fn files_search(user: &str, query: FileQuery) -> String {
+    let xml = |s: &str| s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;");
+    let user = percent_encoding::utf8_percent_encode(user, percent_encoding::NON_ALPHANUMERIC);
+    let filter = match query {
+        FileQuery::Recent { since } => format!(
+            "<d:and><d:not><d:eq><d:prop><d:getcontenttype/></d:prop><d:literal>httpd/unix-directory</d:literal></d:eq></d:not>\
+             <d:gt><d:prop><d:getlastmodified/></d:prop><d:literal>{since}</d:literal></d:gt></d:and>"
+        ),
+        FileQuery::Name(term) => format!("<d:like><d:prop><d:displayname/></d:prop><d:literal>%{}%</d:literal></d:like>", xml(term.trim())),
+    };
+    format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<d:searchrequest xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns">
+  <d:basicsearch>
+    <d:select><d:prop><d:displayname/><d:getcontentlength/><d:getcontenttype/><d:getlastmodified/><d:resourcetype/><oc:fileid/><oc:size/></d:prop></d:select>
+    <d:from><d:scope><d:href>/files/{user}</d:href><d:depth>infinity</d:depth></d:scope></d:from>
+    <d:where>{filter}</d:where>
+    <d:orderby><d:order><d:prop><d:getlastmodified/></d:prop><d:descending/></d:order></d:orderby>
+    <d:limit><d:nresults>100</d:nresults></d:limit>
+  </d:basicsearch>
+</d:searchrequest>"#
+    )
+}
 
 pub const PROPFIND_CALENDARS: &str = r#"<?xml version="1.0"?>
 <d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:x="http://apple.com/ns/ical/">
@@ -607,6 +638,127 @@ pub fn people_query(term: &str) -> String {
     )
 }
 
+/// An address that is safe on an iCalendar line.
+fn plain_address(email: &str) -> bool {
+    email.contains('@') && !email.chars().any(|c| c.is_control() || c.is_whitespace() || matches!(c, ',' | ';' | ':' | '"'))
+}
+
+/// Asks the scheduling outbox (RFC 6638) when `people` are busy between `from` and `to` (UTC);
+/// sent as `organizer`, which must be one of the user's own addresses.
+pub fn freebusy_request(uid: &str, stamp: &str, organizer: &str, people: &[String], from: &str, to: &str) -> String {
+    let mut lines = vec![
+        "BEGIN:VCALENDAR".to_owned(),
+        "VERSION:2.0".to_owned(),
+        "PRODID:-//Trixcomm//EN".to_owned(),
+        "METHOD:REQUEST".to_owned(),
+        "BEGIN:VFREEBUSY".to_owned(),
+        format!("UID:{uid}"),
+        format!("DTSTAMP:{stamp}"),
+        format!("DTSTART:{from}"),
+        format!("DTEND:{to}"),
+        format!("ORGANIZER:mailto:{organizer}"),
+    ];
+    lines.extend(people.iter().map(|p| p.trim()).filter(|p| plain_address(p)).map(|p| format!("ATTENDEE:mailto:{p}")));
+    lines.extend(["END:VFREEBUSY".to_owned(), "END:VCALENDAR".to_owned()]);
+    lines.join("\r\n") + "\r\n"
+}
+
+/// An ISO 8601 duration ("PT1H30M", "P1D") in seconds.
+fn duration_secs(v: &str) -> Option<i64> {
+    let v = v.trim().strip_prefix('+').unwrap_or(v.trim());
+    let mut rest = v.strip_prefix('P')?;
+    let (mut total, mut time) = (0i64, false);
+    while !rest.is_empty() {
+        if let Some(r) = rest.strip_prefix('T') {
+            (time, rest) = (true, r);
+            continue;
+        }
+        let digits = rest.find(|c: char| !c.is_ascii_digit())?;
+        let n: i64 = rest[..digits].parse().ok()?;
+        total += n * match (rest[digits..].chars().next()?, time) {
+            ('W', false) => 604_800,
+            ('D', false) => 86_400,
+            ('H', true) => 3600,
+            ('M', true) => 60,
+            ('S', true) => 1,
+            _ => return None,
+        };
+        rest = &rest[digits + 1..];
+    }
+    Some(total)
+}
+
+/// The busy periods in a VFREEBUSY reply: "start/end" or "start/duration", UTC.
+fn busy_times(ics: &str) -> Vec<BusyTime> {
+    let mut out = vec![];
+    for (name, params, value) in ics_lines(ics) {
+        if name != "FREEBUSY" {
+            continue;
+        }
+        let kind = params.iter().find(|(k, _)| k == "FBTYPE").map(|(_, v)| v.to_ascii_uppercase()).unwrap_or_else(|| "BUSY".into());
+        if kind == "FREE" {
+            continue;
+        }
+        for period in value.split(',') {
+            let Some((start, end)) = period.split_once('/') else { continue };
+            let Some(from) = ical_secs(start).filter(|_| start.trim().ends_with('Z')) else { continue };
+            let to = if end.trim().ends_with('Z') { ical_secs(end) } else { duration_secs(end).map(|d| from + d) };
+            if let Some(to) = to.filter(|to| *to > from) {
+                out.push(BusyTime { start: from * 1000, end: to * 1000, kind: kind.clone() });
+            }
+        }
+    }
+    out
+}
+
+/// The outbox's answer (a schedule-response): per address its busy times, None where the server
+/// doesn't know the address (request status other than 2.x) or sent no data.
+pub fn freebusy_replies(xml: &str) -> Vec<FreeBusy> {
+    let mut reader = Reader::from_str(xml);
+    let mut out = vec![];
+    let (mut email, mut status, mut data) = (String::new(), String::new(), None::<String>);
+    let mut stack: Vec<String> = vec![];
+    let mut text = String::new();
+    loop {
+        let event = match reader.read_event() {
+            Ok(Event::Eof) | Err(_) => break,
+            Ok(e) => e,
+        };
+        match event {
+            Event::Start(e) => {
+                let name = e.local_name().as_ref().to_owned();
+                if name == "response" {
+                    (email, status, data) = (String::new(), String::new(), None);
+                }
+                stack.push(name);
+                text.clear();
+            }
+            Event::Text(t) => text.push_str(&t.xml10_content()),
+            Event::CData(t) => text.push_str(&t.into_inner()),
+            Event::GeneralRef(r) => {
+                let resolved = r.resolve_char_ref().ok().flatten().or_else(|| entity(&r.xml10_content()));
+                text.extend(resolved);
+            }
+            Event::End(_) => {
+                let Some(name) = stack.pop() else { continue };
+                match name.as_str() {
+                    "href" if stack.last().map(String::as_str) == Some("recipient") => email = mailto(text.trim()),
+                    "request-status" => status = text.trim().to_owned(),
+                    "calendar-data" => data = Some(text.clone()),
+                    "response" if !email.is_empty() => {
+                        let known = status.starts_with('2');
+                        out.push(FreeBusy { email: email.clone(), busy: data.as_deref().filter(|_| known).map(busy_times) });
+                    }
+                    _ => {}
+                }
+                text.clear();
+            }
+            _ => {}
+        }
+    }
+    out
+}
+
 /// iCalendar values are plain ASCII digits/letters; anything else is a bad request.
 pub fn valid_time(v: &str) -> bool {
     matches!(v.len(), 8 | 16) && v.chars().all(|c| c.is_ascii_digit() || c == 'T' || c == 'Z')
@@ -755,5 +907,59 @@ mod tests {
         assert_eq!(encode_path("/a b/c.txt").as_deref(), Some("/a%20b/c%2Etxt"));
         assert_eq!(encode_path("/a/../b"), None);
         assert!(valid_time("20261117T080000Z") && valid_time("20261117") && !valid_time("2026<x>"));
+    }
+
+    #[test]
+    fn free_busy_request_and_replies() {
+        let people = ["bo@x.org".to_owned(), "evil@x.org\r\nATTENDEE:mailto:z@x.org".to_owned()];
+        let ics = freebusy_request("u", "20261124T100000Z", "me@x.org", &people, "20261124T000000Z", "20261201T000000Z");
+        assert!(ics.contains("METHOD:REQUEST\r\nBEGIN:VFREEBUSY"));
+        assert!(ics.contains("ORGANIZER:mailto:me@x.org\r\nATTENDEE:mailto:bo@x.org\r\nEND:VFREEBUSY"));
+        assert!(!ics.contains("z@x.org"));
+
+        let xml = r#"<?xml version="1.0" encoding="utf-8"?>
+<cal:schedule-response xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">
+ <cal:response>
+  <cal:recipient><d:href>mailto:bo@x.org</d:href></cal:recipient>
+  <cal:request-status>2.0;Success</cal:request-status>
+  <cal:calendar-data>BEGIN:VCALENDAR&#13;
+METHOD:REPLY&#13;
+BEGIN:VFREEBUSY&#13;
+FREEBUSY:20261124T090000Z/20261124T100000Z,20261124T130000Z/PT1H30M&#13;
+FREEBUSY;FBTYPE=BUSY-UNAVAILABLE:20261124T170000Z/20261125T080000Z&#13;
+FREEBUSY;FBTYPE=FREE:20261124T100000Z/20261124T110000Z&#13;
+END:VFREEBUSY&#13;
+END:VCALENDAR&#13;
+</cal:calendar-data>
+ </cal:response>
+ <cal:response>
+  <cal:recipient><d:href>mailto:guest@elsewhere.org</d:href></cal:recipient>
+  <cal:request-status>3.7;Could not find principal</cal:request-status>
+ </cal:response>
+</cal:schedule-response>"#;
+        let replies = freebusy_replies(xml);
+        assert_eq!(replies.len(), 2);
+        assert_eq!(replies[0].email, "bo@x.org");
+        let busy = replies[0].busy.as_ref().unwrap();
+        let at = |v: &str| ical_secs(v).unwrap() * 1000;
+        assert_eq!(busy[0], BusyTime { start: at("20261124T090000Z"), end: at("20261124T100000Z"), kind: "BUSY".into() });
+        assert_eq!(busy[1], BusyTime { start: at("20261124T130000Z"), end: at("20261124T143000Z"), kind: "BUSY".into() });
+        assert_eq!(busy[2].kind, "BUSY-UNAVAILABLE");
+        assert_eq!(busy.len(), 3);
+        assert_eq!(replies[1].email, "guest@elsewhere.org");
+        assert!(replies[1].busy.is_none());
+        assert_eq!(duration_secs("P1DT2H"), Some(93_600));
+        assert_eq!(duration_secs("PT"), Some(0));
+        assert_eq!(duration_secs("1H"), None);
+    }
+
+    #[test]
+    fn files_search_queries() {
+        let named = files_search("bo smith", FileQuery::Name(" plan <b>&c "));
+        assert!(named.contains("<d:href>/files/bo%20smith</d:href>"));
+        assert!(named.contains("<d:literal>%plan &lt;b&gt;&amp;c%</d:literal>"));
+        let recent = files_search("bo", FileQuery::Recent { since: 1_700_000_000 });
+        assert!(recent.contains("<d:literal>httpd/unix-directory</d:literal></d:eq></d:not><d:gt>"));
+        assert!(recent.contains("<d:literal>1700000000</d:literal>"));
     }
 }
