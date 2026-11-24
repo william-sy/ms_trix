@@ -1271,6 +1271,49 @@ fn link_target(state: State<'_, AppState>, url: String) -> Option<String> {
     engine.accounts().iter().filter_map(|a| engine.adapter(&a.id)).find_map(|adapter| adapter.link_target(&url))
 }
 
+#[derive(serde::Serialize)]
+struct CloudPlace {
+    account: String,
+    path: String,
+}
+
+/// Where a link to a file on one of our Nextcloud servers is in that account's files, so "Show
+/// in Files" can open it there; None for other links (those open in the browser).
+#[tauri::command]
+async fn locate_cloud_link(state: State<'_, AppState>, url: String) -> CmdResult<Option<CloudPlace>> {
+    let adapters: Vec<(String, Arc<dyn trix_core::ProtocolAdapter>)> = {
+        let engine = state.engine.lock().unwrap();
+        engine.accounts().iter().filter_map(|a| Some((a.id.0.clone(), engine.adapter(&a.id)?))).collect()
+    };
+    for (account, adapter) in adapters {
+        match adapter.cloud_locate(&url).await {
+            Ok(Some(path)) => return Ok(Some(CloudPlace { account, path })),
+            Ok(None) => {}
+            Err(e) => log::info!("locating a link on {account}: {e}"),
+        }
+    }
+    Ok(None)
+}
+
+/// A stored file downloaded once to the cache, to be played from there (videos in the gallery:
+/// the player asks for many byte ranges); the picked-file token it's served under.
+#[tauri::command]
+async fn cloud_view_file(app: AppHandle, account: String, path: String) -> CmdResult<String> {
+    let adapter = adapter_for(&app.state::<AppState>(), &account)?;
+    let dir = app.path().app_cache_dir().map_err(|e| e.to_string())?.join("viewed");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    // What was viewed earlier goes (one file at a time is enough).
+    for entry in std::fs::read_dir(&dir).map_err(|e| e.to_string())?.flatten() {
+        let _ = std::fs::remove_file(entry.path());
+    }
+    let bytes = adapter.cloud_file_bytes(&path).await.map_err(|e| e.to_string())?;
+    // Only the name part, so a hostile name can't escape the folder.
+    let name = std::path::Path::new(&path).file_name().map(|n| n.to_owned()).unwrap_or_else(|| "file".into());
+    let file = dir.join(name);
+    std::fs::write(&file, bytes).map_err(|e| e.to_string())?;
+    Ok(describe(file).token)
+}
+
 /// The apps the account's server offers (Nextcloud navigation ids, e.g. "calendar").
 #[tauri::command]
 async fn cloud_apps(state: State<'_, AppState>, account: String) -> CmdResult<Vec<String>> {
@@ -2644,6 +2687,8 @@ pub fn run() {
             cloud_delete,
             cloud_share_link,
             open_cloud_file,
+            locate_cloud_link,
+            cloud_view_file,
             attach_cloud_file,
             calendars,
             notes,

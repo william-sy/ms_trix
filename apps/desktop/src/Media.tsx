@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ContextMenu } from "./ContextMenu";
+import { showInFiles } from "./filesNav";
 import { formatDuration } from "./voice";
 import { backend, isLive, mediaUrl } from "./backend";
 import type { Message } from "./types";
@@ -84,13 +85,22 @@ export function MediaMenu({ media, account, x, y, onView, onClose, onNotice }: {
   }, [onClose]);
 
   const isImage = media.kind === "image" || media.kind === "sticker";
+  const place = cloudPath(media.id);
   return (
     <ContextMenu x={x} y={y}>
       {isImage && <button className="menu-item" onClick={() => { onView(); onClose(); }}>{t("media.view")}</button>}
       <button className="menu-item" onClick={() => { save(account, media, onNotice); onClose(); }}>{t("media.saveAs")}</button>
       <button className="menu-item" onClick={() => { backend.openMedia(account, media.id, media.name).catch((e) => onNotice(String(e))); onClose(); }}>{t("media.openDefault")}</button>
+      {place && <button className="menu-item" onClick={() => { showInFiles(account, place); onClose(); }}>{t("files.showInFiles")}</button>}
     </ContextMenu>
   );
+}
+
+/** A Talk file message's place in your own files ("file:<id>:<path>"), for Show in Files. */
+function cloudPath(id: string): string | null {
+  const rest = id.startsWith("file:") ? id.slice(5) : null;
+  const path = rest?.slice(rest.indexOf(":") + 1).replace(/^\/+/, "");
+  return isLive && rest?.includes(":") && path ? `/${path}` : null;
 }
 
 function save(account: string, media: Media, onNotice: (m: string) => void) {

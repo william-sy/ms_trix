@@ -6,6 +6,7 @@ import { backend, isLive, pickedUrl, subscribe, videoThumb, type ActivityItem, t
 import { BellIcon, CalendarIcon, CallIcon, ChatIcon, FilesIcon, MoreIcon, NotesIcon, TeamsIcon } from "./Icons";
 import { NotesPane } from "./NotesPane";
 import { FilesPane } from "./FilesPane";
+import { SHOW_IN_FILES, type FilesReveal } from "./filesNav";
 import { capabilities } from "./mock";
 import { ChatList } from "./ChatList";
 import { ChatView } from "./ChatView";
@@ -191,6 +192,17 @@ export function App() {
   const [view, setView] = useState<"activity" | "chat" | "teams" | "calls" | "calendar" | "notes" | "files">("chat");
   const viewRef = useRef(view);
   viewRef.current = view;
+  // Show in Files (from a chat): the Files view, at that file.
+  const [filesReveal, setFilesReveal] = useState<FilesReveal | null>(null);
+  useEffect(() => {
+    const onShow = (e: Event) => {
+      const { account, path } = (e as CustomEvent<{ account: string; path: string }>).detail;
+      setFilesReveal({ account, path, at: Date.now() });
+      setView("files");
+    };
+    window.addEventListener(SHOW_IN_FILES, onShow);
+    return () => window.removeEventListener(SHOW_IN_FILES, onShow);
+  }, []);
   const [teams, setTeams] = useState<TeamView[]>([]);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [activitySelected, setActivitySelected] = useState<string | null>(null);
@@ -298,6 +310,10 @@ export function App() {
   const [securityFor, setSecurityFor] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const selectOrg = useCallback((org: OrgFilter) => dispatch({ type: "selectOrg", org }), []);
+  // A file to show on an account outside the organization in view: all of them, so Files has it.
+  useEffect(() => {
+    if (filesReveal && state.orgFilter !== "all" && state.orgFilter !== filesReveal.account) selectOrg("all");
+  }, [filesReveal?.at]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Start with the chat list from last time (if any) instead of a spinner; once every
   // account is back, the live list replaces it and chats that are gone disappear.
@@ -787,7 +803,7 @@ export function App() {
                 onJoinCall={(id) => { setView("chat"); act({ type: "select", id }); talkCalls.start(id, lastCameraOn()); }} />
             )}
             {view === "notes" && <NotesPane orgs={notesOrgs} />}
-            {view === "files" && <FilesPane orgs={cloudOrgs} convs={state.convs} />}
+            {view === "files" && <FilesPane orgs={cloudOrgs} convs={state.convs} reveal={filesReveal} />}
             {view === "calls" && <CallsPane convs={state.convs} onOpen={(id) => { setView("chat"); act({ type: "select", id }); }} />}
             {view === "activity" && (
               <ActivityPane items={activity.filter((a) => inOrg(a.conversation) && activityShown(a))} isUnread={activityUnread} selected={activitySelected}

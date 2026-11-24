@@ -125,6 +125,8 @@ pub const PROPFIND_FILES: &str = r#"<?xml version="1.0"?>
 pub enum FileQuery<'a> {
     Recent { since: u64 },
     Name(&'a str),
+    /// The file or folder with this id.
+    Id(u64),
 }
 
 /// A WebDAV SEARCH (as Nextcloud's own Files app does it) through all of `user`'s files, newest first.
@@ -137,6 +139,7 @@ pub fn files_search(user: &str, query: FileQuery) -> String {
              <d:gt><d:prop><d:getlastmodified/></d:prop><d:literal>{since}</d:literal></d:gt></d:and>"
         ),
         FileQuery::Name(term) => format!("<d:like><d:prop><d:displayname/></d:prop><d:literal>%{}%</d:literal></d:like>", xml(term.trim())),
+        FileQuery::Id(id) => format!("<d:eq><d:prop><oc:fileid/></d:prop><d:literal>{id}</d:literal></d:eq>"),
     };
     format!(
         r#"<?xml version="1.0" encoding="UTF-8"?>
@@ -158,6 +161,34 @@ pub const PROPFIND_CALENDARS: &str = r#"<?xml version="1.0"?>
 <d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:x="http://apple.com/ns/ical/">
   <d:prop><d:displayname/><d:resourcetype/><d:current-user-privilege-set/><c:supported-calendar-component-set/><x:calendar-color/><c:calendar-timezone/><c:calendar-timezone-id/><c:calendar-availability/></d:prop>
 </d:propfind>"#;
+
+/// What a link to a Nextcloud file points at, from the part after the server address: a file id
+/// (`/f/<id>`, `/apps/files/files/<id>`, `…?fileid=<id>`) or a share link's token (`/s/<token>`).
+#[derive(Debug, PartialEq)]
+pub enum FileLink {
+    Id(u64),
+    Share(String),
+}
+
+pub fn file_link(rest: &str) -> Option<FileLink> {
+    let rest = rest.strip_prefix("/index.php").unwrap_or(rest);
+    let (path, query) = rest.split_once('?').unwrap_or((rest, ""));
+    let path = path.split('#').next().unwrap_or_default().trim_end_matches('/');
+    let id = |v: &str| v.parse::<u64>().ok().map(FileLink::Id);
+    if let Some(v) = path.strip_prefix("/f/") {
+        return id(v);
+    }
+    if let Some(token) = path.strip_prefix("/s/") {
+        return (token.len() >= 4 && token.chars().all(|c| c.is_ascii_alphanumeric())).then(|| FileLink::Share(token.to_owned()));
+    }
+    if !path.starts_with("/apps/files") {
+        return None;
+    }
+    path.strip_prefix("/apps/files/files/").and_then(id).or_else(|| {
+        let query = query.split('#').next().unwrap_or_default();
+        query.split('&').find_map(|kv| kv.strip_prefix("fileid=").or_else(|| kv.strip_prefix("openfile=").filter(|v| v.parse::<u64>().is_ok()))).and_then(id)
+    })
+}
 
 /// The time zone in a calendar's properties: its timezone id, or the TZID of the VTIMEZONE (or
 /// of a TZID= parameter) in its calendar-timezone or calendar-availability.
@@ -989,5 +1020,18 @@ END:VCALENDAR&#13;
         assert_eq!(zone_of(&props("calendar-availability", availability)).as_deref(), Some("Europe/Berlin"));
         assert_eq!(zone_of(&props("calendar-timezone-id", "Bad Zone\r\nX")), None);
         assert_eq!(zone_of(&HashMap::new()), None);
+    }
+
+    #[test]
+    fn file_links() {
+        assert_eq!(file_link("/index.php/f/123"), Some(FileLink::Id(123)));
+        assert_eq!(file_link("/f/77/"), Some(FileLink::Id(77)));
+        assert_eq!(file_link("/apps/files/files/456?dir=/Docs&openfile=true"), Some(FileLink::Id(456)));
+        assert_eq!(file_link("/index.php/apps/files/?dir=/Docs&fileid=9"), Some(FileLink::Id(9)));
+        assert_eq!(file_link("/s/AbC123xyz"), Some(FileLink::Share("AbC123xyz".into())));
+        assert_eq!(file_link("/s/ab"), None);
+        assert_eq!(file_link("/call/abcd1234"), None);
+        assert_eq!(file_link("/apps/calendar/?fileid=3"), None);
+        assert!(files_search("bo", FileQuery::Id(42)).contains("<d:eq><d:prop><oc:fileid/></d:prop><d:literal>42</d:literal></d:eq>"));
     }
 }

@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { backend, isLive, type LinkPreviewData } from "./backend";
+import { showInFiles } from "./filesNav";
 import { t } from "./i18n";
 import { checkLink, ownDomains, siteOf, type LinkWarning } from "./linkCheck";
 import { currentSettings, onSettingsChanged } from "./settings";
@@ -34,14 +35,17 @@ export const confirmLink = (warning: LinkWarning | undefined) => !warning || con
 export const InAppLinkContext = createContext<((key: string) => void) | null>(null);
 
 /**
- * Opens a link: a Talk link to one of your own servers here in the app, anything else in the
- * browser (asking first when it looks like phishing).
+ * Opens a link: a Talk link to one of your own servers here in the app, a link to one of your
+ * own Nextcloud files in Files, anything else in the browser (asking first when it looks like
+ * phishing).
  */
 export function useOpenLink() {
   const openInApp = useContext(InAppLinkContext);
   return (href: string, warning?: LinkWarning) => void (async () => {
     const key = openInApp && isLive ? await backend.linkTarget(href).catch(() => null) : null;
     if (key) return openInApp!(key);
+    const place = isLive ? await backend.locateCloudLink(href).catch(() => null) : null;
+    if (place) return showInFiles(place.account, place.path);
     if (confirmLink(warning)) void backend.openUrl(href).catch(() => {});
   })();
 }

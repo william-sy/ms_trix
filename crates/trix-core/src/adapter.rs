@@ -458,6 +458,11 @@ pub trait ProtocolAdapter: Send + Sync {
     async fn cloud_delete(&self, _path: &str) -> Result<()> {
         Err(AdapterError::Unsupported("files"))
     }
+    /// Where a link to a file on this account's server is in the user's own files (its path),
+    /// for "Show in Files"; None for links elsewhere or to files that aren't theirs.
+    async fn cloud_locate(&self, _link: &str) -> Result<Option<String>> {
+        Ok(None)
+    }
     /// A stored file or folder in the server's web interface (documents open in its office app).
     async fn cloud_web_url(&self, _file_id: &str) -> Result<String> {
         Err(AdapterError::Unsupported("files"))

@@ -1670,6 +1670,22 @@ impl ProtocolAdapter for TalkAdapter {
         }
     }
 
+    async fn cloud_locate(&self, link: &str) -> Result<Option<String>> {
+        let Some(rest) = link.trim().strip_prefix(self.session.server.trim_end_matches('/')) else { return Ok(None) };
+        match dav::file_link(rest) {
+            Some(dav::FileLink::Id(id)) => {
+                let query = dav::files_search(&self.dav_user().await, dav::FileQuery::Id(id));
+                Ok(cloud_entries(&self.dav("SEARCH", "/remote.php/dav/", "0", query).await?).into_iter().next().map(|f| f.path))
+            }
+            // One of your own share links (the shares you made, with their path in your files).
+            Some(dav::FileLink::Share(token)) => {
+                let shares = self.ocs(self.request(Method::GET, "/ocs/v2.php/apps/files_sharing/api/v1/shares")).await?.map(|(d, _)| d).unwrap_or(Value::Null);
+                Ok(shares.as_array().into_iter().flatten().find(|s| s["token"].as_str() == Some(token.as_str())).and_then(|s| s["path"].as_str()).map(|p| format!("/{}", p.trim_matches('/'))))
+            }
+            None => Ok(None),
+        }
+    }
+
     async fn cloud_web_url(&self, file_id: &str) -> Result<String> {
         if file_id.is_empty() || !file_id.chars().all(|c| c.is_ascii_digit()) {
             return Err(err("unknown file"));

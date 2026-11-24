@@ -1321,6 +1321,17 @@ a.link-warn::after { content: " ⚠"; }
 .files-actions { display: flex; justify-content: flex-end; gap: 2px; opacity: 0; }
 .files-row:hover .files-actions, .files-actions:focus-within { opacity: 1; }
 .files-main.dropping .files-list { opacity: 0.4; }
+.files-row.highlight { background: color-mix(in srgb, var(--accent) 18%, transparent); transition: background 0.6s; }
+/* The gallery: the chat's lightbox, with ‹ › at the sides. */
+.lightbox.gallery video { max-width: 100%; max-height: 100%; border-radius: 4px; background: #000; }
+.gallery-count { color: rgba(255, 255, 255, 0.7); font-size: 13px; white-space: nowrap; }
+.gallery-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 44px; height: 64px; border-radius: 8px; background: rgba(0, 0, 0, 0.45); color: #fff; font-size: 34px; line-height: 1; }
+.gallery-nav:hover { background: rgba(0, 0, 0, 0.7); }
+.gallery-nav.prev { left: 12px; }
+.gallery-nav.next { right: 12px; }
+.gallery-message { display: flex; flex-direction: column; align-items: center; gap: 10px; color: #fff; }
+.gallery-message .btn { color: #fff; border-color: rgba(255, 255, 255, 0.35); }
+.lightbox.gallery .spinner { border-color: rgba(255, 255, 255, 0.25); border-top-color: #fff; }
 .files-drop { position: absolute; inset: 60px 16px 16px; display: grid; place-items: center; border: 2px dashed var(--accent); border-radius: 10px; color: var(--accent); font-size: 16px; font-weight: 600; pointer-events: none; }
 @media (max-width: 760px) {
   .files-nav { width: 150px; }

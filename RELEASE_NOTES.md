@@ -17,7 +17,13 @@
   Nextcloud (documents in Nextcloud Office) or on this computer, download it, copy a view-only
   link, send it to any chat (in a Talk chat on the same Nextcloud it's shared as a file,
   elsewhere as a link), rename it (in place), move it to another folder, or delete it (it goes
-  to Deleted files in Nextcloud).
+  to Deleted files in Nextcloud). Pictures and videos open in a **gallery** in the app: ‹ › or
+  the arrow keys go through the other pictures and videos of the folder (or of Recent, or the
+  search results), with Download, Open on this computer and Open in Nextcloud at the top.
+- **Show in Files:** a file in a Talk chat has *Show in Files* in its menu (right-click), which
+  opens Files at its folder with the file highlighted. Clicking a link to one of your own
+  Nextcloud files in any chat (a file link, or a share link you made) does the same instead of
+  opening the browser; links to anything else still open in the browser.
 - **The minimised call can be moved:** drag it to another corner of the window; it stays there
   for the next call. In its corner it keeps clear of the message box, so Send stays clickable.
 

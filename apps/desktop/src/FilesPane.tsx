@@ -3,12 +3,15 @@ import { backend, mediaUrl } from "./backend";
 import { formatSize } from "./Composer";
 import { ContextMenu } from "./ContextMenu";
 import { ChatPickerDialog } from "./ForwardDialog";
+import { Gallery, inGallery } from "./Gallery";
+import type { FilesReveal } from "./filesNav";
 import { useEscape } from "./hooks";
 import { locale, t } from "./i18n";
 import type { CloudFile, Conversation, Org } from "./types";
 
 // Nextcloud Files in the rail (like OneDrive in Teams): your folders, recently changed files and
-// a search through everything; upload by dropping files on it; open a file in Nextcloud
+// a search through everything; upload by dropping files on it; pictures and videos in a gallery,
+// "Show in Files" from a chat lands here; open a file in Nextcloud
 // (documents in Nextcloud Office) or on this computer, download it, copy a link, send it into a
 // chat (shared into a Talk chat on the same Nextcloud, a link elsewhere), rename, move or delete it.
 
@@ -48,7 +51,7 @@ function modified(f: CloudFile) {
   return today ? d.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" }) : d.toLocaleDateString(locale(), { day: "numeric", month: "short", year: "numeric" });
 }
 
-export function FilesPane({ orgs, convs }: { orgs: Org[]; convs: Conversation[] }) {
+export function FilesPane({ orgs, convs, reveal }: { orgs: Org[]; convs: Conversation[]; reveal?: FilesReveal | null }) {
   const [account, setAccountState] = useState(() => orgs.find((o) => o.id === read(ACCOUNT))?.id ?? orgs[0]?.id ?? "");
   const [section, setSection] = useState<Section>("files");
   const [path, setPathState] = useState(() => read(`${FOLDER}.${account}`) ?? "/");
@@ -64,6 +67,9 @@ export function FilesPane({ orgs, convs }: { orgs: Org[]; convs: Conversation[] 
   // Escape: the box goes without saving, also if it's told it lost the focus as it goes.
   const cancelled = useRef(false);
   const [moving, setMoving] = useState<CloudFile | null>(null);
+  const [viewing, setViewing] = useState<number | null>(null);
+  // The file Show in Files asked for, highlighted for a moment once its folder is listed.
+  const [highlight, setHighlight] = useState<string | null>(null);
   const [upload, setUpload] = useState<{ done: number; total: number } | null>(null);
   const [dropping, setDropping] = useState(false);
 
@@ -92,6 +98,33 @@ export function FilesPane({ orgs, convs }: { orgs: Org[]; convs: Conversation[] 
     }, searching ? 300 : 0);
     return () => { live = false; window.clearTimeout(timer); };
   }, [account, section, path, searching ? query.trim() : "", reload]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const revealed = useRef(0);
+  useEffect(() => {
+    // Each request once, as soon as its account is in view.
+    if (!reveal || reveal.at === revealed.current || !orgs.some((o) => o.id === reveal.account)) return;
+    revealed.current = reveal.at;
+    const folder = folderOf(reveal.path);
+    setAccountState(reveal.account);
+    write(ACCOUNT, reveal.account);
+    setPathState(folder);
+    write(`${FOLDER}.${reveal.account}`, folder);
+    setSection("files");
+    setQuery("");
+    setViewing(null);
+    // Looked for once that folder is listed (again, also when it's the one in view).
+    setFiles(null);
+    setReload((n) => n + 1);
+    setHighlight(reveal.path);
+  }, [reveal?.at, orgs.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!highlight || !files) return;
+    const row = [...document.querySelectorAll<HTMLElement>(".files-row[data-path]")].find((r) => r.dataset.path === highlight);
+    if (!row) { setNotice(t("files.notFound")); setHighlight(null); return; }
+    row.scrollIntoView({ block: "center" });
+    const timer = window.setTimeout(() => setHighlight(null), 2500);
+    return () => window.clearTimeout(timer);
+  }, [files, highlight]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const close = () => setMenu(null);
@@ -186,7 +219,9 @@ export function FilesPane({ orgs, convs }: { orgs: Org[]; convs: Conversation[] 
     if (what === "move") return setMoving(f);
     setPath(folderOf(f.path));
   };
-  const open = (f: CloudFile) => (f.dir ? setPath(f.path) : act("web", f));
+  // Pictures and videos open in the gallery, with the others of the list; other files in Nextcloud.
+  const gallery = (files ?? []).filter(inGallery);
+  const open = (f: CloudFile) => (f.dir ? setPath(f.path) : inGallery(f) ? setViewing(gallery.indexOf(f)) : act("web", f));
 
   // Into a chat: shared into a Talk chat on this Nextcloud, otherwise as a link in a message.
   const sendTo = async (f: CloudFile, target: Conversation, note: string | null) => {
@@ -251,7 +286,7 @@ export function FilesPane({ orgs, convs }: { orgs: Org[]; convs: Conversation[] 
             <p className="empty">{searching ? t("files.noResults") : section === "recent" ? t("files.noRecent") : t("files.emptyFolder")}</p>
           )}
           {files?.map((f) => (
-            <div key={f.path} role="listitem" className="files-row" onDoubleClick={() => open(f)}
+            <div key={f.path} role="listitem" data-path={f.path} className={`files-row ${highlight === f.path ? "highlight" : ""}`} onDoubleClick={() => open(f)}
               onContextMenu={(e) => { e.preventDefault(); setMenu({ file: f, x: e.clientX, y: e.clientY }); }}>
               <span className="files-icon">
                 {previewable(f) ? <img src={mediaUrl(account, media(f), 64)} alt="" loading="lazy" onError={(e) => e.currentTarget.replaceWith(icon(f))} /> : icon(f)}
@@ -265,7 +300,7 @@ export function FilesPane({ orgs, convs }: { orgs: Org[]; convs: Conversation[] 
                     onBlur={() => rename(f, renaming.name)} onDoubleClick={(e) => e.stopPropagation()}
                     onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") { cancelled.current = true; e.currentTarget.blur(); } }} />
                 ) : (
-                  <button className="link" title={f.dir ? undefined : t("files.openWeb")} onClick={() => open(f)}>{f.name}</button>
+                  <button className="link" title={f.dir ? undefined : inGallery(f) ? t("files.view") : t("files.openWeb")} onClick={() => open(f)}>{f.name}</button>
                 )}
                 {flat && <small className="muted">{folderOf(f.path) === "/" ? t("files.myFiles") : folderOf(f.path).slice(1)}</small>}
               </span>
@@ -286,6 +321,7 @@ export function FilesPane({ orgs, convs }: { orgs: Org[]; convs: Conversation[] 
             <button className="menu-item" onClick={() => { setMenu(null); setPath(menu.file.path); }}>{t("files.openFolder")}</button>
           ) : (
             <>
+              {inGallery(menu.file) && <button className="menu-item" onClick={() => { setMenu(null); open(menu.file); }}>{t("files.view")}</button>}
               <button className="menu-item" disabled={!menu.file.fileId} onClick={() => act("web", menu.file)}>{t("files.openWeb")}</button>
               <button className="menu-item" onClick={() => act("local", menu.file)}>{t("files.openLocal")}</button>
               <button className="menu-item" onClick={() => act("download", menu.file)}>{t("files.download")}</button>
@@ -300,6 +336,10 @@ export function FilesPane({ orgs, convs }: { orgs: Org[]; convs: Conversation[] 
           <button className="menu-item" onClick={() => act("move", menu.file)}>{t("files.moveTo")}</button>
           <button className="menu-item danger" onClick={() => act("delete", menu.file)}>{t("files.delete")}</button>
         </ContextMenu>
+      )}
+      {viewing !== null && gallery.length > 0 && (
+        <Gallery account={account} files={gallery} start={Math.max(0, viewing)} onClose={() => setViewing(null)}
+          onDownload={(f) => act("download", f)} onOpenLocal={(f) => act("local", f)} onOpenWeb={(f) => act("web", f)} />
       )}
       {moving && <MoveDialog account={account} file={moving} onClose={() => setMoving(null)} onMove={(folder) => move(moving, folder)} />}
       {sending && (

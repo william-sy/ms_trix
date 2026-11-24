@@ -456,6 +456,10 @@ export const backend = {
   cloudDelete: (account: string, path: string) => invoke<void>("cloud_delete", { account, path }),
   /** A read-only public link. */
   cloudShareLink: (account: string, path: string) => invoke<string>("cloud_share_link", { account, path }),
+  /** Where a link to a file on one of our Nextcloud servers is in that account's files (Show in Files). */
+  locateCloudLink: (url: string) => invoke<{ account: string; path: string } | null>("locate_cloud_link", { url }),
+  /** Downloads a stored file once to the cache (videos in the gallery); its picked-file token. */
+  cloudViewFile: (account: string, path: string) => invoke<string>("cloud_view_file", { account, path }),
   /** In the browser, in Nextcloud (documents open in Nextcloud Office). */
   openCloudFile: (account: string, fileId: string) => invoke<void>("open_cloud_file", { account, fileId }),
   /** Shares a Nextcloud file into the chat; returns a public link instead when the chat is on another account. */

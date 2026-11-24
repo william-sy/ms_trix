@@ -127,13 +127,13 @@ plus the open items further down). S: a few hours, M: a day or two, L: several d
        into a chat; documents open in Nextcloud Office (done 2026-11-24, to be verified on a real
        Nextcloud); delete (to Nextcloud's deleted files), rename and move (2026-11-24). Later:
        favourites, shared with you, copy, chunked upload for very large files
-       - [ ] S–M. Gallery (idea 2026-11-24): pictures and videos in Files open in the app's own
+       - [x] S–M. Gallery (idea 2026-11-24, done the same day for 1.7): pictures and videos in Files open in the app's own
              viewer instead of the browser, with ‹ › (and arrow keys) through the other pictures
              and videos of the folder, recent list or search results; videos play there. Builds
              on the chat's Lightbox (single picture today); full size through the existing
              `file:<id>:<path>` media, previews for the strip. Maybe a grid view for folders of
              photos. Other files keep opening in Nextcloud
-       - [ ] M. Show in Files (idea 2026-11-24): a Nextcloud file in a chat (a Talk file message,
+       - [x] M. Show in Files (idea 2026-11-24, done the same day for 1.7): a Nextcloud file in a chat (a Talk file message,
              or a link to your own Nextcloud: `/f/<id>`, or one of your own share links `/s/…`)
              gets "Show in Files" and opens there, the Files tab at its folder with the file
              highlighted, instead of the browser. Talk file messages know the path in your
