@@ -16,9 +16,15 @@
   Upload; nothing is overwritten, a name that's taken gets "(2)"), make a folder. Open a file in
   Nextcloud (documents in Nextcloud Office) or on this computer, download it, copy a view-only
   link, send it to any chat (in a Talk chat on the same Nextcloud it's shared as a file,
-  elsewhere as a link), or delete it (it goes to Deleted files in Nextcloud).
+  elsewhere as a link), rename it (in place), move it to another folder, or delete it (it goes
+  to Deleted files in Nextcloud).
 - **The minimised call can be moved:** drag it to another corner of the window; it stays there
   for the next call. In its corner it keeps clear of the message box, so Send stays clickable.
+
+- **New meetings in your account's time zone:** a meeting made in Trixcomm is saved in the
+  calendar's time zone as your Nextcloud account has it (or the one of your working hours), not
+  in UTC, so Nextcloud and other calendar apps show and edit it in the right zone. When that zone
+  differs from your computer's, the dialog says so; the times you pick are your computer's.
 
 ### Fixed
 - Calendar: inviting someone by typing their address and clicking *Invite …* added them and

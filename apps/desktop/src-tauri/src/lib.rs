@@ -1202,6 +1202,12 @@ async fn cloud_mkdir(state: State<'_, AppState>, account: String, path: String) 
     adapter_for(&state, &account)?.cloud_mkdir(&path).await.map_err(|e| e.to_string())
 }
 
+/// Renames or moves a stored file or folder (`to` is its new full path).
+#[tauri::command]
+async fn cloud_move(state: State<'_, AppState>, account: String, from: String, to: String) -> CmdResult<()> {
+    adapter_for(&state, &account)?.cloud_move(&from, &to).await.map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 async fn cloud_delete(state: State<'_, AppState>, account: String, path: String) -> CmdResult<()> {
     adapter_for(&state, &account)?.cloud_delete(&path).await.map_err(|e| e.to_string())
@@ -2634,6 +2640,7 @@ pub fn run() {
             cloud_search,
             cloud_upload_paths,
             cloud_mkdir,
+            cloud_move,
             cloud_delete,
             cloud_share_link,
             open_cloud_file,

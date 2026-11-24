@@ -152,10 +152,26 @@ pub fn files_search(user: &str, query: FileQuery) -> String {
     )
 }
 
+/// Calendars with their time zone (RFC 4791 calendar-timezone, RFC 7809 calendar-timezone-id),
+/// and the scheduling inbox's working hours (calendar-availability), which carry the user's zone.
 pub const PROPFIND_CALENDARS: &str = r#"<?xml version="1.0"?>
 <d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:x="http://apple.com/ns/ical/">
-  <d:prop><d:displayname/><d:resourcetype/><d:current-user-privilege-set/><c:supported-calendar-component-set/><x:calendar-color/></d:prop>
+  <d:prop><d:displayname/><d:resourcetype/><d:current-user-privilege-set/><c:supported-calendar-component-set/><x:calendar-color/><c:calendar-timezone/><c:calendar-timezone-id/><c:calendar-availability/></d:prop>
 </d:propfind>"#;
+
+/// The time zone in a calendar's properties: its timezone id, or the TZID of the VTIMEZONE (or
+/// of a TZID= parameter) in its calendar-timezone or calendar-availability.
+pub fn zone_of(props: &HashMap<String, String>) -> Option<String> {
+    let id = props.get("calendar-timezone-id").map(|z| z.trim().to_owned());
+    let from_ics = |ics: &String| {
+        let lines = ics_lines(ics);
+        lines.iter().find(|(name, _, _)| name == "TZID").map(|(_, _, v)| v.trim().to_owned())
+            .or_else(|| lines.iter().find_map(|(_, params, _)| params.iter().find(|(k, _)| k == "TZID").map(|(_, v)| v.trim().to_owned())))
+    };
+    id.or_else(|| props.get("calendar-timezone").and_then(from_ics))
+        .or_else(|| props.get("calendar-availability").and_then(from_ics))
+        .filter(|z| valid_tzid(z))
+}
 
 /// Event occurrences in a time range; the server expands recurrences (and gives UTC times).
 pub fn events_query(from: &str, to: &str) -> String {
@@ -961,5 +977,17 @@ END:VCALENDAR&#13;
         let recent = files_search("bo", FileQuery::Recent { since: 1_700_000_000 });
         assert!(recent.contains("<d:literal>httpd/unix-directory</d:literal></d:eq></d:not><d:gt>"));
         assert!(recent.contains("<d:literal>1700000000</d:literal>"));
+    }
+
+    #[test]
+    fn calendar_zones() {
+        let props = |k: &str, v: &str| HashMap::from([(k.to_owned(), v.to_owned())]);
+        assert_eq!(zone_of(&props("calendar-timezone-id", " Europe/Amsterdam ")).as_deref(), Some("Europe/Amsterdam"));
+        let vtz = "BEGIN:VCALENDAR\r\nBEGIN:VTIMEZONE\r\nTZID:America/New_York\r\nEND:VTIMEZONE\r\nEND:VCALENDAR\r\n";
+        assert_eq!(zone_of(&props("calendar-timezone", vtz)).as_deref(), Some("America/New_York"));
+        let availability = "BEGIN:VCALENDAR\nBEGIN:VAVAILABILITY\nBEGIN:AVAILABLE\nDTSTART;TZID=Europe/Berlin:20261124T090000\nEND:AVAILABLE\nEND:VAVAILABILITY\nEND:VCALENDAR";
+        assert_eq!(zone_of(&props("calendar-availability", availability)).as_deref(), Some("Europe/Berlin"));
+        assert_eq!(zone_of(&props("calendar-timezone-id", "Bad Zone\r\nX")), None);
+        assert_eq!(zone_of(&HashMap::new()), None);
     }
 }

@@ -54,8 +54,37 @@ export function rrule(repeat: Repeat, start: Date, days: number[], end: RepeatEn
 /** This computer's time zone name (an IANA id such as "Europe/Amsterdam"). */
 export const localZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 
-/** Minutes east of UTC on this computer at `ms`. */
-const offsetAt = (ms: number) => -new Date(ms).getTimezoneOffset();
+/** Whether this computer knows `zone` (an IANA id). */
+export function knownZone(zone: string | null | undefined): zone is string {
+  if (!zone) return false;
+  try { new Intl.DateTimeFormat("en-US", { timeZone: zone }); return true; } catch { return false; }
+}
+
+const clocks = new Map<string, Intl.DateTimeFormat>();
+
+/** The wall clock in `zone` at `ms`. */
+function wallParts(ms: number, zone: string) {
+  let clock = clocks.get(zone);
+  if (!clock) {
+    clock = new Intl.DateTimeFormat("en-US", { timeZone: zone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    clocks.set(zone, clock);
+  }
+  const parts = clock.formatToParts(new Date(ms));
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  return { y: get("year"), m: get("month"), d: get("day"), h: get("hour") % 24, mi: get("minute"), s: get("second") };
+}
+
+/** A Date whose local fields show the time in `zone` at `d` (for writing it as a local time there). */
+export function wallIn(d: Date, zone: string): Date {
+  const w = wallParts(d.getTime(), zone);
+  return new Date(w.y, w.m - 1, w.d, w.h, w.mi, w.s);
+}
+
+/** Minutes east of UTC in `zone` at `ms`. */
+const offsetAt = (ms: number, zone: string) => {
+  const w = wallParts(ms, zone);
+  return Math.round((Date.UTC(w.y, w.m - 1, w.d, w.h, w.mi, w.s) - Math.floor(ms / 1000) * 1000) / 60_000);
+};
 const formatOffset = (m: number) => `${m < 0 ? "-" : "+"}${pad(Math.floor(Math.abs(m) / 60))}${pad(Math.abs(m) % 60)}`;
 
 /** The day of the month that is the `n`th (or last, -1) `weekday` of a month (1-12). */
@@ -66,7 +95,7 @@ function nthWeekday(year: number, month: number, weekday: number, n: number): nu
 }
 
 /**
- * This computer's time zone as a VTIMEZONE (which iCalendar wants next to a TZID): its summer-time
+ * A time zone as a VTIMEZONE (which iCalendar wants next to a TZID): its summer-time
  * changes in `year`, written as yearly rules ("the last Sunday of March").
  */
 export function vtimezone(tzid: string, year = new Date().getFullYear()): string {
@@ -75,13 +104,13 @@ export function vtimezone(tzid: string, year = new Date().getFullYear()): string
   const from = Date.UTC(year, 0, 1);
   let changes = 0;
   for (let t = from; t < from + 366 * day; t += day) {
-    const before = offsetAt(t), after = offsetAt(t + day);
+    const before = offsetAt(t, tzid), after = offsetAt(t + day, tzid);
     if (before === after) continue;
     // The minute it changes.
     let lo = t, hi = t + day;
     while (hi - lo > 60_000) {
       const mid = Math.floor((lo + hi) / 2 / 60_000) * 60_000;
-      if (offsetAt(mid) === before) lo = mid; else hi = mid;
+      if (offsetAt(mid, tzid) === before) lo = mid; else hi = mid;
     }
     // On the clock as it was: 02:00 when it jumps to 03:00 in spring, 03:00 going back in autumn.
     const wall = new Date(hi + before * 60_000);
@@ -99,7 +128,7 @@ export function vtimezone(tzid: string, year = new Date().getFullYear()): string
     changes++;
   }
   if (!changes) {
-    const offset = formatOffset(offsetAt(from));
+    const offset = formatOffset(offsetAt(from, tzid));
     lines.push("BEGIN:STANDARD", `TZOFFSETFROM:${offset}`, `TZOFFSETTO:${offset}`, "DTSTART:19700101T000000", "END:STANDARD");
   }
   lines.push("END:VTIMEZONE");

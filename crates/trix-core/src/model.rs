@@ -645,6 +645,10 @@ pub struct Calendar {
     pub name: String,
     pub color: Option<String>,
     pub writable: bool,
+    /// The calendar's time zone (an IANA id such as "Europe/Amsterdam"), as the account set it;
+    /// new events are written in it.
+    #[serde(default)]
+    pub timezone: Option<String>,
 }
 
 /// One occurrence of a calendar event (recurring events come expanded).

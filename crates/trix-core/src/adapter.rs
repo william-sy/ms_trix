@@ -449,6 +449,11 @@ pub trait ProtocolAdapter: Send + Sync {
     async fn cloud_mkdir(&self, _path: &str) -> Result<()> {
         Err(AdapterError::Unsupported("files"))
     }
+    /// Renames or moves a stored file or folder to `to` (its new full path), never over
+    /// something already there.
+    async fn cloud_move(&self, _from: &str, _to: &str) -> Result<()> {
+        Err(AdapterError::Unsupported("files"))
+    }
     /// Deletes a stored file or folder (Nextcloud keeps it in its deleted files for a while).
     async fn cloud_delete(&self, _path: &str) -> Result<()> {
         Err(AdapterError::Unsupported("files"))

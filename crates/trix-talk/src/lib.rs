@@ -1634,6 +1634,31 @@ impl ProtocolAdapter for TalkAdapter {
         }
     }
 
+    async fn cloud_move(&self, from: &str, to: &str) -> Result<()> {
+        let source = dav::encode_path(from).filter(|e| !e.is_empty()).ok_or_else(|| err("bad path"))?;
+        let target = dav::encode_path(to).filter(|e| !e.is_empty()).ok_or_else(|| err("bad path"))?;
+        let (from, to) = (from.trim_end_matches('/'), to.trim_end_matches('/'));
+        if to == from || to.starts_with(&format!("{from}/")) {
+            return Err(err("a folder can't go into itself"));
+        }
+        let root = self.files_root().await;
+        let status = self
+            .request(Method::from_bytes(b"MOVE").unwrap(), &format!("{root}{source}"))
+            .header("Destination", format!("{}{root}{target}", self.session.server))
+            .header("Overwrite", "F")
+            .send()
+            .await
+            .map_err(net)?
+            .status();
+        match status {
+            s if s.is_success() => Ok(()),
+            StatusCode::PRECONDITION_FAILED => Err(err("there is already something with that name there")),
+            StatusCode::NOT_FOUND => Err(err("it isn't there any more (moved or deleted elsewhere?)")),
+            StatusCode::FORBIDDEN | StatusCode::LOCKED => Err(err("you can't change this (shared with you read-only, or in use)")),
+            s => Err(err(format!("could not move: {s}"))),
+        }
+    }
+
     async fn cloud_delete(&self, path: &str) -> Result<()> {
         // Never the whole storage.
         let encoded = dav::encode_path(path).filter(|e| !e.is_empty()).ok_or_else(|| err("bad path"))?;
@@ -1780,7 +1805,10 @@ impl ProtocolAdapter for TalkAdapter {
 
     async fn calendars(&self) -> Result<Vec<Calendar>> {
         let xml = self.dav("PROPFIND", &self.calendars_root().await, "1", dav::PROPFIND_CALENDARS.into()).await?;
-        Ok(dav::multistatus(&xml)
+        let found = dav::multistatus(&xml);
+        // A calendar without a zone of its own: the one of your working hours (on the inbox).
+        let yours = found.iter().find(|r| r.types.iter().any(|t| t == "schedule-inbox")).and_then(|r| dav::zone_of(&r.props));
+        Ok(found
             .into_iter()
             .filter(|r| r.types.iter().any(|t| t == "calendar") && (r.components.is_empty() || r.components.iter().any(|c| c == "VEVENT")))
             .map(|r| Calendar {
@@ -1788,6 +1816,7 @@ impl ProtocolAdapter for TalkAdapter {
                 // Nextcloud sends #RRGGBBAA; CSS understands that too.
                 color: r.props.get("calendar-color").map(|c| c.trim().to_owned()),
                 writable: r.privileges.iter().any(|p| p == "write" || p == "all" || p == "write-content"),
+                timezone: dav::zone_of(&r.props).or_else(|| yours.clone()),
                 id: r.href,
             })
             .collect())

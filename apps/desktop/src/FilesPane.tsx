@@ -1,15 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { backend, mediaUrl } from "./backend";
 import { formatSize } from "./Composer";
 import { ContextMenu } from "./ContextMenu";
 import { ChatPickerDialog } from "./ForwardDialog";
+import { useEscape } from "./hooks";
 import { locale, t } from "./i18n";
 import type { CloudFile, Conversation, Org } from "./types";
 
 // Nextcloud Files in the rail (like OneDrive in Teams): your folders, recently changed files and
 // a search through everything; upload by dropping files on it; open a file in Nextcloud
 // (documents in Nextcloud Office) or on this computer, download it, copy a link, send it into a
-// chat (shared into a Talk chat on the same Nextcloud, a link elsewhere), or delete it.
+// chat (shared into a Talk chat on the same Nextcloud, a link elsewhere), rename, move or delete it.
 
 type Section = "files" | "recent";
 
@@ -59,6 +60,10 @@ export function FilesPane({ orgs, convs }: { orgs: Org[]; convs: Conversation[] 
   const [menu, setMenu] = useState<{ file: CloudFile; x: number; y: number } | null>(null);
   const [sending, setSending] = useState<CloudFile | null>(null);
   const [naming, setNaming] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState<{ path: string; name: string } | null>(null);
+  // Escape: the box goes without saving, also if it's told it lost the focus as it goes.
+  const cancelled = useRef(false);
+  const [moving, setMoving] = useState<CloudFile | null>(null);
   const [upload, setUpload] = useState<{ done: number; total: number } | null>(null);
   const [dropping, setDropping] = useState(false);
 
@@ -150,7 +155,25 @@ export function FilesPane({ orgs, convs }: { orgs: Org[]; convs: Conversation[] 
       .catch((e) => setError(String(e)));
   };
 
-  const act = (what: "web" | "local" | "download" | "link" | "send" | "folder" | "delete", f: CloudFile) => {
+  // Renamed in place (Enter or leaving the box saves, Escape doesn't), or moved to another folder.
+  const rename = (f: CloudFile, name: string) => {
+    setRenaming(null);
+    if (cancelled.current) return void (cancelled.current = false);
+    const clean = name.trim().replace(/[/\\]/g, "-");
+    if (!clean || clean === f.name) return;
+    const to = `${folderOf(f.path) === "/" ? "" : folderOf(f.path)}/${clean}`;
+    backend.cloudMove(account, f.path, to)
+      .then(() => setFiles((list) => list?.map((x) => (x.path === f.path ? { ...x, name: clean, path: to } : x)) ?? null))
+      .catch((e) => setError(String(e)));
+  };
+  const move = async (f: CloudFile, folder: string) => {
+    await backend.cloudMove(account, f.path, `${folder === "/" ? "" : folder}/${f.name}`);
+    setMoving(null);
+    setNotice(t("files.moved", { name: f.name, folder: folder === "/" ? t("files.myFiles") : folder.split("/").pop()! }));
+    setReload((n) => n + 1);
+  };
+
+  const act = (what: "web" | "local" | "download" | "link" | "send" | "folder" | "delete" | "rename" | "move", f: CloudFile) => {
     setMenu(null);
     const fail = (e: unknown) => setError(String(e));
     if (what === "web") return f.fileId ? void backend.openCloudFile(account, f.fileId).catch(fail) : undefined;
@@ -159,6 +182,8 @@ export function FilesPane({ orgs, convs }: { orgs: Org[]; convs: Conversation[] 
     if (what === "link") return void backend.cloudShareLink(account, f.path).then((link) => navigator.clipboard.writeText(link)).then(() => setNotice(t("files.linkCopied")), fail);
     if (what === "send") return setSending(f);
     if (what === "delete") return remove(f);
+    if (what === "rename") return setRenaming({ path: f.path, name: f.name });
+    if (what === "move") return setMoving(f);
     setPath(folderOf(f.path));
   };
   const open = (f: CloudFile) => (f.dir ? setPath(f.path) : act("web", f));
@@ -232,7 +257,16 @@ export function FilesPane({ orgs, convs }: { orgs: Org[]; convs: Conversation[] 
                 {previewable(f) ? <img src={mediaUrl(account, media(f), 64)} alt="" loading="lazy" onError={(e) => e.currentTarget.replaceWith(icon(f))} /> : icon(f)}
               </span>
               <span className="files-name">
-                <button className="link" title={f.dir ? undefined : t("files.openWeb")} onClick={() => open(f)}>{f.name}</button>
+                {renaming?.path === f.path ? (
+                  <input className="files-rename" autoFocus value={renaming.name} aria-label={t("files.rename")}
+                    // The name without its extension is selected, as in Finder.
+                    onFocus={(e) => { const dot = f.dir ? -1 : f.name.lastIndexOf("."); e.currentTarget.setSelectionRange(0, dot > 0 ? dot : f.name.length); }}
+                    onChange={(e) => setRenaming({ path: f.path, name: e.target.value })}
+                    onBlur={() => rename(f, renaming.name)} onDoubleClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") { cancelled.current = true; e.currentTarget.blur(); } }} />
+                ) : (
+                  <button className="link" title={f.dir ? undefined : t("files.openWeb")} onClick={() => open(f)}>{f.name}</button>
+                )}
                 {flat && <small className="muted">{folderOf(f.path) === "/" ? t("files.myFiles") : folderOf(f.path).slice(1)}</small>}
               </span>
               <span className="muted">{modified(f)}</span>
@@ -262,14 +296,74 @@ export function FilesPane({ orgs, convs }: { orgs: Org[]; convs: Conversation[] 
           <button className="menu-item" onClick={() => act("send", menu.file)}>{t("files.sendToChat")}</button>
           {flat && <button className="menu-item" onClick={() => act("folder", menu.file)}>{t("files.showInFolder")}</button>}
           <div className="menu-sep" />
+          <button className="menu-item" onClick={() => act("rename", menu.file)}>{t("files.rename")}</button>
+          <button className="menu-item" onClick={() => act("move", menu.file)}>{t("files.moveTo")}</button>
           <button className="menu-item danger" onClick={() => act("delete", menu.file)}>{t("files.delete")}</button>
         </ContextMenu>
       )}
+      {moving && <MoveDialog account={account} file={moving} onClose={() => setMoving(null)} onMove={(folder) => move(moving, folder)} />}
       {sending && (
         <ChatPickerDialog title={t("files.sendTitle")} convs={convs} onClose={() => setSending(null)}
           preview={<><b>{icon(sending)} {sending.name}</b><span>{sending.dir ? t("files.folderLinkHint") : t("files.sendHint")}</span></>}
           onSend={(target, note) => sendTo(sending, target, note)} />
       )}
+    </div>
+  );
+}
+
+/** Where to move a file or folder: browse the folders, then Move here. */
+function MoveDialog({ account, file, onMove, onClose }: { account: string; file: CloudFile; onMove: (folder: string) => Promise<void>; onClose: () => void }) {
+  useEscape(onClose);
+  const from = folderOf(file.path);
+  const [path, setPath] = useState(from);
+  const [folders, setFolders] = useState<CloudFile[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    let live = true;
+    setFolders(null);
+    backend.cloudFiles(account, path).then((list) => live && setFolders(list.filter((f) => f.dir)), (e) => live && setError(String(e)));
+    return () => { live = false; };
+  }, [account, path]);
+  // A folder can't go into itself (or anywhere inside it).
+  const inside = (p: string) => file.dir && (p === file.path || p.startsWith(`${file.path}/`));
+  const crumbs = path.split("/").filter(Boolean);
+  const go = () => {
+    setBusy(true);
+    setError(null);
+    onMove(path).catch((e) => { setError(String(e)); setBusy(false); });
+  };
+  return (
+    <div className="login-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="login-card cloud-picker single">
+        <button className="icon-btn close" onClick={onClose} title={t("common.closeEsc")}>✕</button>
+        <h1>{t("files.moveTitle", { name: file.name })}</h1>
+        <nav className="cloud-crumbs">
+          <button className="link" onClick={() => setPath("/")}>{t("files.myFiles")}</button>
+          {crumbs.map((c, i) => (
+            <span key={i}> › <button className="link" onClick={() => setPath(`/${crumbs.slice(0, i + 1).join("/")}`)}>{c}</button></span>
+          ))}
+        </nav>
+        <div className="cloud-list" role="listbox">
+          {!folders && !error && <div className="spinner" aria-label={t("common.loading")} />}
+          {folders && folders.length === 0 && <p className="empty">{t("files.noFolders")}</p>}
+          {folders?.map((f) => (
+            <button key={f.path} role="option" aria-selected={false} className="cloud-row" disabled={inside(f.path)} onClick={() => setPath(f.path)}>
+              <span className="cloud-icon">📁</span>
+              <span className="cloud-name">{f.name}</span>
+              <span className="muted" />
+              <span className="muted">{modified(f)}</span>
+            </button>
+          ))}
+        </div>
+        {error && <p className="error">{error}</p>}
+        <div className="edit-actions">
+          <button className="btn small" onClick={onClose}>{t("common.cancel")}</button>
+          <button className="btn primary small" disabled={busy || path === from || inside(path)} onClick={go}>
+            {busy ? t("files.moving") : t("files.moveHere")}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

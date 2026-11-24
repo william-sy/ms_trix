@@ -125,8 +125,8 @@ plus the open items further down). S: a few hours, M: a day or two, L: several d
 12. [x] L. Files in the rail (Nextcloud, like OneDrive in Teams): folders (browsing exists for the
        📎 menu), recent files and search; upload by drag and drop; open, download, share a link or
        into a chat; documents open in Nextcloud Office (done 2026-11-24, to be verified on a real
-       Nextcloud); delete (to Nextcloud's deleted files, 2026-11-24). Later: rename, move,
-       favourites, shared with you, chunked upload for very large files
+       Nextcloud); delete (to Nextcloud's deleted files), rename and move (2026-11-24). Later:
+       favourites, shared with you, copy, chunked upload for very large files
        - [ ] S–M. Gallery (idea 2026-11-24): pictures and videos in Files open in the app's own
              viewer instead of the browser, with ‹ › (and arrow keys) through the other pictures
              and videos of the folder, recent list or search results; videos play there. Builds

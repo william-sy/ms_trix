@@ -3,7 +3,7 @@ import { MeetNow } from "./MeetNow";
 import { Avatar } from "./Avatar";
 import { backend } from "./backend";
 import { locale, t } from "./i18n";
-import { icalLocal, localZone, rrule, vtimezone, weekOfMonth, type Repeat, type RepeatEnd } from "./recurrence";
+import { icalLocal, knownZone, localZone, rrule, vtimezone, wallIn, weekOfMonth, type Repeat, type RepeatEnd } from "./recurrence";
 import type { Attendee, Calendar, CalendarEvent, Conversation, Org } from "./types";
 import { useEscape } from "./hooks";
 import { FindTime, type Availability } from "./FindTime";
@@ -564,6 +564,8 @@ function MeetingDialog({ orgs, calendars, editing, series = false, prefill, onCl
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const target = writable.find((w) => w.calendar.id === calendar);
+  // The calendar's own time zone, when the account set one this computer knows.
+  const accountZone = knownZone(target?.calendar.timezone) ? target.calendar.timezone : null;
   // Find a time: everyone's free and busy times, for a meeting with people at a time of day.
   const scheduling = attendees.length > 0 && !allDay;
 
@@ -575,10 +577,13 @@ function MeetingDialog({ orgs, calendars, editing, series = false, prefill, onCl
     let end = allDay ? addDays(start, 1) : at(to);
     if (end <= start) end = new Date(start.getTime() + 30 * 60_000);
     const repeatEnd: RepeatEnd = endKind === "until" ? { kind: "until", date: until } : endKind === "count" ? { kind: "count", count } : { kind: "never" };
-    const rule = editing ? null : rrule(repeat, start, days, repeatEnd, allDay);
-    // A repeating meeting is kept in local time with this computer's time zone, not UTC.
-    const zone = rule && !allDay ? localZone() : null;
-    const when = (time: Date) => (allDay ? icalDate(time) : zone ? icalLocal(time) : toIcalUtc(time));
+    // A new meeting is written as a local time in the calendar's time zone (as the account has
+    // it, else this computer's), not UTC, so other apps show it in the right zone. The times in
+    // the form are this computer's; the same moment is written in that zone. An edited meeting
+    // keeps being written as before (UTC, or its series' own zone through the server).
+    const zone = !allDay && !editing ? accountZone ?? localZone() : null;
+    const rule = editing ? null : rrule(repeat, zone ? wallIn(start, zone) : start, days, repeatEnd, allDay);
+    const when = (time: Date) => (allDay ? icalDate(time) : zone ? icalLocal(wallIn(time, zone)) : toIcalUtc(time));
     setBusy(true);
     setError(null);
     try {
@@ -648,6 +653,9 @@ function MeetingDialog({ orgs, calendars, editing, series = false, prefill, onCl
           {!online && <label>{t("calendar.location")}<input value={location} onChange={(e) => setLocation(e.target.value)} /></label>}
           <label>{t("calendar.description")}<textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} /></label>
           {attendees.length > 0 && <p className="muted small">{t("calendar.inviteHint")}</p>}
+          {!editing && !allDay && accountZone && accountZone !== localZone() && (
+            <p className="muted small">{t("calendar.zoneHint", { zone: accountZone.replace(/_/g, " "), local: localZone().replace(/_/g, " ") })}</p>
+          )}
           {error && <p className="error">{error}</p>}
           <div className="edit-actions">
             <button type="button" className="btn small" onClick={onClose}>{t("common.cancel")}</button>

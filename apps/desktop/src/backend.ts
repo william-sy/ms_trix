@@ -450,6 +450,8 @@ export const backend = {
   /** Uploads local files (picked or dropped) into a folder, never over an existing one; their new paths. */
   cloudUploadPaths: (account: string, folder: string, paths: string[]) => invoke<string[]>("cloud_upload_paths", { account, folder, paths }),
   cloudMkdir: (account: string, path: string) => invoke<void>("cloud_mkdir", { account, path }),
+  /** Renames or moves (`to`: the new full path); never over something already there. */
+  cloudMove: (account: string, from: string, to: string) => invoke<void>("cloud_move", { account, from, to }),
   /** To Nextcloud's deleted files, where it can be restored for a while. */
   cloudDelete: (account: string, path: string) => invoke<void>("cloud_delete", { account, path }),
   /** A read-only public link. */

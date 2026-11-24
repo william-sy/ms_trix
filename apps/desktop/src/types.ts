@@ -165,6 +165,8 @@ export interface Calendar {
   name: string;
   color?: string;
   writable: boolean;
+  /** Its time zone as the account set it (IANA id); new meetings are written in it. */
+  timezone?: string;
 }
 
 /** One occurrence; times in iCalendar form: "20261117T090000Z", "20261117T090000" (local) or "20261117" (all day). */
