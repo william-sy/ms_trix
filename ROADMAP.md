@@ -240,6 +240,10 @@ built yet is visibly disabled in the UI with a "coming soon" tooltip.
 ## Known issues
 - [x] Hover actions overlay covered the previous message when tightly grouped
 - [x] Wide code blocks didn't wrap when the window got narrower
+- [ ] macOS: no notifications arrive (2026-11-25, macOS 27): the notification plugin still uses
+      Apple's old API (NSUserNotification) and Trixcomm isn't in Notification Center's list; the
+      Test button in Settings → Notifications shows nothing. Fixed by the modern API with signing
+      (see Signing below); Windows and Linux are not affected. Details: _notes/notifications.md
 
 ## 1. Daily driver
 - [x] Full-history search: encrypted local index (trix-search: SQLite + the Matrix SDK store
@@ -271,7 +275,11 @@ built yet is visibly disabled in the UI with a "coming soon" tooltip.
 - [x] Videos show their first frame; voice messages play in a waveform player (Element's format)
 - [x] Send a thumbnail with videos (still made in the app; Matrix gets thumbnail + size + length)
 - [x] Per-chat notification settings in the UI (chat header ⋯ menu)
-- [ ] Click a notification to open that chat (needs click events from the notification plugin on macOS)
+- [ ] S (~½ day). Click a notification to open that chat (planned 2026-11-25): the notification
+      plugin (2.8.1) now reports clicks on desktop (`on_action`, the chat key in its data), so a
+      click brings Trixcomm forward on that chat, without signing. Windows: while the toast is on
+      screen (from the Action Center needs a registered COM activator, later); Linux: the default
+      action; macOS: once notifications arrive there at all (see Known issues)
 - [x] Notify on new invites (not for invites already waiting at startup)
 - [x] Rooms inside teams: all pages of the hierarchy, "Team members" rooms, "Ask to join" (knock), "Invite only" shown as such
 - [x] More slash commands (see the checklist below)
@@ -463,8 +471,11 @@ built yet is visibly disabled in the UI with a "coming soon" tooltip.
 - [ ] Mobile (Tauri mobile or UniFFI)
 - [x] GitHub releases with a download page, and auto-update (own update key, free); the repo and CI
       builds for macOS, Windows and Linux exist since 1.0
-- [ ] Signing: Developer ID + notarisation (macOS), code signing (Windows); also unlocks clicking a
-      notification to open the chat on macOS/Windows
+- [ ] Signing: Developer ID + notarisation (macOS), code signing (Windows). On macOS it also
+      unlocks the modern notifications (UNUserNotificationCenter, M, 1–1.5 days after signing):
+      a permission prompt, Trixcomm in Notification Center, notifications grouped per chat,
+      clicking opens the chat also from Notification Center, a chat's notifications cleared once
+      it's read
 
 ## Matrix client listing (matrix.org/ecosystem/clients)
 Submit once the repo has three months of commit history (first commit 2026-11-16, so from about
