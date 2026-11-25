@@ -13,6 +13,9 @@
   Windows and Linux), zooms in where you point; drag (or scroll) to look around, double-click to
   zoom in there or back to fit. − / + / Fit show when you hover the screen. Zoom shows as much
   detail as the sharer sends; a new share starts at fit.
+- **Quick edit:** pressed Enter and spotted a typo? Arrow Up in the empty message box within 10
+  seconds opens what you just sent for editing, with the cursor at the end; Enter saves, Escape
+  cancels, and you're back in the message box. Works in threads too.
 
 ### Fixed
 - The reply box in a thread used only half its width for text, next to its buttons. When the

@@ -44,6 +44,9 @@ function mirror(text: string, names: string[]): ReactNode[] {
   return text.split(re).map((part, i) => (i % 2 ? <span key={i} className="mention-pill">{part}</span> : part));
 }
 
+/** How long after sending Arrow Up in the empty box edits that message (ms). */
+const QUICK_EDIT = 10_000;
+
 interface Props {
   initial?: string;
   placeholder?: string;
@@ -64,6 +67,8 @@ interface Props {
   getMembers?: () => Promise<Member[]>;
   /** What's typed, a moment after typing stops and when the box goes (another chat): the draft. */
   onDraft?: (text: string) => void;
+  /** Arrow Up in the empty box within QUICK_EDIT of sending: edit the message just sent. */
+  onEditLast?: () => void;
   /** Staged files; omit to disable attachments (e.g. in threads). */
   attachments?: Attachment[];
   onPickFiles?: () => void;
@@ -79,6 +84,7 @@ export function Composer(p: Props) {
   const [text, setText] = useState(initial ?? "");
   const textRef = useRef(text);
   textRef.current = text;
+  const lastSent = useRef(0);
   useEffect(() => {
     if (!p.onDraft) return;
     const timer = window.setTimeout(() => p.onDraft?.(text), 500);
@@ -248,7 +254,10 @@ export function Composer(p: Props) {
     const usedEmotes = Object.entries(emotes).filter(([code]) => out.includes(`:${code}:`));
     const message = { text: out, emotes: usedEmotes.length ? usedEmotes : undefined, emote: result.emote, html: "html" in result ? result.html : undefined, msgtype: "msgtype" in result ? result.msgtype : undefined, mentions, attachments: attachments.length ? attachments : undefined };
     if (at !== undefined && p.onSchedule) p.onSchedule(message, at);
-    else onSend(message);
+    else {
+      onSend(message);
+      lastSent.current = Date.now();
+    }
     setText("");
     p.onDraft?.("");
     setMentioned({});
@@ -367,6 +376,10 @@ export function Composer(p: Props) {
               if ((e.key === "Tab" || e.key === "Enter") && mentionHits[0]) {
                 e.preventDefault();
                 return pickMention(mentionHits[0]);
+              }
+              if (e.key === "ArrowUp" && !text && p.onEditLast && Date.now() - lastSent.current < QUICK_EDIT) {
+                e.preventDefault();
+                return p.onEditLast();
               }
               if ((e.key === "Backspace" || e.key === "Delete") && deleteMention(e.key === "Delete")) {
                 e.preventDefault();

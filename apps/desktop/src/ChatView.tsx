@@ -138,6 +138,13 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
     for (const m of messages) if (m.threadRoot) out.set(m.threadRoot, [...(out.get(m.threadRoot) ?? []), m]);
     return out;
   }, [messages]);
+  // Arrow Up in the message box right after sending: edit what you just sent (in `list`).
+  const [quickEdit, setQuickEdit] = useState<{ id: string; n: number } | null>(null);
+  const editLast = (list: Message[]) => {
+    const last = [...list].reverse().find((m) => m.fromMe && !m.system);
+    if (last && !last.local && !last.media && !last.poll && !last.deleted) setQuickEdit({ id: last.id, n: Date.now() });
+  };
+  const editNow = (m: Message) => (quickEdit?.id === m.id ? quickEdit.n : undefined);
 
   const [hasMore, setHasMore] = useState(true);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -540,7 +547,7 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
             return (
               <Fragment key={m.id}>
               {newDay(prev, m) && <div className="day-divider"><span>{dayLabel(m.ts!)}</span></div>}
-              <MessageItem m={m} account={conv.orgId} conversation={conv.id} grouped={grouped} lastInRun={!runContinues} quoted={m.replyTo ? byId.get(m.replyTo) ?? null : undefined}
+              <MessageItem m={m} editNow={editNow(m)} account={conv.orgId} conversation={conv.id} grouped={grouped} lastInRun={!runContinues} quoted={m.replyTo ? byId.get(m.replyTo) ?? null : undefined}
                 thread={replies.get(m.id)} onReply={m.local ? undefined : () => setReplyTo(m)} onThread={m.local ? undefined : () => openThread(m.id)} media={mediaUi.actions} {...localActions(m)} tick={tickOf(gallery[gallery.length - 1]!)}
                 query={q || undefined} current={currentHit?.id === m.id} postMode={posts}
                 {...(gallery.length > 1 ? {
@@ -569,7 +576,7 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
             <progress max={upload.total} value={upload.sent} />
           </div>
         )}
-        <Composer key={`${conv.id}:${seed?.n ?? 0}`} initial={seed?.text ?? conv.draft} onDraft={(text) => keepDraft(conv.id, text) && dispatch({ type: "draft", id: conv.id, text })} replyTo={replyTo} placeholder={posts ? t("chatView.newPost") : undefined} onCancelReply={() => setReplyTo(null)} onTyping={(t) => isLive && currentSettings().shareTyping && backend.setTyping(conv.id, t).catch(() => {})}
+        <Composer key={`${conv.id}:${seed?.n ?? 0}`} initial={seed?.text ?? conv.draft} onDraft={(text) => keepDraft(conv.id, text) && dispatch({ type: "draft", id: conv.id, text })} onEditLast={() => editLast(mainList)} replyTo={replyTo} placeholder={posts ? t("chatView.newPost") : undefined} onCancelReply={() => setReplyTo(null)} onTyping={(t) => isLive && currentSettings().shareTyping && backend.setTyping(conv.id, t).catch(() => {})}
           onCommand={(name, args) => {
             if (name === "jumptodate") return void jumpToDate(args);
             if (name === "poll") return setPollDialog(true);
@@ -605,10 +612,10 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
             {threadRoot ? <MessageItem m={threadRoot} account={conv.orgId} conversation={conv.id} grouped={false} media={mediaUi.actions} {...messageActions(threadRoot)} /> : <p className="empty">{t("chatView.threadRootMissing")}</p>}
             <div className="thread-divider">{t("chatView.threadReplies", { count: replies.get(threadId)?.length ?? 0 })}</div>
             {(replies.get(threadId) ?? []).map((m, i, all) => (
-              <MessageItem key={m.id} m={m} account={conv.orgId} conversation={conv.id} grouped={i > 0 && all[i - 1]!.sender === m.sender} media={mediaUi.actions} {...localActions(m)} tick={tickOf(m)} />
+              <MessageItem key={m.id} m={m} editNow={editNow(m)} account={conv.orgId} conversation={conv.id} grouped={i > 0 && all[i - 1]!.sender === m.sender} media={mediaUi.actions} {...localActions(m)} tick={tickOf(m)} />
             ))}
           </div>
-          <Composer key={threadId} initial={draftOf(draftKey(conv.id, threadId))} onDraft={(text) => keepDraft(draftKey(conv.id, threadId), text)} placeholder={t("composer.threadPlaceholder")} onSend={(m) => send({ ...m, threadRoot: threadId })} onNotice={onNotice} getMembers={getMembers}
+          <Composer key={threadId} initial={draftOf(draftKey(conv.id, threadId))} onDraft={(text) => keepDraft(draftKey(conv.id, threadId), text)} onEditLast={() => editLast(replies.get(threadId) ?? [])} placeholder={t("composer.threadPlaceholder")} onSend={(m) => send({ ...m, threadRoot: threadId })} onNotice={onNotice} getMembers={getMembers}
             attachments={threadAttachments(threadId)} onPickFiles={() => onPickFiles(threadId)} onAddFiles={(files) => onAddFiles(files, threadId)} onRemoveAttachment={(id) => onRemoveAttachment(id, threadId)} />
         </aside>
       )}
@@ -720,6 +727,8 @@ type Tick = "sending" | "sent" | "seen" | "failed";
 interface ItemProps {
   conversation?: string;
   m: Message;
+  /** A new value opens this message's editor (Arrow Up in the message box right after sending). */
+  editNow?: number;
   account: string;
   grouped: boolean;
   /** Last of a block from one sender (channels show "Reply" once per block). */
@@ -771,7 +780,7 @@ function ScheduledItem({ message, account, onEdit }: { message: ScheduledMessage
   );
 }
 
-function MessageItem({ m, account, conversation, grouped, lastInRun = true, quoted, thread, onReply, onThread, onReact, onEdit, onDelete, onForward, onPin, pinned, gallery, media, onStatus, query, current, postMode, tick, onRetry, onDiscard }: ItemProps) {
+function MessageItem({ m, editNow, account, conversation, grouped, lastInRun = true, quoted, thread, onReply, onThread, onReact, onEdit, onDelete, onForward, onPin, pinned, gallery, media, onStatus, query, current, postMode, tick, onRetry, onDiscard }: ItemProps) {
   const keyHelp = useContext(KeyHelpContext)(account);
   const visual = m.media?.kind === "image" || m.media?.kind === "sticker";
   const previewUrl = useMemo(() => (m.deleted || m.media || m.poll ? undefined : previewLink(m.body, m.html)), [m.deleted, m.media, m.poll, m.body, m.html]);
@@ -814,10 +823,29 @@ function MessageItem({ m, account, conversation, grouped, lastInRun = true, quot
     return () => window.removeEventListener("click", close);
   }, [popup]);
 
+  // Opened from the message box: saving or cancelling goes back there, to type on.
+  const returnFocus = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (!editNow || !canEdit) return;
+    returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setDraft(m.body);
+    setEditing(true);
+  }, [editNow]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The editor opens with the cursor at the end, where a typo just sent usually is.
+  const editBox = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const el = editBox.current;
+    if (editing && el) el.setSelectionRange(el.value.length, el.value.length);
+  }, [editing]);
+  const stopEditing = () => {
+    setEditing(false);
+    returnFocus.current?.focus();
+    returnFocus.current = null;
+  };
   const saveEdit = () => {
     const text = draft.trim();
     if (text && text !== m.body) onEdit?.(text);
-    setEditing(false);
+    stopEditing();
   };
 
   return (
@@ -841,14 +869,14 @@ function MessageItem({ m, account, conversation, grouped, lastInRun = true, quot
         <div className="bubble-wrap" title={grouped ? m.time : undefined}>
           {editing ? (
             <div className="bubble editing">
-              <textarea autoFocus value={draft} rows={Math.min(8, draft.split("\n").length + 1)} onChange={(e) => setDraft(e.target.value)}
+              <textarea ref={editBox} autoFocus value={draft} rows={Math.min(8, draft.split("\n").length + 1)} onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); saveEdit(); }
-                  if (e.key === "Escape") setEditing(false);
+                  if (e.key === "Escape") stopEditing();
                 }} />
               <div className="edit-actions">
                 <span className="muted">{t("message.editHint")}</span>
-                <button className="btn small" onClick={() => setEditing(false)}>{t("common.cancel")}</button>
+                <button className="btn small" onClick={stopEditing}>{t("common.cancel")}</button>
                 <button className="btn primary small" onClick={saveEdit}>{t("common.save")}</button>
               </div>
             </div>
