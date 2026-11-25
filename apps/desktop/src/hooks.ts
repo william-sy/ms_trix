@@ -1,5 +1,5 @@
 // Small behaviours many dialogs and menus share.
-import { useCallback, useEffect, useLayoutEffect, useRef, type DependencyList, type RefObject } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type DependencyList, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
 
 /** Escape closes it. */
 export function useEscape(onClose: () => void) {
@@ -65,4 +65,46 @@ export function useStickToBottom(ref: RefObject<HTMLElement | null>, deps: Depen
     return () => { resize.disconnect(); added.disconnect(); el.removeEventListener("scroll", onScroll); };
   }, deps); // eslint-disable-line react-hooks/exhaustive-deps
   return note;
+}
+
+/**
+ * A side pane's width, set by dragging the handle on its left edge (the pane is the handle's
+ * parent) and remembered on this device; double-clicking the handle goes back to the width from
+ * the CSS (null). The pane next to it keeps `keep` pixels.
+ */
+export function usePaneWidth(key: string, min: number, keep: number) {
+  const [width, setWidth] = useState<number | null>(() => {
+    try { const w = Number(localStorage.getItem(key)); return w >= min ? w : null; } catch { return null; }
+  });
+  const store = (w: number | null) => {
+    try { if (w) localStorage.setItem(key, String(w)); else localStorage.removeItem(key); } catch { /* not kept */ }
+  };
+  const onPointerDown = (e: ReactPointerEvent<HTMLElement>) => {
+    const handle = e.currentTarget;
+    const pane = handle.parentElement;
+    const area = pane?.parentElement;
+    if (!pane || !area || e.button !== 0) return;
+    e.preventDefault();
+    const right = pane.getBoundingClientRect().right;
+    const max = Math.max(min, area.getBoundingClientRect().width - keep);
+    let last = pane.getBoundingClientRect().width;
+    const move = (ev: PointerEvent) => {
+      last = Math.round(Math.min(max, Math.max(min, right - ev.clientX)));
+      setWidth(last);
+    };
+    const up = () => {
+      handle.removeEventListener("pointermove", move);
+      handle.removeEventListener("pointerup", up);
+      handle.removeEventListener("pointercancel", up);
+      document.body.classList.remove("resizing");
+      store(last);
+    };
+    handle.setPointerCapture(e.pointerId);
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", up);
+    handle.addEventListener("pointercancel", up);
+    document.body.classList.add("resizing");
+  };
+  const onDoubleClick = () => { setWidth(null); store(null); };
+  return { width, handle: { onPointerDown, onDoubleClick } };
 }

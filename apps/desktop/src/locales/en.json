@@ -162,6 +162,7 @@
   "chat.unmute": "Unmute",
   "chatView.beginning": "This is the beginning of the conversation.",
   "chatView.closeThread": "Close thread",
+  "chatView.resizeThread": "Drag to make the thread wider or narrower; double-click for the standard width",
   "chatView.deleteGalleryConfirm": "Delete these {count} pictures for everyone?",
   "chatView.deleteConfirm": "Delete this message for everyone?",
   "chatView.encrypted": "End-to-end encrypted",

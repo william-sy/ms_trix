@@ -260,7 +260,9 @@ kbd { font: 11px ui-monospace, monospace; color: var(--text-subtle); }
 .fmt { flex: none; min-width: 28px; height: 28px; padding: 0 6px; border-radius: 4px; color: var(--text-muted); font-size: 13px; white-space: nowrap; }
 .fmt:hover { background: var(--bg-hover); color: var(--text); }
 .fmt-B { font-weight: 700; } .fmt-I { font-style: italic; } .fmt-U { text-decoration: underline; } .fmt-S { text-decoration: line-through; }
-.composer-row { display: flex; align-items: flex-end; gap: 2px; padding: 6px 8px 6px 14px; }
+.composer-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 2px; padding: 6px 8px 6px 14px; }
+/* Next to the text while it keeps 240px, else on their own row under it, on the right. */
+.composer-tools { display: flex; align-items: flex-end; gap: 2px; margin-left: auto; }
 .composer textarea { flex: 1; resize: none; border: 0; outline: 0; background: none; padding: 6px 0; max-height: 200px; }
 .icon-btn.send:not(:disabled) { color: var(--accent); }
 
@@ -320,7 +322,13 @@ label.btn.disabled { opacity: 0.5; pointer-events: none; }
 .avatar { overflow: hidden; }
 .avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .chat-area { flex: 1; display: flex; min-width: 0; }
-.thread-pane { width: 360px; flex: none; display: flex; flex-direction: column; border-left: 1px solid var(--border); background: var(--bg-main); }
+.thread-pane { position: relative; width: 360px; max-width: max(300px, calc(100% - 400px)); flex: none; display: flex; flex-direction: column; border-left: 1px solid var(--border); background: var(--bg-main); }
+.thread-pane .composer { margin: 8px 12px 12px; }
+/* Drag to resize a side pane (on its left edge); double-click for its standard width. */
+.pane-resize { position: absolute; z-index: 5; top: 0; bottom: 0; left: -3px; width: 6px; cursor: col-resize; }
+.pane-resize::after { content: ""; position: absolute; top: 0; bottom: 0; left: 2px; width: 2px; transition: background 0.15s 0.1s; }
+.pane-resize:hover::after, body.resizing .pane-resize::after { background: var(--accent); }
+body.resizing, body.resizing * { cursor: col-resize !important; user-select: none; }
 .thread-pane .messages { padding: 12px 16px; }
 .thread-pane .msg { max-width: 100%; }
 .thread-divider { margin: 14px 0 0; padding-top: 8px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-muted); }
@@ -463,7 +471,7 @@ mark { background: rgba(255, 196, 0, 0.45); color: inherit; border-radius: 2px; 
 .swatch.custom input { opacity: 0; position: absolute; inset: 0; cursor: pointer; }
 
 /* ---------- Composer: mention pills, attachment tray ---------- */
-.input-wrap { position: relative; flex: 1; display: flex; min-width: 0; }
+.input-wrap { position: relative; flex: 1 1 240px; display: flex; min-width: 0; }
 .input-mirror { position: absolute; inset: 0; padding: 6px 0; white-space: pre-wrap; overflow-wrap: break-word; overflow: hidden; pointer-events: none; color: var(--text); }
 .input-wrap textarea { position: relative; flex: 1; color: transparent; caret-color: var(--text); background: transparent; }
 .input-wrap textarea::placeholder { color: var(--text-subtle); }

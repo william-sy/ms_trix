@@ -31,7 +31,7 @@ import { parseQuery, queryMatches } from "./searchQuery";
 import { useOpenProfile } from "./Profile";
 import { summarize } from "./roomEvents";
 import { capabilities } from "./mock";
-import { useEscape, useStickToBottom } from "./hooks";
+import { useEscape, usePaneWidth, useStickToBottom } from "./hooks";
 import { PinnedBar, PinnedDialog, usePinned } from "./Pinned";
 import { TranslationLine, useTranslation } from "./Translate";
 import { ReconnectButton } from "./Offline";
@@ -366,6 +366,8 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
   // At the bottom, the list stays there as messages grow (see above); a thread opens at its newest reply.
   const noteScroll = useStickToBottom(scroller, [conv.id, tab, isInvite]);
   useStickToBottom(threadScroller, [threadId]);
+  // The thread pane can be made wider by dragging its left edge; the chat keeps 400px.
+  const threadPane = usePaneWidth("trix.threadWidth", 300, 400);
   const messageActions = (m: Message) => ({
     onReact: (emoji: string) => dispatch({ type: "react", id: conv.id, target: m.id, emoji }),
     onEdit: (text: string) => dispatch({ type: "edit", id: conv.id, target: m.id, text }),
@@ -591,7 +593,8 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
 
       {threadId && (
         // Files dropped here go into this thread (see the drop handler in App).
-        <aside className="thread-pane" data-thread-root={threadId}>
+        <aside className="thread-pane" data-thread-root={threadId} style={threadPane.width ? { width: threadPane.width } : undefined}>
+          <div className="pane-resize" title={t("chatView.resizeThread")} {...threadPane.handle} />
           <header className="chat-head">
             <h2>{t("chatView.thread")}</h2>
             <span className="spacer" />

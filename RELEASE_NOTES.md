@@ -1,5 +1,16 @@
 # Release notes
 
+## 1.8 (not released yet)
+
+### New
+- **A wider thread:** drag the thread pane's left edge to make it wider (or narrower again); it
+  keeps that width. Double-click the edge for the standard width.
+
+### Fixed
+- The reply box in a thread used only half its width for text, next to its buttons. When the
+  box is narrow (a thread, or a small window) the buttons now go on a row under the text, so the
+  text gets the full width; the thread's box also sits closer to the edges.
+
 ## 1.7.0 (2026-11-24)
 
 ### New

@@ -380,53 +380,56 @@ export function Composer(p: Props) {
             }}
           />
         </div>
-        <button className={`icon-btn ${rich ? "on" : ""}`} title={t("composer.format")} onClick={() => setRich(!rich)}><FormatIcon /></button>
-        <span className="emoji-anchor">
-          <button className={`icon-btn ${emoji ? "on" : ""}`} title={t("composer.emoji")} onClick={() => setEmoji(!emoji)}><EmojiIcon /></button>
-          {emoji && <EmojiPicker onPick={insertAtCursor} onClose={() => setEmoji(false)} packs={packs} account={p.account}
-            onPickCustom={(img) => { setEmotes((m) => ({ ...m, [img.shortcode]: img.url })); insertAtCursor(`:${img.shortcode}:`); setEmoji(false); }} />}
-        </span>
-        <span className="emoji-anchor">
-          <button className={`icon-btn ${attachMenu ? "on" : ""}`} title={t("composer.attach")} disabled={!p.onPickFiles} onMouseDown={(e) => e.stopPropagation()}
-            onClick={() => (p.onPickCloud ? setAttachMenu(!attachMenu) : p.onPickFiles?.())}><AttachIcon /></button>
-          {attachMenu && (
-            <div className="menu attach-menu" onMouseDown={(e) => e.stopPropagation()}>
-              <button className="menu-item" onClick={() => { setAttachMenu(false); p.onPickFiles?.(); }}>💻 {t("composer.attachComputer")}</button>
-              <button className="menu-item" onClick={() => { setAttachMenu(false); p.onPickCloud?.(); }}>☁️ {t("composer.attachCloud")}</button>
-            </div>
-          )}
-        </span>
-        <span className="emoji-anchor">
-          <button className={`icon-btn ${stickers ? "on" : ""}`} disabled={!p.onSticker} title={t("composer.stickers")} onClick={() => setStickers(!stickers)}><PlusIcon /></button>
-          {stickers && (
-            <div className="menu emoji-picker sticker-picker" onMouseDown={(e) => e.stopPropagation()}>
-              {packs.filter((pk) => pk.images.some((i) => i.sticker)).length === 0 && <p className="empty">{t("composer.noStickers")}</p>}
-              {packs.filter((pk) => pk.images.some((i) => i.sticker)).map((pk) => (
-                <div key={pk.name}>
-                  <div className="menu-title">{pk.name}</div>
-                  <div className="sticker-grid">
-                    {pk.images.filter((i) => i.sticker).map((img) => (
-                      <button key={img.shortcode + img.url} title={img.body ?? img.shortcode} onClick={() => { p.onSticker?.(img); setStickers(false); }}>
-                        <img src={mediaUrl(p.account ?? "", img.url, 128)} alt={img.body ?? img.shortcode} />
-                      </button>
-                    ))}
+        {/* Beside the text, or on a row of their own under it when that leaves the text too little room (a thread). */}
+        <div className="composer-tools">
+          <button className={`icon-btn ${rich ? "on" : ""}`} title={t("composer.format")} onClick={() => setRich(!rich)}><FormatIcon /></button>
+          <span className="emoji-anchor">
+            <button className={`icon-btn ${emoji ? "on" : ""}`} title={t("composer.emoji")} onClick={() => setEmoji(!emoji)}><EmojiIcon /></button>
+            {emoji && <EmojiPicker onPick={insertAtCursor} onClose={() => setEmoji(false)} packs={packs} account={p.account}
+              onPickCustom={(img) => { setEmotes((m) => ({ ...m, [img.shortcode]: img.url })); insertAtCursor(`:${img.shortcode}:`); setEmoji(false); }} />}
+          </span>
+          <span className="emoji-anchor">
+            <button className={`icon-btn ${attachMenu ? "on" : ""}`} title={t("composer.attach")} disabled={!p.onPickFiles} onMouseDown={(e) => e.stopPropagation()}
+              onClick={() => (p.onPickCloud ? setAttachMenu(!attachMenu) : p.onPickFiles?.())}><AttachIcon /></button>
+            {attachMenu && (
+              <div className="menu attach-menu" onMouseDown={(e) => e.stopPropagation()}>
+                <button className="menu-item" onClick={() => { setAttachMenu(false); p.onPickFiles?.(); }}>💻 {t("composer.attachComputer")}</button>
+                <button className="menu-item" onClick={() => { setAttachMenu(false); p.onPickCloud?.(); }}>☁️ {t("composer.attachCloud")}</button>
+              </div>
+            )}
+          </span>
+          <span className="emoji-anchor">
+            <button className={`icon-btn ${stickers ? "on" : ""}`} disabled={!p.onSticker} title={t("composer.stickers")} onClick={() => setStickers(!stickers)}><PlusIcon /></button>
+            {stickers && (
+              <div className="menu emoji-picker sticker-picker" onMouseDown={(e) => e.stopPropagation()}>
+                {packs.filter((pk) => pk.images.some((i) => i.sticker)).length === 0 && <p className="empty">{t("composer.noStickers")}</p>}
+                {packs.filter((pk) => pk.images.some((i) => i.sticker)).map((pk) => (
+                  <div key={pk.name}>
+                    <div className="menu-title">{pk.name}</div>
+                    <div className="sticker-grid">
+                      {pk.images.filter((i) => i.sticker).map((img) => (
+                        <button key={img.shortcode + img.url} title={img.body ?? img.shortcode} onClick={() => { p.onSticker?.(img); setStickers(false); }}>
+                          <img src={mediaUrl(p.account ?? "", img.url, 128)} alt={img.body ?? img.shortcode} />
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
+          </span>
+          <span className="sep" />
+          {/* Nothing typed: the send button becomes "record a voice message", like Teams. */}
+          {!canSend && p.onVoice ? (
+            <button className="icon-btn send" title={t("composer.recordVoice")} onClick={() => void voice.start()}><MicIcon /></button>
+          ) : (
+            <>
+              {/* Files can't wait: they're sent from where they are now. */}
+              {p.onSchedule && canSend && !attachments.length && <SendLater onPick={(at) => send(at)} />}
+              <button className="icon-btn send" title={t("composer.send")} onClick={() => send()} disabled={!canSend}><SendIcon /></button>
+            </>
           )}
-        </span>
-        <span className="sep" />
-        {/* Nothing typed: the send button becomes "record a voice message", like Teams. */}
-        {!canSend && p.onVoice ? (
-          <button className="icon-btn send" title={t("composer.recordVoice")} onClick={() => void voice.start()}><MicIcon /></button>
-        ) : (
-          <>
-            {/* Files can't wait: they're sent from where they are now. */}
-            {p.onSchedule && canSend && !attachments.length && <SendLater onPick={(at) => send(at)} />}
-            <button className="icon-btn send" title={t("composer.send")} onClick={() => send()} disabled={!canSend}><SendIcon /></button>
-          </>
-        )}
+        </div>
       </div>
     </div>
   );
