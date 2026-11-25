@@ -25,6 +25,10 @@ export const languages: { code: string; name: string }[] = [
 ];
 
 let current = "en";
+let clock: Clock = "system";
+
+/** Times as 14:20 or 2:20 PM: "system" goes by the OS's language and region, whatever the UI language. */
+export type Clock = "system" | "24" | "12";
 
 /** "system" follows the OS language when we have it, else English. */
 export function setLanguage(choice: string) {
@@ -67,6 +71,16 @@ export function friendlyError(raw: string): string {
 
 /** BCP 47 code for Intl date/number formatting. */
 export const locale = () => current;
+
+export function setClock(choice: Clock) {
+  clock = choice;
+}
+
+/** For dates and times: the UI language with the chosen hour cycle (English in Europe: 14:20). */
+export function dateLocale() {
+  const cycle = clock === "24" ? "h23" : clock === "12" ? "h12" : new Intl.DateTimeFormat(navigator.language, { hour: "numeric" }).resolvedOptions().hourCycle;
+  return cycle ? `${current}-u-hc-${cycle}` : current;
+}
 
 export function t(key: Key, vars?: Record<string, string | number>): string {
   const dict = locales[current] ?? en;

@@ -3,7 +3,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { Avatar } from "./Avatar";
 import { ImageCropper } from "./ImageCropper";
 import { backend, isLive, type DeviceInfo } from "./backend";
-import { languages, locale, t, t as tr } from "./i18n";
+import { dateLocale, languages, t, t as tr, type Clock } from "./i18n";
 import { accents, customColors, isMac, macSounds, type FontSize, type NotifyLevel, type Settings, type Sounds, type ThemeChoice } from "./settings";
 import { comboLabel, comboOf, defaults, keyLabel, shortcuts, type ShortcutId } from "./shortcuts";
 import { VERIFIED_EVENT } from "./VerificationDialog";
@@ -107,6 +107,11 @@ function General({ settings, set }: Section) {
           <option value="system">{t("settings.languageSystem")}</option>
           {languages.map((l) => <option key={l.code} value={l.code}>{l.name}</option>)}
         </select>
+      </section>
+
+      <section>
+        <h2>{t("settings.clock")}</h2>
+        <Segmented value={settings.clock} options={["system", "24", "12"] as Clock[]} label={(v) => t(`settings.clock.${v}`)} onPick={(clock) => set({ clock })} />
       </section>
 
       <section>
@@ -373,7 +378,7 @@ function Session({ org, device, onChanged }: { org: Org; device: DeviceInfo; onC
     }
   };
 
-  const seen = device.lastSeenTs ? new Date(device.lastSeenTs).toLocaleString(locale(), { dateStyle: "medium", timeStyle: "short" }) : null;
+  const seen = device.lastSeenTs ? new Date(device.lastSeenTs).toLocaleString(dateLocale(), { dateStyle: "medium", timeStyle: "short" }) : null;
   return (
     <div className="session">
       <div className="session-main">

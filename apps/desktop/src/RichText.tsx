@@ -10,7 +10,7 @@ import { mainWarning, useOpenLink, useOwnDomains, warningText } from "./LinkPrev
 import { useOpenProfile } from "./Profile";
 import { HASHTAG, markTerm } from "./searchQuery";
 import { parseRoomLink, useOpenRoomLink } from "./roomLinks";
-import { locale, t } from "./i18n";
+import { dateLocale, locale, t } from "./i18n";
 
 /** Adds someone's custom emoji to your own pack (same image, a free name). */
 async function addToMyEmoji(account: string, name: string, url: string) {
@@ -110,7 +110,7 @@ function sanitize(html: string, account: string, own: string[], sent: Date): str
 /** On hover: "Thursday 9 December 2026 · 14:00 · in 19 days", and a weekday that doesn't fit. */
 function dateTitle(f: FoundDate): string {
   const when = `${longDate(f.date, locale())}${f.time ? ` · ${f.time}` : ""} · ${fromToday(f.date, locale())}`;
-  return f.wrongWeekday ? `${when}\n${t("dates.wrongWeekday", { weekday: f.date.toLocaleDateString(locale(), { weekday: "long" }) })}` : when;
+  return f.wrongWeekday ? `${when}\n${t("dates.wrongWeekday", { weekday: f.date.toLocaleDateString(dateLocale(), { weekday: "long" }) })}` : when;
 }
 const dateClass = (f: FoundDate) => `date-ref${f.wrongWeekday ? " wrong-weekday" : ""}`;
 

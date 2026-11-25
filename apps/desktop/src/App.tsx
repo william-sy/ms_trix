@@ -49,7 +49,7 @@ import { ImageCropper } from "./ImageCropper";
 import { VerificationDialog } from "./VerificationDialog";
 import { RoomLinkContext, type OpenRoomLink } from "./roomLinks";
 import { TranslatorsContext } from "./Translate";
-import { commandText, friendlyError, locale, rustTexts, t } from "./i18n";
+import { commandText, dateLocale, friendlyError, rustTexts, t } from "./i18n";
 
 /**
  * Whether a Nextcloud account uses calendars: the Calendar app is in its navigation (the calendar
@@ -150,7 +150,7 @@ export function App() {
   const meetingUntil = useMeetingNow(settings.meetingStatus ? calendarAccounts : []);
   const orgIds = state.orgs.map((o) => o.id);
   const matrixIds = new Set(state.orgs.filter((o) => o.protocol === "matrix").map((o) => o.id));
-  const meetingStatus = meetingUntil && t("presence.inMeeting", { time: new Date(meetingUntil).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" }) });
+  const meetingStatus = meetingUntil && t("presence.inMeeting", { time: new Date(meetingUntil).toLocaleTimeString(dateLocale(), { hour: "2-digit", minute: "2-digit" }) });
   const shownPresence = dnd
     ? Object.fromEntries(orgIds.map((id) => [id, { presence: "busy" as PresenceState, status: ownPresence[id]?.status || dndStatus(dnd) }]))
     : meetingStatus
@@ -698,7 +698,7 @@ export function App() {
           const now = Date.now();
           dispatch({ type: "localSend", key: action.id, message: {
             id: `local:${txn}`, sender: me?.sender ?? "", senderId: me?.senderId, avatar: me?.avatar, fromMe: true, ts: now,
-            time: new Date(now).toLocaleString(locale(), { weekday: "long", hour: "2-digit", minute: "2-digit" }),
+            time: new Date(now).toLocaleString(dateLocale(), { weekday: "long", hour: "2-digit", minute: "2-digit" }),
             body: emote ? `* ${me?.sender ?? ""} ${text}` : text, html: rendered ?? undefined, replyTo, threadRoot, status: "sending", local: { txn, outgoing: action.message },
           } });
           return sendLocal(action.id, txn, action.message);

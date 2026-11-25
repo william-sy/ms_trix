@@ -3,7 +3,7 @@
 // (a call's own page too) knows it.
 import { useEffect, useState } from "react";
 import { backend, isLive } from "./backend";
-import { locale, t } from "./i18n";
+import { dateLocale, t } from "./i18n";
 import { currentSettings, onSettingsChanged, updateSettings } from "./settings";
 
 /** Until switched off. */
@@ -23,8 +23,8 @@ export const setDnd = (until: number | null) => updateSettings({ dndUntil: until
 export function dndEnd(until: number): string {
   if (until === DND_FOREVER) return "";
   const d = new Date(until);
-  const time = d.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
-  return d.toDateString() === new Date().toDateString() ? time : `${d.toLocaleDateString(locale(), { weekday: "short" })} ${time}`;
+  const time = d.toLocaleTimeString(dateLocale(), { hour: "2-digit", minute: "2-digit" });
+  return d.toDateString() === new Date().toDateString() ? time : `${d.toLocaleDateString(dateLocale(), { weekday: "short" })} ${time}`;
 }
 
 /** The status message while it's on (for people who haven't set one of their own). */

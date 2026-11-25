@@ -3,7 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { dndActive } from "./dnd";
 import { backend, CALENDAR_CHANGED, isLive } from "./backend";
 import { firstUrl, meetingChat, parseIcal, toIcalUtc } from "./CalendarPane";
-import { locale, t } from "./i18n";
+import { dateLocale, t } from "./i18n";
 import { playRingtone } from "./ringtone";
 import { currentSettings } from "./settings";
 import type { CalendarEvent, Conversation, Org } from "./types";
@@ -94,7 +94,7 @@ export function MeetingReminder({ orgs, convs, minutes, onJoin, onOpenChat }: {
     const remind = (key: string, event: CalendarEvent, start: Date) => {
       if (reminded.current.has(key)) return;
       reminded.current.add(key);
-      const at = start.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
+      const at = start.toLocaleTimeString(dateLocale(), { hour: "2-digit", minute: "2-digit" });
       const url = firstUrl(event.location) ?? firstUrl(event.description);
       const summary = event.summary || t("calendar.noTitle");
       const r: Reminder = { key, summary, at, location: url ? undefined : event.location || undefined, chat: meetingChat(event, convsRef.current)?.id, url, until: start.getTime() + STAY };

@@ -8,7 +8,7 @@ import { Avatar } from "./Avatar";
 import { backend } from "./backend";
 import { dndActive } from "./dnd";
 import { CallIcon, CameraIcon, CameraOffIcon, EmojiIcon, ExpandIcon, GearIcon, HandIcon, LayoutIcon, MicIcon, MicOffIcon, PinIcon, ShareScreenIcon, SparkleIcon, NewWindowIcon } from "./Icons";
-import { locale, t } from "./i18n";
+import { dateLocale, t } from "./i18n";
 import { currentSettings, onSettingsChanged, updateSettings } from "./settings";
 import { callLog, registerPlayer, type TalkCalls, type TalkPeerView } from "./talkCalls";
 import type { Conversation } from "./types";
@@ -236,7 +236,7 @@ export function TalkCallScreen({ calls, conversation, me, docked, onPopOut, onPo
   const sharer = call.peers.find((p) => p.screen);
   // Since the call started, if Talk tells (it may have been on before you joined), else since you joined.
   const start = call.phase === "connected" ? call.startedAt ?? call.connectedAt : undefined;
-  const since = start ? new Date(start).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" }) : null;
+  const since = start ? new Date(start).toLocaleTimeString(dateLocale(), { hour: "2-digit", minute: "2-digit" }) : null;
   // Every full hour in the call: a hint to take a break, until you close it.
   const hours = start ? Math.floor((now - start) / 3_600_000) : 0;
   // The stage moves calmly in banter: someone takes it after talking for a moment (TAKE_STAGE),

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { MeetNow } from "./MeetNow";
 import { Avatar } from "./Avatar";
 import { backend } from "./backend";
-import { locale, t } from "./i18n";
+import { dateLocale, t } from "./i18n";
 import { icalLocal, knownZone, localZone, rrule, vtimezone, wallIn, weekOfMonth, type Repeat, type RepeatEnd } from "./recurrence";
 import type { Attendee, Calendar, CalendarEvent, Conversation, Org } from "./types";
 import { useEscape } from "./hooks";
@@ -72,12 +72,12 @@ const startOfWeek = (d: Date) => {
 };
 const addDays = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
 const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
-const time = (d: Date) => d.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
+const time = (d: Date) => d.toLocaleTimeString(dateLocale(), { hour: "2-digit", minute: "2-digit" });
 /** The hour down the side of the day/week grid: "1 PM" or "13:00", short enough for the gutter. */
 const hourLabel = (h: number) => {
   const d = new Date(2000, 0, 1, h);
-  const twelveHour = new Intl.DateTimeFormat(locale(), { hour: "numeric" }).resolvedOptions().hour12;
-  return twelveHour ? d.toLocaleTimeString(locale(), { hour: "numeric" }) : d.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
+  const twelveHour = new Intl.DateTimeFormat(dateLocale(), { hour: "numeric" }).resolvedOptions().hour12;
+  return twelveHour ? d.toLocaleTimeString(dateLocale(), { hour: "numeric" }) : d.toLocaleTimeString(dateLocale(), { hour: "2-digit", minute: "2-digit" });
 };
 
 /** The Talk conversation an event's meeting link points to, if it's one of ours. */
@@ -173,9 +173,9 @@ export function CalendarPane({ orgs, convs, onOpenChat, onJoinCall, request }: P
   }), [events, calendars, hidden]);
 
   const days = visibleDays(span, week);
-  const range = span === "month" ? week.toLocaleDateString(locale(), { month: "long", year: "numeric" })
-    : span === "day" ? week.toLocaleDateString(locale(), { weekday: "long", day: "numeric", month: "long", year: "numeric" })
-    : `${days[0]!.toLocaleDateString(locale(), { day: "numeric", month: "short" })} – ${days[days.length - 1]!.toLocaleDateString(locale(), { day: "numeric", month: "short", year: "numeric" })}`;
+  const range = span === "month" ? week.toLocaleDateString(dateLocale(), { month: "long", year: "numeric" })
+    : span === "day" ? week.toLocaleDateString(dateLocale(), { weekday: "long", day: "numeric", month: "long", year: "numeric" })
+    : `${days[0]!.toLocaleDateString(dateLocale(), { day: "numeric", month: "short" })} – ${days[days.length - 1]!.toLocaleDateString(dateLocale(), { day: "numeric", month: "short", year: "numeric" })}`;
   const step = (n: number) => setWeek(span === "month" ? new Date(week.getFullYear(), week.getMonth() + n, 1) : addDays(week, span === "day" ? n : 7 * n));
   const openDay = (d: Date) => { setWeek(d); setSpan("day"); };
   const allCalendars = Object.values(calendars).flat();
@@ -219,7 +219,7 @@ export function CalendarPane({ orgs, convs, onOpenChat, onJoinCall, request }: P
         <div className="calendar-gutter" />
         {days.map((d) => (
           <div key={d.toISOString()} className={`calendar-day-head ${sameDay(d, now) ? "today" : ""}`}>
-            <b>{d.getDate()}</b> {d.toLocaleDateString(locale(), { weekday: "short" })}
+            <b>{d.getDate()}</b> {d.toLocaleDateString(dateLocale(), { weekday: "short" })}
           </div>
         ))}
       </div>
@@ -270,7 +270,7 @@ function MonthGrid({ days, month, items, now, onOpen, onDay }: { days: Date[]; m
   const MAX = 3;
   return (
     <div className="calendar-month">
-      {days.slice(0, 7).map((d) => <div key={`h${d.getDay()}`} className="calendar-month-head">{d.toLocaleDateString(locale(), { weekday: "short" })}</div>)}
+      {days.slice(0, 7).map((d) => <div key={`h${d.getDay()}`} className="calendar-month-head">{d.toLocaleDateString(dateLocale(), { weekday: "short" })}</div>)}
       {days.map((d) => {
         const next = addDays(d, 1);
         const list = items
@@ -335,8 +335,8 @@ function EventDialog({ item, chat, writable, onClose, onEdit, onDeleted, onOpenC
   const { event } = item;
   const url = firstUrl(event.location) ?? firstUrl(event.description);
   const when = item.allDay
-    ? item.start.toLocaleDateString(locale(), { weekday: "long", day: "numeric", month: "long" })
-    : `${item.start.toLocaleDateString(locale(), { weekday: "long", day: "numeric", month: "long" })}, ${time(item.start)} – ${time(item.end)}`;
+    ? item.start.toLocaleDateString(dateLocale(), { weekday: "long", day: "numeric", month: "long" })
+    : `${item.start.toLocaleDateString(dateLocale(), { weekday: "long", day: "numeric", month: "long" })}, ${time(item.start)} – ${time(item.end)}`;
   const canChange = writable && event.mine;
   const reply = (status: "ACCEPTED" | "TENTATIVE" | "DECLINED") =>
     backend.respondEvent(item.account, event.href, event.etag ?? null, status).then(onDeleted).catch((e) => setError(String(e)));
@@ -478,7 +478,7 @@ function RepeatPicker({ date, repeat, onRepeat, days, onDays, endKind, onEndKind
 }) {
   const [y, m, d] = date.split("-").map(Number) as [number, number, number];
   const day = new Date(y, (m || 1) - 1, d || 1);
-  const dayName = day.toLocaleDateString(locale(), { weekday: "long" });
+  const dayName = day.toLocaleDateString(dateLocale(), { weekday: "long" });
   const week = weekOfMonth(day);
   const labels: Record<Repeat, string> = {
     none: t("calendar.repeat.none"),
@@ -488,11 +488,11 @@ function RepeatPicker({ date, repeat, onRepeat, days, onDays, endKind, onEndKind
     biweekly: t("calendar.repeat.biweekly", { day: dayName }),
     monthlyDate: t("calendar.repeat.monthlyDate", { day: day.getDate() }),
     monthlyWeekday: t("calendar.repeat.monthlyWeekday", { nth: t(week >= 5 ? "calendar.nth.last" : (`calendar.nth.${week}` as "calendar.nth.1")), day: dayName }),
-    yearly: t("calendar.repeat.yearly", { date: day.toLocaleDateString(locale(), { day: "numeric", month: "long" }) }),
+    yearly: t("calendar.repeat.yearly", { date: day.toLocaleDateString(dateLocale(), { day: "numeric", month: "long" }) }),
   };
   // Monday first; the start's own day is always on.
   const weekDays = [1, 2, 3, 4, 5, 6, 0];
-  const short = (n: number) => new Date(2024, 0, n === 0 ? 7 : n).toLocaleDateString(locale(), { weekday: "short" });
+  const short = (n: number) => new Date(2024, 0, n === 0 ? 7 : n).toLocaleDateString(dateLocale(), { weekday: "short" });
   return (
     <>
       <label>{t("calendar.repeat")}

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { backend } from "./backend";
 import { toIcalUtc } from "./CalendarPane";
-import { locale, t } from "./i18n";
+import { dateLocale, t } from "./i18n";
 import type { Attendee, BusyTime, FreeBusy } from "./types";
 
 // Find a time (like Teams' scheduling assistant): under People in New meeting, everyone's busy
@@ -134,7 +134,7 @@ export function FindTime({ account, people, date, from, to, editing, onPick, onA
     return out;
   }, [list, rows, suggesting, length, start.getTime()]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const dayLabel = (d: Date) => d.toLocaleDateString(locale(), { weekday: "short", day: "numeric", month: "short" });
+  const dayLabel = (d: Date) => d.toLocaleDateString(dateLocale(), { weekday: "short", day: "numeric", month: "short" });
   const shift = (days: number) => {
     const d = new Date(day.getFullYear(), day.getMonth(), day.getDate() + days);
     onPick(ymd(d), from, to);

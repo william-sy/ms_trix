@@ -14,7 +14,7 @@ import { CloudFilePicker } from "./CloudFilePicker";
 import { Composer } from "./Composer";
 import { ForwardDialog } from "./ForwardDialog";
 import type { Attachment, CloudFile, Conversation, Member, Message, Outgoing } from "./types";
-import { locale, t } from "./i18n";
+import { dateLocale, t } from "./i18n";
 import { currentSettings } from "./settings";
 import { matches } from "./shortcuts";
 import { ChatEffect } from "./ChatEffect";
@@ -711,7 +711,7 @@ const galleryPart = (list: Message[], i: number) => i > 0 && joins(list[i - 1]!,
 
 const newDay = (prev: Message | undefined, m: Message) => !!m.ts && (!prev?.ts || !sameDay(prev.ts, m.ts));
 
-const shortTime = (ts: number) => new Date(ts).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
+const shortTime = (ts: number) => new Date(ts).toLocaleTimeString(dateLocale(), { hour: "2-digit", minute: "2-digit" });
 
 /** "Today", "Yesterday", or the date (with the year when it isn't this year). */
 function dayLabel(ts: number): string {
@@ -719,7 +719,7 @@ function dayLabel(ts: number): string {
   if (sameDay(ts, now)) return t("chatView.today");
   if (sameDay(ts, now - 86_400_000)) return t("chatView.yesterday");
   const d = new Date(ts);
-  return d.toLocaleDateString(locale(), { weekday: "long", day: "numeric", month: "long", ...(d.getFullYear() !== new Date(now).getFullYear() ? { year: "numeric" } : {}) });
+  return d.toLocaleDateString(dateLocale(), { weekday: "long", day: "numeric", month: "long", ...(d.getFullYear() !== new Date(now).getFullYear() ? { year: "numeric" } : {}) });
 }
 
 type Tick = "sending" | "sent" | "seen" | "failed";

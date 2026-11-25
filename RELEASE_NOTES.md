@@ -20,6 +20,9 @@
   (*since 14:20*), and its timer counts from then, also when others were in it before you joined
   (Talk 17 and later; older servers: since you joined). After every full hour of the call a small
   hint suggests a short break (close it with ✕; it comes back after the next hour).
+- **Time format setting** (Settings → Time format): System, 24-hour (14:20) or 12-hour
+  (2:20 PM), whatever the app's language. System goes by your computer's language and region, so
+  English on a European Mac now shows 14:20 instead of 2:20 PM.
 
 ### Fixed
 - The reply box in a thread used only half its width for text, next to its buttons. When the

@@ -3,7 +3,7 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { Attendee, Calendar, CalendarEvent, CloudFile, Conversation, FreeBusy, ConversationKind, Member, Message, NewEvent, Note, NoteChange, Org, Outgoing, Protocol } from "./types";
-import { locale, t } from "./i18n";
+import { dateLocale, t } from "./i18n";
 import { describeEvent, type RoomEvent } from "./roomEvents";
 import type { NotifyPrefs, Sounds } from "./settings";
 import type { CardInsets, Corner } from "./callCard";
@@ -315,9 +315,9 @@ export function formatTime(ts: number): string {
   if (!ts) return "";
   const d = new Date(ts);
   const now = new Date();
-  if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
-  if (now.getTime() - ts < 6 * 864e5) return d.toLocaleDateString(locale(), { weekday: "short" });
-  return d.toLocaleDateString(locale(), { day: "2-digit", month: "2-digit" });
+  if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString(dateLocale(), { hour: "2-digit", minute: "2-digit" });
+  if (now.getTime() - ts < 6 * 864e5) return d.toLocaleDateString(dateLocale(), { weekday: "short" });
+  return d.toLocaleDateString(dateLocale(), { day: "2-digit", month: "2-digit" });
 }
 
 const toConversation = (c: ConversationWire): Conversation => ({
@@ -355,7 +355,7 @@ const toMessage = (m: MessageWire): Message => ({
   pos: m.pos,
   sender: m.fromMe ? t("message.you") : m.senderName,
   senderId: m.sender,
-  time: new Date(m.sentAt).toLocaleString(locale(), { weekday: "long", hour: "2-digit", minute: "2-digit" }),
+  time: new Date(m.sentAt).toLocaleString(dateLocale(), { weekday: "long", hour: "2-digit", minute: "2-digit" }),
   ts: m.sentAt,
   body: m.body,
   html: m.html ?? undefined,

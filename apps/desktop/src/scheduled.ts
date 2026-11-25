@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { backend, isLive, type ScheduledMessage } from "./backend";
-import { locale, t } from "./i18n";
+import { dateLocale, t } from "./i18n";
 
 let all: ScheduledMessage[] = [];
 const subscribers = new Set<(list: ScheduledMessage[]) => void>();
@@ -28,7 +28,7 @@ export function useScheduled(conversation: string): ScheduledMessage[] {
   return list.filter((m) => m.conversation === conversation).sort((a, b) => a.at - b.at);
 }
 
-const clock = (d: Date) => d.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
+const clock = (d: Date) => d.toLocaleTimeString(dateLocale(), { hour: "2-digit", minute: "2-digit" });
 const dayStart = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 
 /** "Today at 17:00", "Tomorrow at 09:00", or the day and date. */
@@ -37,7 +37,7 @@ export function whenLabel(at: number): string {
   const days = Math.round((dayStart(d) - dayStart(new Date())) / 86_400_000);
   if (days === 0) return t("schedule.todayAt", { time: clock(d) });
   if (days === 1) return t("schedule.tomorrowAt", { time: clock(d) });
-  return t("schedule.dayAt", { day: d.toLocaleDateString(locale(), { weekday: "long", day: "numeric", month: "short" }), time: clock(d) });
+  return t("schedule.dayAt", { day: d.toLocaleDateString(dateLocale(), { weekday: "long", day: "numeric", month: "short" }), time: clock(d) });
 }
 
 /** Quick choices: later today (till mid-afternoon), tomorrow morning, and Monday morning. */

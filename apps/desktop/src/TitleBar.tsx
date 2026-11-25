@@ -5,7 +5,7 @@ import { Avatar } from "./Avatar";
 import { useOrgs, type OrgFilter } from "./store";
 import { backend, formatTime, isLive, type SearchHit } from "./backend";
 import type { PresenceState } from "./types";
-import { locale, t } from "./i18n";
+import { dateLocale, t } from "./i18n";
 import { matches } from "./shortcuts";
 import { markTerm } from "./searchQuery";
 
@@ -138,7 +138,7 @@ export function TitleBar({ orgFilter, query, onQuery, onAddAccount, onSignOut, o
                 <span className="hit-text">{h.senderName || t("search.you")}: <Highlight text={h.snippet} query={query.trim()} /></span>
               </button>
             ))}
-            <p className="hint small">{indexed !== null ? t("search.hintIndexed", { count: indexed, formatted: indexed.toLocaleString(locale()) }) : t("search.hint")}</p>
+            <p className="hint small">{indexed !== null ? t("search.hintIndexed", { count: indexed, formatted: indexed.toLocaleString(dateLocale()) }) : t("search.hint")}</p>
             <p className="hint small">{t("search.syntax")}</p>
           </div>
         )}

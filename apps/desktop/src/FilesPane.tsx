@@ -7,7 +7,7 @@ import { ChatPickerDialog } from "./ForwardDialog";
 import { Gallery, inGallery } from "./Gallery";
 import type { FilesReveal } from "./filesNav";
 import { useEscape } from "./hooks";
-import { locale, t } from "./i18n";
+import { dateLocale, t } from "./i18n";
 import { isMac } from "./settings";
 import type { CloudFile, Conversation, Org } from "./types";
 
@@ -54,7 +54,7 @@ function modified(f: CloudFile) {
   const d = new Date(f.modified);
   if (Number.isNaN(d.getTime())) return "";
   const today = new Date().toDateString() === d.toDateString();
-  return today ? d.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" }) : d.toLocaleDateString(locale(), { day: "numeric", month: "short", year: "numeric" });
+  return today ? d.toLocaleTimeString(dateLocale(), { hour: "2-digit", minute: "2-digit" }) : d.toLocaleDateString(dateLocale(), { day: "numeric", month: "short", year: "numeric" });
 }
 
 export function FilesPane({ orgs, convs, reveal }: { orgs: Org[]; convs: Conversation[]; reveal?: FilesReveal | null }) {

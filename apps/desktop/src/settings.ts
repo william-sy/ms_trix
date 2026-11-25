@@ -1,6 +1,6 @@
 import type { CameraQuality } from "./videoQuality";
 import type { Ringtone } from "./ringtone";
-import { setLanguage, type Key } from "./i18n";
+import { setClock, setLanguage, type Clock, type Key } from "./i18n";
 
 // App settings, kept per device in localStorage until accounts sync settings.
 // Notification and privacy choices are pushed to the Rust host (syncToHost).
@@ -37,6 +37,7 @@ export interface Settings {
   fontSize: FontSize;
   /** "system" or a language code from i18n.languages. */
   language: string;
+  clock: Clock;
   notify: NotifyPrefs;
   sounds: Sounds;
   /** Let others see when you've read their messages / are typing. */
@@ -107,6 +108,7 @@ const defaults: Settings = {
   accent: null,
   fontSize: "normal",
   language: "system",
+  clock: "system",
   notify: { chats: "all", channels: "mentions", calls: true, silentCalls: false, keywords: [] },
   sounds: { message: "default", mention: "default", call: "default" },
   shareReceipts: true,
@@ -210,4 +212,5 @@ export function applySettings(s: Settings) {
     else root.style.removeProperty(name);
   }
   setLanguage(s.language);
+  setClock(s.clock);
 }

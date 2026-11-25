@@ -3,7 +3,7 @@ import { backend } from "./backend";
 import { parseIcal, toIcalUtc } from "./CalendarPane";
 import { fromToday, longDate, parseIsoDay } from "./dates";
 import { useClickOutside, useEscape } from "./hooks";
-import { locale, t } from "./i18n";
+import { dateLocale, locale, t } from "./i18n";
 import type { Org } from "./types";
 
 // A date in a message, clicked: that month with the day marked, what's in your calendar that day,
@@ -61,9 +61,9 @@ export function DatePopover({ info, calendarOrgs, onOpenCalendar, onAdd, onClose
   const length = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
   const cells = Array.from({ length: Math.ceil((offset + length) / 7) * 7 }, (_, i) => new Date(date.getFullYear(), date.getMonth(), 1 - offset + i));
   // 1 January 2024 was a Monday.
-  const weekdays = Array.from({ length: 7 }, (_, i) => new Date(2024, 0, 1 + i).toLocaleDateString(locale(), { weekday: "narrow" }));
+  const weekdays = Array.from({ length: 7 }, (_, i) => new Date(2024, 0, 1 + i).toLocaleDateString(dateLocale(), { weekday: "narrow" }));
   const today = new Date().toDateString();
-  const time = (d: Date) => d.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
+  const time = (d: Date) => d.toLocaleTimeString(dateLocale(), { hour: "2-digit", minute: "2-digit" });
 
   // Below the click, or above it near the bottom of the window.
   const left = Math.max(8, Math.min(info.x - WIDTH / 2, window.innerWidth - WIDTH - 8));
@@ -74,7 +74,7 @@ export function DatePopover({ info, calendarOrgs, onOpenCalendar, onAdd, onClose
       <b className="date-popover-day">{longDate(date, locale())}{info.time && ` · ${info.time}`}</b>
       <span className="date-popover-when">{fromToday(date, locale())}</span>
       <div className="date-popover-month">
-        <span className="date-popover-title">{date.toLocaleDateString(locale(), { month: "long", year: "numeric" })}</span>
+        <span className="date-popover-title">{date.toLocaleDateString(dateLocale(), { month: "long", year: "numeric" })}</span>
         <div className="date-popover-grid">
           {weekdays.map((w, i) => <span key={`w${i}`} className="wd">{w}</span>)}
           {cells.map((d) => (

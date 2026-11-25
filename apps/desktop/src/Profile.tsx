@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Avatar } from "./Avatar";
 import { backend, isLive, type DeviceInfo, type Profile } from "./backend";
-import { locale, t } from "./i18n";
+import { dateLocale, t } from "./i18n";
 import { useOrgs } from "./store";
 import { VERIFIED_EVENT } from "./VerificationDialog";
 import type { Conversation } from "./types";
@@ -138,7 +138,7 @@ export function ProfileCard({ account, userId, at, convs, onClose, onOpen, onNot
 /** Out of office (Nextcloud): until when, their message, who to ask instead. */
 function AbsenceNote({ absence }: { absence: NonNullable<Profile["absence"]> }) {
   // The end is the last day's end or the next day's start: a second earlier is the last day either way.
-  const last = absence.until && new Date(absence.until - 1000).toLocaleDateString(locale(), { weekday: "short", day: "numeric", month: "short" });
+  const last = absence.until && new Date(absence.until - 1000).toLocaleDateString(dateLocale(), { weekday: "short", day: "numeric", month: "short" });
   const text = absence.message || absence.shortMessage;
   return (
     <div className="profile-absence">
