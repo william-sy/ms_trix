@@ -16,9 +16,10 @@
 - **Quick edit:** pressed Enter and spotted a typo? Arrow Up in the empty message box within 10
   seconds opens what you just sent for editing, with the cursor at the end; Enter saves, Escape
   cancels, and you're back in the message box. Works in threads too.
-- **Talk calls: since when, and a break hint:** the call's header shows when you joined
-  (*since 14:20*), and after every full hour in the call a small hint suggests a short break
-  (close it with ✕; it comes back after the next hour).
+- **Talk calls: since when, and a break hint:** the call's header shows when the call started
+  (*since 14:20*), and its timer counts from then, also when others were in it before you joined
+  (Talk 17 and later; older servers: since you joined). After every full hour of the call a small
+  hint suggests a short break (close it with ✕; it comes back after the next hour).
 
 ### Fixed
 - The reply box in a thread used only half its width for text, next to its buttons. When the

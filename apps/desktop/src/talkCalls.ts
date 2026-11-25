@@ -65,6 +65,8 @@ export interface TalkCallState {
   /** The call is being recorded (Talk's recording server). */
   recording?: "starting" | "on";
   connectedAt?: number;
+  /** When the call itself started (someone may have been in it before you), if Talk tells. */
+  startedAt?: number;
   error?: string;
 }
 
@@ -316,7 +318,7 @@ export class TalkCall {
       await names;
       if (this.sig.mcu) await this.publish("video", local);
       this.set({ phase: "connected", connectedAt: Date.now() });
-      void this.watchRecording();
+      void this.watchRoom();
     } catch (e) {
       log(`failed to start: ${String(e)}`);
       this.set({ error: String(e) });
@@ -733,13 +735,19 @@ export class TalkCall {
   }
 
   /** Talk tells everyone when a call is recorded; check the conversation now and then. */
-  private async watchRecording() {
+  /** Whether the call is being recorded, and when it started (Talk 17 on). */
+  private async watchRoom() {
     while (!this.closed) {
       try {
+        const room = await this.api("GET", `/v4/room/${this.token}`);
         // callRecording: 0 off, 1 video, 2 audio, 3/4 starting, 5 failed.
-        const status = Number((await this.api("GET", `/v4/room/${this.token}`))?.callRecording ?? 0);
+        const status = Number(room?.callRecording ?? 0);
         const recording = status === 1 || status === 2 ? "on" : status === 3 || status === 4 ? "starting" : undefined;
         if (recording !== this.state.recording) this.set({ recording });
+        // The server's clock: never later than when we joined (a call we started ourselves).
+        const started = Number(room?.callStartTime ?? 0) * 1000;
+        const startedAt = started > 0 ? Math.min(started, this.state.connectedAt ?? Date.now()) : undefined;
+        if (startedAt !== this.state.startedAt) this.set({ startedAt });
       } catch { /* try again next round */ }
       await new Promise((r) => window.setTimeout(r, 15_000));
     }

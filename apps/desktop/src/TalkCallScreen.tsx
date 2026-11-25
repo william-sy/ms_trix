@@ -232,11 +232,13 @@ export function TalkCallScreen({ calls, conversation, me, docked, onPopOut, onPo
   if (call.phase === "prejoin") return <PreJoin calls={calls} name={conversation?.name ?? ""} onPopOut={onPopOut} />;
 
   const name = conversation?.name ?? "";
-  const status = call.phase === "joining" ? t("talkcall.joining") : call.phase === "ended" ? t("talkcall.ended") : formatDuration(now - (call.connectedAt ?? now));
+  const status = call.phase === "joining" ? t("talkcall.joining") : call.phase === "ended" ? t("talkcall.ended") : formatDuration(now - (call.startedAt ?? call.connectedAt ?? now));
   const sharer = call.peers.find((p) => p.screen);
-  const since = call.phase === "connected" && call.connectedAt ? new Date(call.connectedAt).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" }) : null;
+  // Since the call started, if Talk tells (it may have been on before you joined), else since you joined.
+  const start = call.phase === "connected" ? call.startedAt ?? call.connectedAt : undefined;
+  const since = start ? new Date(start).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" }) : null;
   // Every full hour in the call: a hint to take a break, until you close it.
-  const hours = since ? Math.floor((now - call.connectedAt!) / 3_600_000) : 0;
+  const hours = start ? Math.floor((now - start) / 3_600_000) : 0;
   // The stage moves calmly in banter: someone takes it after talking for a moment (TAKE_STAGE),
   // and whoever has it keeps it a while (KEEP_STAGE) unless they've stopped talking. Short sounds
   // ("mm", a laugh) don't move it at all. Checked on every update (at least once a second).
