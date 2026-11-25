@@ -2940,6 +2940,8 @@ async fn sliding_sync(
 
     let mut started = false;
     let mut connected = false;
+    // Stops with the sync (signing out aborts it); on its own it kept asking with a revoked token.
+    let mut _presence = None;
     loop {
         let stream = sync.sync();
         futures::pin_mut!(stream);
@@ -2947,7 +2949,7 @@ async fn sliding_sync(
             match update {
                 Ok(summary) => {
                     if !std::mem::replace(&mut started, true) {
-                        tokio::spawn(poll_presence(client.clone(), tx.clone()));
+                        _presence = Some(AbortOnDrop(tokio::spawn(poll_presence(client.clone(), tx.clone()))));
                     }
                     if !std::mem::replace(&mut connected, true) {
                         let _ = tx.send(AdapterEvent::Connected);
@@ -2968,6 +2970,15 @@ async fn sliding_sync(
             }
         }
         tokio::time::sleep(Duration::from_secs(5)).await;
+    }
+}
+
+/// A task that ends when this is dropped, with the task that keeps it.
+struct AbortOnDrop(tokio::task::JoinHandle<()>);
+
+impl Drop for AbortOnDrop {
+    fn drop(&mut self) {
+        self.0.abort();
     }
 }
 

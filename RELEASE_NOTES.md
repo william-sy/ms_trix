@@ -10,6 +10,9 @@
 - The reply box in a thread used only half its width for text, next to its buttons. When the
   box is narrow (a thread, or a small window) the buttons now go on a row under the text, so the
   text gets the full width; the thread's box also sits closer to the edges.
+- After signing out of a Matrix account, the app kept asking its server every minute whether
+  your 1:1 contacts were online (with the revoked session, so each try failed) until it was
+  restarted.
 
 ## 1.7.0 (2026-11-24)
 
