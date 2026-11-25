@@ -123,7 +123,9 @@ export function App() {
   // Talk calls run in a webview of their own, docked in the app or in a window of their own.
   const talkCalls = useTalkCallHost((id) => {
     const conv = state.convs.find((c) => c.id === id);
-    return { account: conv?.orgId ?? id.split("|")[0]!, name: conv?.name ?? "", avatar: conv?.avatar };
+    const account = conv?.orgId ?? id.split("|")[0]!;
+    const me = state.orgs.find((o) => o.id === account);
+    return { account, name: conv?.name ?? "", avatar: conv?.avatar, me: me && { name: me.displayName, avatar: me.avatar } };
   }, (e) => setNotice(e));
   const calls = useMatrixCalls((e) => setNotice(String(e)), (conversation, peer, video) => {
     const name = convsRef.current.find((c) => c.id === conversation)?.name ?? peer;

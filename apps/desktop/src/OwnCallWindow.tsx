@@ -111,7 +111,7 @@ export function CallWindow() {
     <>
       {/* Below the call engine: a screen that breaks shows the error, the call carries on. */}
       <ErrorBoundary>
-        <TalkCallScreen calls={calls} conversation={conversation} docked={docked} onPopOut={docked ? popOut : undefined} onPopIn={docked ? undefined : popIn} />
+        <TalkCallScreen calls={calls} conversation={conversation} me={p.me} docked={docked} onPopOut={docked ? popOut : undefined} onPopIn={docked ? undefined : popIn} />
       </ErrorBoundary>
       {notice && <div className="notice call-window-notice" role="alert" onClick={() => setNotice(null)}>{notice}</div>}
     </>

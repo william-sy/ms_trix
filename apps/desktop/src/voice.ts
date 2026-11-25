@@ -143,7 +143,9 @@ export function startMeter(stream: MediaStream, onLevel: (level: number) => void
   };
 }
 
+/** 4:05, or 1:30:23 from an hour on. */
 export const formatDuration = (ms: number) => {
   const s = Math.floor(ms / 1000);
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  const two = (n: number) => String(n).padStart(2, "0");
+  return s < 3600 ? `${Math.floor(s / 60)}:${two(s % 60)}` : `${Math.floor(s / 3600)}:${two(Math.floor(s / 60) % 60)}:${two(s % 60)}`;
 };

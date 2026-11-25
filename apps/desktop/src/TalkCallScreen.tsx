@@ -8,7 +8,7 @@ import { Avatar } from "./Avatar";
 import { backend } from "./backend";
 import { dndActive } from "./dnd";
 import { CallIcon, CameraIcon, CameraOffIcon, EmojiIcon, ExpandIcon, GearIcon, HandIcon, LayoutIcon, MicIcon, MicOffIcon, PinIcon, ShareScreenIcon, SparkleIcon, NewWindowIcon } from "./Icons";
-import { t } from "./i18n";
+import { locale, t } from "./i18n";
 import { currentSettings, onSettingsChanged, updateSettings } from "./settings";
 import { callLog, registerPlayer, type TalkCalls, type TalkPeerView } from "./talkCalls";
 import type { Conversation } from "./types";
@@ -128,8 +128,8 @@ function DeviceButton({ calls }: { calls: TalkCalls }) {
 }
 
 /** One person: their camera, or picture and name; a ring while they speak. */
-function Tile({ account, name, stream, videoOn, audioOn, speaking, self, small, pinned, onPin, onHide, hand }: {
-  account: string; name: string; stream?: MediaStream; videoOn: boolean; audioOn: boolean; speaking: boolean; self?: boolean; small?: boolean;
+function Tile({ account, name, media, stream, videoOn, audioOn, speaking, self, small, pinned, onPin, onHide, hand }: {
+  account: string; name: string; media?: string; stream?: MediaStream; videoOn: boolean; audioOn: boolean; speaking: boolean; self?: boolean; small?: boolean;
   /** Your own tile: hide it (only for you). */
   onHide?: () => void;
   pinned?: boolean; onPin?: () => void; hand?: boolean;
@@ -142,7 +142,7 @@ function Tile({ account, name, stream, videoOn, audioOn, speaking, self, small, 
       {onPin && <button className="talk-pin" title={pinned ? t("talkcall.unpin") : t("talkcall.pin")} onClick={onPin}><PinIcon size={16} /></button>}
       {onHide && <button className="talk-pin" title={t("talkcall.hideSelf")} onClick={onHide}>✕</button>}
       {hasVideo ? <Video key={videoKey} stream={stream} muted mirror={self} className="talk-tile-video" /> : (
-        <div className="talk-tile-avatar"><Avatar account={account} name={name} className="big" /></div>
+        <div className="talk-tile-avatar"><Avatar account={account} media={media} name={name} className="big" /></div>
       )}
       {/* Their sound, the same element whether or not the picture shows. */}
       {!self && stream && <Sound stream={stream} />}
@@ -190,8 +190,10 @@ export function BackgroundButton({ onPick, disabled }: { onPick: (effect: string
  * Auto: speaker for 1:1, gallery for groups. A shared screen fills the stage with a strip of
  * faces beside or above it, or on its own.
  */
-export function TalkCallScreen({ calls, conversation, docked, onPopOut, onPopIn }: {
+export function TalkCallScreen({ calls, conversation, me, docked, onPopOut, onPopIn }: {
   calls: TalkCalls; conversation?: Conversation;
+  /** You: your tile's name and picture. */
+  me?: { name: string; avatar?: string };
   /** In the app (minimising makes it the card in the corner) or in a window of its own. */
   docked: boolean;
   /** In the app: move the call into its own window. */
@@ -208,6 +210,8 @@ export function TalkCallScreen({ calls, conversation, docked, onPopOut, onPopIn 
   const [layoutMenu, setLayoutMenu] = useState(false);
   const [page, setPage] = useState(0);
   const [pinned, setPinned] = useState<string | null>(null);
+  /** The full hours in the call whose break hint you closed. */
+  const [breakSeen, setBreakSeen] = useState(0);
   const cardDrag = useDockedCardDrag();
   // Who's on stage, and since when; and since when each person has been talking (see below).
   const stageOwner = useRef<{ sid: string; since: number } | null>(null);
@@ -230,6 +234,9 @@ export function TalkCallScreen({ calls, conversation, docked, onPopOut, onPopIn 
   const name = conversation?.name ?? "";
   const status = call.phase === "joining" ? t("talkcall.joining") : call.phase === "ended" ? t("talkcall.ended") : formatDuration(now - (call.connectedAt ?? now));
   const sharer = call.peers.find((p) => p.screen);
+  const since = call.phase === "connected" && call.connectedAt ? new Date(call.connectedAt).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" }) : null;
+  // Every full hour in the call: a hint to take a break, until you close it.
+  const hours = since ? Math.floor((now - call.connectedAt!) / 3_600_000) : 0;
   // The stage moves calmly in banter: someone takes it after talking for a moment (TAKE_STAGE),
   // and whoever has it keeps it a while (KEEP_STAGE) unless they've stopped talking. Short sounds
   // ("mm", a laugh) don't move it at all. Checked on every update (at least once a second).
@@ -246,10 +253,10 @@ export function TalkCallScreen({ calls, conversation, docked, onPopOut, onPopIn 
     if (!stageOwner.current || (clock - challenger[1] >= TAKE_STAGE && settled)) stageOwner.current = { sid: challenger[0], since: clock };
   }
   const pinnedPeer = call.peers.find((p) => p.sid === pinned);
-  const self = { name: "", stream: call.local, videoOn: call.cameraOn, audioOn: !call.muted, speaking: call.speakingSelf };
+  const self = { name: me?.name ?? "", media: me?.avatar, stream: call.local, videoOn: call.cameraOn, audioOn: !call.muted, speaking: call.speakingSelf };
   const pin = (sid: string) => setPinned(pinned === sid ? null : sid);
   const tile = (p: TalkPeerView, small?: boolean) => (
-    <Tile key={p.sid} account={call.account} name={p.name} stream={p.stream} videoOn={p.videoOn} audioOn={p.audioOn} speaking={p.speaking} small={small}
+    <Tile key={p.sid} account={call.account} name={p.name} media={p.userId && `user:${p.userId}`} stream={p.stream} videoOn={p.videoOn} audioOn={p.audioOn} speaking={p.speaking} small={small}
       pinned={pinned === p.sid} onPin={() => pin(p.sid)} hand={!!p.handRaised} />
   );
   const selfTile = (small?: boolean) => <Tile key="self" account={call.account} self small={small} hand={call.handRaised} onHide={() => setHideSelf(true)} {...self} />;
@@ -335,7 +342,10 @@ export function TalkCallScreen({ calls, conversation, docked, onPopOut, onPopIn 
     <div className="call-screen talk own-window">
       <header className="call-head">
         <b>{name}</b>
-        <span className="muted">{status} · {t("talkcall.people", { count: call.peers.length + 1 })}</span>
+        <span className="muted">{status}{since && ` · ${t("talkcall.since", { time: since })}`} · {t("talkcall.people", { count: call.peers.length + 1 })}</span>
+        {hours > breakSeen && (
+          <span className="break-pill" role="status">{t("talkcall.breakHint", { count: hours })}<button title={t("talkcall.breakClose")} onClick={() => setBreakSeen(hours)}>✕</button></span>
+        )}
         {call.sharing && <button className="sharing-pill" onClick={() => void calls.setSharing(false)}><ShareScreenIcon /> {t("share.youreSharing")} · <b>{t("mxcall.stopShare")}</b></button>}
         {call.recording && <span className="talk-recording" role="status">● {call.recording === "on" ? t("talkcall.recording") : t("talkcall.recordingStarting")}</span>}
         <span className="spacer" />

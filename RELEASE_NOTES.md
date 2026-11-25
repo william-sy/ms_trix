@@ -16,6 +16,9 @@
 - **Quick edit:** pressed Enter and spotted a typo? Arrow Up in the empty message box within 10
   seconds opens what you just sent for editing, with the cursor at the end; Enter saves, Escape
   cancels, and you're back in the message box. Works in threads too.
+- **Talk calls: since when, and a break hint:** the call's header shows when you joined
+  (*since 14:20*), and after every full hour in the call a small hint suggests a short break
+  (close it with ✕; it comes back after the next hour).
 
 ### Fixed
 - The reply box in a thread used only half its width for text, next to its buttons. When the
@@ -24,6 +27,10 @@
 - After signing out of a Matrix account, the app kept asking its server every minute whether
   your 1:1 contacts were online (with the revoked session, so each try failed) until it was
   restarted.
+- Call times from an hour on read 1:30:23 instead of 90:23 (calls, voice messages, the calls
+  list).
+- Talk calls showed initials instead of people's pictures, and an empty circle for yourself;
+  your own and everyone's profile picture now show when the camera is off.
 
 ## 1.7.0 (2026-11-24)
 

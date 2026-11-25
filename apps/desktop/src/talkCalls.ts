@@ -27,6 +27,8 @@ type Any = any;
 export interface TalkPeerView {
   sid: string;
   name: string;
+  /** Their Nextcloud user id, for their picture (guests have none). */
+  userId?: string;
   stream?: MediaStream;
   screen?: MediaStream;
   audioOn: boolean;
@@ -168,6 +170,7 @@ export class TalkCall {
   sig?: Signaling;
   token: string;
   names = new Map<string, string>(); // signalling session id -> display name
+  userIds = new Map<string, string>(); // signalling session id -> Nextcloud user id
   nextcloudSid = "";
   /** Our display name; Talk names call tiles (and "raised their hand") after the nick in our offers. */
   nick = "";
@@ -205,7 +208,7 @@ export class TalkCall {
   }
 
   private set(patch: Partial<TalkCallState>) {
-    this.state = { ...this.state, ...patch, peers: [...this.peers.values()].map(({ sid, name, stream, screen, audioOn, videoOn, speaking, handRaised }) => ({ sid, name, stream, screen, audioOn, videoOn, speaking, handRaised })) };
+    this.state = { ...this.state, ...patch, peers: [...this.peers.values()].map(({ sid, name, userId, stream, screen, audioOn, videoOn, speaking, handRaised }) => ({ sid, name, userId, stream, screen, audioOn, videoOn, speaking, handRaised })) };
     this.update(this.state);
     this.adjustQuality();
   }
@@ -373,7 +376,10 @@ export class TalkCall {
 
   private onEvent(event: Any) {
     if (event.target === "room" && event.type === "join") {
-      for (const j of event.join ?? []) if (j.user?.displayname) this.names.set(j.sessionid, j.user.displayname);
+      for (const j of event.join ?? []) {
+        if (j.user?.displayname) this.names.set(j.sessionid, j.user.displayname);
+        if (j.userid) this.userIds.set(j.sessionid, j.userid);
+      }
     }
     if (event.target === "room" && event.type === "leave") {
       for (const sid of event.leave ?? []) this.dropPeer(sid);
@@ -426,9 +432,10 @@ export class TalkCall {
     if (inCall.some((u) => !this.names.has(u.sid) && !u.name)) await this.loadNames();
     for (const u of inCall) {
       if (u.name) this.names.set(u.sid, u.name);
+      if (u.userId) this.userIds.set(u.sid, u.userId);
       let peer = this.peers.get(u.sid);
       if (!peer) {
-        peer = { sid: u.sid, name: this.names.get(u.sid) ?? u.userId ?? "…", pcs: {}, pending: {}, inCall: u.inCall, audioOn: !!(u.inCall & WITH_AUDIO), videoOn: !!(u.inCall & WITH_VIDEO), speaking: false };
+        peer = { sid: u.sid, name: this.names.get(u.sid) ?? u.userId ?? "…", userId: this.userIds.get(u.sid), pcs: {}, pending: {}, inCall: u.inCall, audioOn: !!(u.inCall & WITH_AUDIO), videoOn: !!(u.inCall & WITH_VIDEO), speaking: false };
         this.peers.set(u.sid, peer);
         log(`participant joined: ${peer.name} (flags ${u.inCall})`);
         this.connectPeer(peer);
@@ -436,6 +443,7 @@ export class TalkCall {
         if (this.state.screen) this.sendScreenTo(peer);
       }
       peer.inCall = u.inCall;
+      peer.userId ??= this.userIds.get(u.sid);
     }
     // Who left the call (flags 0 or gone from the list).
     for (const sid of [...this.peers.keys()]) {
@@ -448,7 +456,12 @@ export class TalkCall {
   private async loadNames() {
     try {
       const list: Any[] = await this.api("GET", `/v4/room/${this.token}/participants`, { includeStatus: "false" });
-      for (const p of list ?? []) for (const sid of p.sessionIds ?? []) this.names.set(sid, p.displayName || p.actorId);
+      for (const p of list ?? []) {
+        for (const sid of p.sessionIds ?? []) {
+          this.names.set(sid, p.displayName || p.actorId);
+          if (p.actorType === "users") this.userIds.set(sid, p.actorId);
+        }
+      }
     } catch { /* names are a nicety */ }
   }
 
@@ -661,7 +674,7 @@ export class TalkCall {
     let peer = this.peers.get(sid);
     if (!peer && (data.type === "offer" || data.type === "candidate")) {
       // Media from someone the participant list didn't announce yet.
-      peer = { sid, name: this.names.get(sid) ?? "…", pcs: {}, pending: {}, inCall: IN_CALL, audioOn: true, videoOn: true, speaking: false };
+      peer = { sid, name: this.names.get(sid) ?? "…", userId: this.userIds.get(sid), pcs: {}, pending: {}, inCall: IN_CALL, audioOn: true, videoOn: true, speaking: false };
       this.peers.set(sid, peer);
       this.announceTo(peer);
     }
@@ -1025,6 +1038,8 @@ export interface CallWindowParams {
   account: string;
   name: string;
   avatar?: string;
+  /** You (your tile's name and picture). */
+  me?: { name: string; avatar?: string };
   video: boolean;
   /** Started silently: the others aren't rung. */
   silent?: boolean;
@@ -1044,7 +1059,7 @@ export interface TalkCallHost {
  * Starts Talk calls in their own webview (OwnCallWindow): docked in the app, or in a window of
  * their own if that's where you last had one. Moving between the two keeps the call connected.
  */
-export function useTalkCallHost(describe: (conversation: string) => { account: string; name: string; avatar?: string }, onError: (message: string) => void): TalkCallHost {
+export function useTalkCallHost(describe: (conversation: string) => Omit<CallWindowParams, "conversation" | "video" | "silent" | "docked">, onError: (message: string) => void): TalkCallHost {
   const [inCall, setInCall] = useState<string | null>(null);
   useEffect(() => {
     if (!isLive) return;

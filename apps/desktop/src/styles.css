@@ -1183,6 +1183,9 @@ html.reminder-page .meeting-reminder { inset: 0; border-radius: 12px; box-shadow
 .talk-recording { margin-left: 10px; padding: 2px 8px; border-radius: 4px; background: #c4314b; color: #fff; font-size: 12px; font-weight: 600; }
 
 /* ---------- Sharing your screen ---------- */
+.break-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 4px 3px 10px; border-radius: 999px; font-size: 12px; background: rgba(255, 255, 255, 0.12); color: #fff; }
+.break-pill button { border: none; background: none; color: inherit; opacity: 0.7; cursor: pointer; padding: 0 4px; font-size: 11px; }
+.break-pill button:hover { opacity: 1; }
 .sharing-pill { display: inline-flex; align-items: center; gap: 6px; margin-left: 8px; padding: 3px 10px; border-radius: 999px; font-size: 12px; background: #c4314b; color: #fff; }
 .sharing-pill:hover { background: #a4283e; }
 .sharing-pill svg { width: 15px; height: 15px; }
