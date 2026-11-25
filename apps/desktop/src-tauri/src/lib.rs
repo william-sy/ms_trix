@@ -681,6 +681,25 @@ fn read_chat_list(state: &AppState) -> Option<serde_json::Value> {
     state.search.as_ref()?.unseal(&data).ok()
 }
 
+const DRAFTS_FILE: &str = "drafts.bin";
+
+/// Half-written messages (chat key, or chat key#thread -> text), sealed like the chat list.
+#[tauri::command]
+async fn drafts(app: AppHandle) -> std::collections::HashMap<String, String> {
+    let state = app.state::<AppState>();
+    let read = || state.search.as_ref()?.unseal(&std::fs::read(state.data_dir.join(DRAFTS_FILE)).ok()?).ok();
+    read().unwrap_or_default()
+}
+
+#[tauri::command]
+async fn save_drafts(app: AppHandle, drafts: std::collections::HashMap<String, String>) -> CmdResult<()> {
+    let state = app.state::<AppState>();
+    // Without the search index (no key) drafts last only while the app runs.
+    let Some(index) = state.search.clone() else { return Ok(()) };
+    let data = index.seal(&drafts).map_err(|e| e.to_string())?;
+    std::fs::write(state.data_dir.join(DRAFTS_FILE), data).map_err(|e| e.to_string())
+}
+
 /// The Activity feed survives restarts; it's small, so rewrite it whole.
 fn save_activity(data_dir: &std::path::Path, items: &[ActivityItem]) {
     match serde_json::to_vec(items) {
@@ -2716,6 +2735,8 @@ pub fn run() {
             hide_share_overlay,
             stop_sharing,
             cached_chat_list,
+            drafts,
+            save_drafts,
             connections,
             reconnect,
             security_status,

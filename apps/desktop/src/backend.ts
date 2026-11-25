@@ -418,6 +418,9 @@ export const backend = {
     return cached ? { orgs: cached[0].map(toOrg), convs: cached[1].map(toConversation) } : null;
   },
   conversations: async () => (await invoke<ConversationWire[]>("conversations")).map(toConversation),
+  /** Half-written messages by chat key (or chat key#thread), kept across restarts (see drafts.ts). */
+  drafts: () => invoke<Record<string, string>>("drafts"),
+  saveDrafts: (drafts: Record<string, string>) => invoke<void>("save_drafts", { drafts }),
   /** Each account's link to its server, by account id. */
   connections: () => invoke<Record<string, Connection>>("connections"),
   /** Tries an account's server again now, instead of at its next retry. */

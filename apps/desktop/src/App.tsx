@@ -26,6 +26,7 @@ import type { Attachment, Conversation, Outgoing, PresenceState } from "./types"
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp|heic|bmp)$/i;
 const VIDEO_EXT = /\.(mp4|m4v|mov|webm)$/i;
 import { OrgsContext, initialState, isUnread, reducer, timeline, unreadByOrg, type Action, type OrgFilter } from "./store";
+import { loadDrafts } from "./drafts";
 import { NewChatDialog } from "./NewChatDialog";
 import { BrowseDialog } from "./BrowseDialog";
 import { ProfileCard, ProfileContext, type OpenProfile } from "./Profile";
@@ -320,6 +321,7 @@ export function App() {
   // account is back, the live list replaces it and chats that are gone disappear.
   useEffect(() => {
     if (!isLive) return;
+    void loadDrafts().then((drafts) => dispatch({ type: "setDrafts", drafts }));
     backend.cachedChatList().then((cached) => {
       if (!cached?.convs.length) return;
       dispatch({ type: "setOrgs", orgs: cached.orgs });

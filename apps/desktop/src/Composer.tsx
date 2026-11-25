@@ -62,6 +62,8 @@ interface Props {
   onTyping?: (typing: boolean) => void;
   onCommand?: (name: string, args: string) => void;
   getMembers?: () => Promise<Member[]>;
+  /** What's typed, a moment after typing stops and when the box goes (another chat): the draft. */
+  onDraft?: (text: string) => void;
   /** Staged files; omit to disable attachments (e.g. in threads). */
   attachments?: Attachment[];
   onPickFiles?: () => void;
@@ -75,6 +77,14 @@ export function Composer(p: Props) {
   const { initial, placeholder = t("composer.placeholder"), replyTo, onCancelReply, onSend, onNotice, onTyping, onCommand, getMembers } = p;
   const attachments = p.attachments ?? [];
   const [text, setText] = useState(initial ?? "");
+  const textRef = useRef(text);
+  textRef.current = text;
+  useEffect(() => {
+    if (!p.onDraft) return;
+    const timer = window.setTimeout(() => p.onDraft?.(text), 500);
+    return () => window.clearTimeout(timer);
+  }, [text]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => p.onDraft?.(textRef.current), []); // eslint-disable-line react-hooks/exhaustive-deps
   const [cursor, setCursor] = useState(0);
   const [members, setMembers] = useState<Member[] | null>(null);
   // Display name typed as "@Name" -> user id; turned into a proper mention on send.
@@ -240,6 +250,7 @@ export function Composer(p: Props) {
     if (at !== undefined && p.onSchedule) p.onSchedule(message, at);
     else onSend(message);
     setText("");
+    p.onDraft?.("");
     setMentioned({});
     typing("");
   };

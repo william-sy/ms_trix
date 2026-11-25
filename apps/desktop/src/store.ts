@@ -1,5 +1,6 @@
 import { createContext, useContext } from "react";
 import { isLive } from "./backend";
+import { draftOf } from "./drafts";
 import { conversations, messagesFor, orgs } from "./mock";
 import type { Conversation, Message, Org, Outgoing, Reaction } from "./types";
 
@@ -43,7 +44,9 @@ export type Action =
   | { type: "localSent"; key: string; txn: string; realId: string }
   | { type: "localStatus"; key: string; txn: string; status: "sending" | "failed" }
   | { type: "retrySend"; id: string; txn: string }
-  | { type: "discardLocal"; id: string; txn: string };
+  | { type: "discardLocal"; id: string; txn: string }
+  | { type: "draft"; id: string; text: string }
+  | { type: "setDrafts"; drafts: Record<string, string> };
 
 export const initialState: State = isLive
   ? { orgs: [], orgFilter: "all", convs: [], selectedId: null, armed: {}, messages: {} }
@@ -95,14 +98,19 @@ export function reducer(state: State, action: Action): State {
     }
     case "setSelected":
       return { ...state, selectedId: action.id };
+    case "draft":
+      return { ...state, convs: update(state.convs, action.id, () => ({ draft: action.text.trim() ? action.text : undefined })) };
+    case "setDrafts":
+      return { ...state, convs: state.convs.map((c) => (action.drafts[c.id] === c.draft ? c : { ...c, draft: action.drafts[c.id] })) };
     case "setOrgs": {
       const orgFilter = state.orgFilter === "all" || action.orgs.some((o) => o.id === state.orgFilter) ? state.orgFilter : "all";
       return { ...state, orgs: action.orgs, orgFilter };
     }
     case "upsertConvs": {
       const byId = new Map(state.convs.map((c) => [c.id, c]));
-      // Keep UI-only fields (drafts) when the backend sends a fresh view.
-      for (const c of action.convs) byId.set(c.id, { ...byId.get(c.id), ...c });
+      // Keep UI-only fields (drafts) when the backend sends a fresh view; a chat new here
+      // starts with its saved draft.
+      for (const c of action.convs) byId.set(c.id, { ...(byId.get(c.id) ?? { draft: draftOf(c.id) }), ...c });
       return { ...state, convs: [...byId.values()] };
     }
     case "removeConvs": {

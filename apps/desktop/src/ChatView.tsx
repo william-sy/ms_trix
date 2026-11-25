@@ -32,6 +32,7 @@ import { useOpenProfile } from "./Profile";
 import { summarize } from "./roomEvents";
 import { capabilities } from "./mock";
 import { useEscape, usePaneWidth, useStickToBottom } from "./hooks";
+import { draftKey, draftOf, keepDraft } from "./drafts";
 import { PinnedBar, PinnedDialog, usePinned } from "./Pinned";
 import { TranslationLine, useTranslation } from "./Translate";
 import { ReconnectButton } from "./Offline";
@@ -568,7 +569,7 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
             <progress max={upload.total} value={upload.sent} />
           </div>
         )}
-        <Composer key={`${conv.id}:${seed?.n ?? 0}`} initial={seed?.text ?? conv.draft} replyTo={replyTo} placeholder={posts ? t("chatView.newPost") : undefined} onCancelReply={() => setReplyTo(null)} onTyping={(t) => isLive && currentSettings().shareTyping && backend.setTyping(conv.id, t).catch(() => {})}
+        <Composer key={`${conv.id}:${seed?.n ?? 0}`} initial={seed?.text ?? conv.draft} onDraft={(text) => keepDraft(conv.id, text) && dispatch({ type: "draft", id: conv.id, text })} replyTo={replyTo} placeholder={posts ? t("chatView.newPost") : undefined} onCancelReply={() => setReplyTo(null)} onTyping={(t) => isLive && currentSettings().shareTyping && backend.setTyping(conv.id, t).catch(() => {})}
           onCommand={(name, args) => {
             if (name === "jumptodate") return void jumpToDate(args);
             if (name === "poll") return setPollDialog(true);
@@ -607,7 +608,7 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
               <MessageItem key={m.id} m={m} account={conv.orgId} conversation={conv.id} grouped={i > 0 && all[i - 1]!.sender === m.sender} media={mediaUi.actions} {...localActions(m)} tick={tickOf(m)} />
             ))}
           </div>
-          <Composer key={threadId} placeholder={t("composer.threadPlaceholder")} onSend={(m) => send({ ...m, threadRoot: threadId })} onNotice={onNotice} getMembers={getMembers}
+          <Composer key={threadId} initial={draftOf(draftKey(conv.id, threadId))} onDraft={(text) => keepDraft(draftKey(conv.id, threadId), text)} placeholder={t("composer.threadPlaceholder")} onSend={(m) => send({ ...m, threadRoot: threadId })} onNotice={onNotice} getMembers={getMembers}
             attachments={threadAttachments(threadId)} onPickFiles={() => onPickFiles(threadId)} onAddFiles={(files) => onAddFiles(files, threadId)} onRemoveAttachment={(id) => onRemoveAttachment(id, threadId)} />
         </aside>
       )}

@@ -69,7 +69,8 @@ export function ChatList({ query, convs, orgFilter, selectedId, dispatch, onNewC
     .filter((c) => !q || `${c.team ?? ""} ${c.name} ${c.preview}`.toLowerCase().includes(q))
     .filter((c) => !lq || `${c.team ?? ""} ${c.name}`.toLowerCase().includes(lq))
     .sort((a, b) => b.sortKey - a.sortKey);
-  const drafts = visible.filter((c) => c.draft);
+  // The open chat's draft is what you're typing: it counts once you leave the chat.
+  const drafts = visible.filter((c) => c.draft && c.id !== selectedId);
   const invites = visible.filter((c) => c.invitedBy);
   // Archived chats come back into view while they have something unread (or are open).
   const tuckedAway = (c: Conversation) => !!c.archived && !isUnread(c) && c.id !== selectedId;
@@ -237,7 +238,7 @@ function Row({ conv, selected, showOrg, onClick, onMenu }: { conv: Conversation;
           <span className="row-time">{conv.time}</span>
         </span>
         <span className="row-bottom">
-          <span className="row-preview">{conv.draft ? <><em className="draft">{t("chat.draft")}</em> {conv.draft}</> : conv.preview}</span>
+          <span className="row-preview">{conv.draft && !selected ? <><em className="draft">{t("chat.draft")}</em> {conv.draft}</> : conv.preview}</span>
           {conv.muted && <MuteIcon />}
           {conv.mentions > 0 && <span className="mention">@</span>}
           {/* Muted chats show no count, like Element/Teams; mentions still show the @. */}

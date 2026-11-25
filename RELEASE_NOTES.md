@@ -3,6 +3,10 @@
 ## 1.8 (not released yet)
 
 ### New
+- **Drafts:** a message you're typing stays in the box when you go to another chat, and is there
+  again when you come back (also after a restart, and in threads). Chats you left with a draft
+  show *Draft:* and its text in the list. Drafts are kept encrypted on this computer, like the
+  chat list.
 - **A wider thread:** drag the thread pane's left edge to make it wider (or narrower again); it
   keeps that width. Double-click the edge for the standard width.
 
