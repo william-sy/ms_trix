@@ -14,6 +14,7 @@ import { callLog, registerPlayer, type TalkCalls, type TalkPeerView } from "./ta
 import type { Conversation } from "./types";
 import { formatDuration } from "./voice";
 import { CAMERA_QUALITIES, type CameraQuality } from "./videoQuality";
+import { ZoomView } from "./ZoomView";
 
 type Player = HTMLMediaElement & { setSinkId?: (id: string) => Promise<void> };
 
@@ -298,7 +299,7 @@ export function TalkCallScreen({ calls, conversation, docked, onPopOut, onPopIn 
               {selfShown && selfTile(true)}
             </div>
           )}
-          <Video stream={sharer.screen} className="talk-screen" />
+          <ZoomView className="talk-screen" resetKey={sharer.screen?.id}><Video stream={sharer.screen} /></ZoomView>
         </div>
       );
     }

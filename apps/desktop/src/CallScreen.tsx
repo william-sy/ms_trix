@@ -12,6 +12,7 @@ import { canPickSpeaker } from "./SpeakerPicker";
 import type { Conversation } from "./types";
 import { formatDuration } from "./voice";
 import { BackgroundButton, SpeakerButton } from "./TalkCallScreen";
+import { ZoomView } from "./ZoomView";
 
 /** Plays a stream; uses the speaker chosen in Settings where the webview allows it. */
 function Media({ stream, muted, className, audioOnly }: { stream?: MediaStream; muted?: boolean; className?: string; audioOnly?: boolean }) {
@@ -150,7 +151,9 @@ export function CallScreen({ calls, conversation }: Props) {
         <button className="icon-btn" title={t("mxcall.minimize")} onClick={() => calls.setMinimized(true)}>⤡</button>
       </header>
       <div className="call-stage">
-        {stage ? <Media stream={stage} className="call-main" /> : <div className="call-avatar">{avatar}{call.remoteMuted && <span className="call-muted-tag"><MicOffIcon size={16} /></span>}</div>}
+        {/* A shared screen can be zoomed into; the video keeps its class for picture-in-picture. */}
+        {stage && stage === call.remoteScreen ? <ZoomView className="call-zoom" resetKey={stage.id}><Media stream={stage} className="call-main" /></ZoomView>
+          : stage ? <Media stream={stage} className="call-main" /> : <div className="call-avatar">{avatar}{call.remoteMuted && <span className="call-muted-tag"><MicOffIcon size={16} /></span>}</div>}
         {/* Audio of the other side always plays, also when the stage shows their screen. */}
         {call.remote && stage !== call.remote && <Media stream={call.remote} audioOnly={!call.remoteScreen || !camera} className="call-tile remote" />}
         {call.local && call.cameraOn && <Media key={call.local.getVideoTracks()[0]?.id} stream={call.local} muted className="call-tile self" />}

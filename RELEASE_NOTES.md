@@ -9,6 +9,10 @@
   chat list.
 - **A wider thread:** drag the thread pane's left edge to make it wider (or narrower again); it
   keeps that width. Double-click the edge for the standard width.
+- **Zoom into a shared screen** (Talk and Matrix calls): pinch, or ⌘ + scroll (Ctrl + scroll on
+  Windows and Linux), zooms in where you point; drag (or scroll) to look around, double-click to
+  zoom in there or back to fit. − / + / Fit show when you hover the screen. Zoom shows as much
+  detail as the sharer sends; a new share starts at fit.
 
 ### Fixed
 - The reply box in a thread used only half its width for text, next to its buttons. When the

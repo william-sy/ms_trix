@@ -1378,5 +1378,9 @@
   "profile.absentThrough": "Afwezig t/m {date}",
   "profile.absentReplacement": "Vervanging: {name}",
   "settings.presence.meetings": "Toon me als bezet (“In een vergadering”) tijdens afspraken in mijn Nextcloud-agenda, op Matrix. Voor Talk doet Nextcloud dit zelf",
-  "presence.inMeeting": "In een vergadering tot {time}"
+  "presence.inMeeting": "In een vergadering tot {time}",
+  "zoom.in": "Inzoomen",
+  "zoom.out": "Uitzoomen",
+  "zoom.fit": "Passend",
+  "zoom.hint": "Knijp of {key} + scrollen om te zoomen, sleep om rond te kijken, dubbelklik om daar in te zoomen of terug naar passend"
 }

@@ -1378,5 +1378,9 @@
   "profile.absentThrough": "Out of office through {date}",
   "profile.absentReplacement": "In the meantime: {name}",
   "settings.presence.meetings": "Show me as busy (“In a meeting”) during meetings in my Nextcloud calendar, on Matrix. Nextcloud does this itself for Talk",
-  "presence.inMeeting": "In a meeting until {time}"
+  "presence.inMeeting": "In a meeting until {time}",
+  "zoom.in": "Zoom in",
+  "zoom.out": "Zoom out",
+  "zoom.fit": "Fit",
+  "zoom.hint": "Pinch or {key} + scroll to zoom, drag to look around, double-click to zoom in there or back to fit"
 }
