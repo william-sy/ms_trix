@@ -74,7 +74,9 @@
 
 Next release (1.7.1 or 1.8, not released yet): small things from daily use (see RELEASE_NOTES.md):
 drafts, a wider thread pane, zoom into a shared screen, quick edit (Arrow Up), Talk call tiles
-with pictures, the call's start time and an hourly break hint, a time format setting (24-hour).
+with pictures, the call's start time and an hourly break hint, a time format setting (24-hour),
+noise suppression in calls (Standard: RNNoise, High: DeepFilterNet 3; asked for by a board weighing
+a move from Teams), backgrounds under the pre-join preview.
 
 To do, from low to high effort (ordered 2026-11-22; the 1.6 plan and the later ideas together,
 plus the open items further down). S: a few hours, M: a day or two, L: several days, XL: weeks.
@@ -179,7 +181,9 @@ build and the installed app run side by side, which broke Matrix encryption once
 To test (from 1.7 and the next release): Find a time and documents in Nextcloud Office on a real
 Nextcloud; zooming a shared screen by pinching on macOS (⌘ + scroll and − / + are the fallback);
 quick edit; the call's start time (Talk 17+) and the break hint after an hour; pictures on call
-tiles; the time format on System (24-hour on a Mac set to a European region).
+tiles; the time format on System (24-hour on a Mac set to a European region); noise suppression
+(Hear yourself in Settings, then a real call: do the others still hear you, is the noise gone?
+If so, make it on by default before the release).
 macOS menu-bar things (Video effects, Mic Mode, the Dock) only work in the installed app, not
 the dev build.
 To test (from 1.6): Translate in a message's ⋯ menu (only shows when the Nextcloud has a
