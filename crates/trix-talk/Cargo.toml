@@ -15,7 +15,9 @@ tokio = { version = "1", features = ["rt", "sync", "macros", "time"] }
 tracing = "0.1"
 rand = "0.9"
 # Same version matrix-sdk already pulls in.
-reqwest = { version = "0.13", default-features = false, features = ["json", "form", "query", "multipart", "rustls", "cookies"] }
+reqwest = { version = "0.13", default-features = false, features = ["json", "form", "query", "multipart", "rustls", "cookies", "stream"] }
+# Same version reqwest uses; an upload sent in slices of one buffer (progress).
+bytes = "1"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp"] }
 percent-encoding = "2"
 # Same version the workspace already has; WebDAV/CalDAV replies.

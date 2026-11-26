@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { backend, isLive, mediaUrl } from "./backend";
+import { takeCloudUploadResult, startCloudUpload, useCloudUpload } from "./cloudUploads";
 import { formatSize } from "./Composer";
 import { ContextMenu } from "./ContextMenu";
 import { ChatPickerDialog } from "./ForwardDialog";
@@ -76,7 +77,8 @@ export function FilesPane({ orgs, convs, reveal }: { orgs: Org[]; convs: Convers
   const [viewing, setViewing] = useState<number | null>(null);
   // The file Show in Files asked for, highlighted for a moment once its folder is listed.
   const [highlight, setHighlight] = useState<string | null>(null);
-  const [upload, setUpload] = useState<{ done: number; total: number } | null>(null);
+  // Runs outside this view: going elsewhere and back shows it (and how it ended) again.
+  const { upload, result } = useCloudUpload();
   const [dropping, setDropping] = useState(false);
 
   // Back and forward through the places you've been (the mouse's back and forward buttons,
@@ -196,23 +198,17 @@ export function FilesPane({ orgs, convs, reveal }: { orgs: Org[]; convs: Convers
   // Files dropped on the window while this view is open (App routes them here); into the folder in view.
   const uploadPaths = async (paths: string[]) => {
     if (!paths.length || !account) return;
-    const folder = section === "files" && !searching ? path : "/";
-    setUpload({ done: 0, total: paths.length });
-    try {
-      for (const [i, p] of paths.entries()) {
-        await backend.cloudUploadPaths(account, folder, [p]);
-        setUpload({ done: i + 1, total: paths.length });
-      }
-      setNotice(t("files.uploaded", { count: paths.length, folder: folder === "/" ? t("files.root") : folder.split("/").pop()! }));
-      if (section !== "files" || searching) setPath(folder);
-      setReload((n) => n + 1);
-    } catch (e) {
-      setError(String(e));
-      setReload((n) => n + 1);
-    } finally {
-      setUpload(null);
-    }
+    await startCloudUpload(account, section === "files" && !searching ? path : "/", paths);
   };
+  useEffect(() => {
+    if (!result) return;
+    takeCloudUploadResult();
+    setReload((n) => n + 1);
+    if ("error" in result) return setError(result.error);
+    setNotice(t("files.uploaded", { count: result.count, folder: result.folder === "/" ? t("files.root") : result.folder.split("/").pop()! }));
+    // Uploaded from Recent or a search: the folder it went to.
+    if (result.account === account && (section !== "files" || searching)) setPath(result.folder);
+  }, [result]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const onDrag = (e: Event) => setDropping((e as CustomEvent<boolean>).detail);
     const onDrop = (e: Event) => { setDropping(false); void uploadPaths((e as CustomEvent<string[]>).detail); };
@@ -329,7 +325,12 @@ export function FilesPane({ orgs, convs, reveal }: { orgs: Org[]; convs: Convers
             <button type="button" className="btn small" onClick={() => setNaming(null)}>{t("common.cancel")}</button>
           </form>
         )}
-        {upload && <p className="files-status">{t("files.uploading", { done: upload.done, total: upload.total })}</p>}
+        {upload && (
+          <div className="upload-progress files-upload" title={t("files.uploadingHint")}>
+            <span>{t("files.uploading", { name: upload.name, index: upload.index, count: upload.count, percent: Math.round(upload.fraction * 100) })}</span>
+            <progress max={1} value={upload.fraction} />
+          </div>
+        )}
         {notice && <p className="files-status" role="status">{notice}</p>}
         {error && <p className="error files-status">{error} <button className="link" onClick={() => setError(null)}>{t("common.dismiss")}</button></p>}
         <div className="files-list" role="list">

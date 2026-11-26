@@ -7065,6 +7065,7 @@ name = "trix-talk"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "bytes",
  "futures",
  "image",
  "percent-encoding",

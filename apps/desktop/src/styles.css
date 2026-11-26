@@ -1352,6 +1352,7 @@ a.link-warn::after { content: " ⚠"; }
 .files-naming { display: flex; gap: 6px; padding: 8px 16px 0; }
 .files-naming input { width: 260px; }
 .files-status { margin: 8px 16px 0; font-size: 13px; color: var(--text-muted); }
+.upload-progress.files-upload { padding: 8px 16px 0; font-size: 13px; }
 .files-list { flex: 1; overflow-y: auto; padding: 4px 8px 16px; }
 .files-row { display: grid; grid-template-columns: 40px minmax(0, 1fr) 130px 90px 72px; align-items: center; gap: 8px; min-height: 44px; padding: 2px 8px; border-radius: 6px; font-size: 14px; }
 .files-row:not(.files-columns):hover { background: var(--bg-hover); }

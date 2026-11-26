@@ -1303,7 +1303,7 @@ async fn cloud_search(state: State<'_, AppState>, account: String, term: String)
 
 /// Uploads files picked or dropped into a folder; returns their paths in Files.
 #[tauri::command]
-async fn cloud_upload_paths(state: State<'_, AppState>, account: String, folder: String, paths: Vec<String>) -> CmdResult<Vec<String>> {
+async fn cloud_upload_paths(app: AppHandle, state: State<'_, AppState>, account: String, folder: String, paths: Vec<String>) -> CmdResult<Vec<String>> {
     let adapter = adapter_for(&state, &account)?;
     let mut stored = vec![];
     for path in paths {
@@ -1314,7 +1314,16 @@ async fn cloud_upload_paths(state: State<'_, AppState>, account: String, folder:
         let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| "file".into());
         let read = path.clone();
         let data = tauri::async_runtime::spawn_blocking(move || std::fs::read(read)).await.map_err(|e| e.to_string())?.map_err(|e| format!("{name}: {e}"))?;
-        stored.push(adapter.cloud_upload(&folder, &name, data).await.map_err(|e| format!("{name}: {e}"))?);
+        // "trix://cloud-upload" {name, sent, total}, at most once per percent.
+        let shown = std::sync::atomic::AtomicU64::new(u64::MAX);
+        let (emitter, file) = (app.clone(), name.clone());
+        let progress: trix_core::adapter::Progress = std::sync::Arc::new(move |sent: u64, total: u64| {
+            let percent = if total == 0 { 100 } else { sent * 100 / total };
+            if shown.swap(percent, std::sync::atomic::Ordering::Relaxed) != percent {
+                let _ = emitter.emit("trix://cloud-upload", serde_json::json!({ "name": file, "sent": sent, "total": total }));
+            }
+        });
+        stored.push(adapter.cloud_upload(&folder, &name, data, progress).await.map_err(|e| format!("{name}: {e}"))?);
     }
     Ok(stored)
 }

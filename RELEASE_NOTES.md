@@ -34,6 +34,9 @@
 - The reply box in a thread used only half its width for text, next to its buttons. When the
   box is narrow (a thread, or a small window) the buttons now go on a row under the text, so the
   text gets the full width; the thread's box also sits closer to the edges.
+- Uploading to Files said "Uploading 0 of 1" while the first file went up, with no progress. It
+  now shows the file's name, which one of how many, and a progress bar; and it carries on (and
+  shows again) when you go elsewhere in the app and come back.
 - After signing out of a Matrix account, the app kept asking its server every minute whether
   your 1:1 contacts were online (with the revoked session, so each try failed) until it was
   restarted.

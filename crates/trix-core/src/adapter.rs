@@ -21,6 +21,9 @@ pub enum AdapterError {
 
 pub type Result<T> = std::result::Result<T, AdapterError>;
 
+/// Told how far a transfer is: bytes done, of the total.
+pub type Progress = Arc<dyn Fn(u64, u64) + Send + Sync>;
+
 /// What a protocol can do. The UI hides features a protocol lacks instead
 /// of every adapter having to fake them.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -445,8 +448,8 @@ pub trait ProtocolAdapter: Send + Sync {
         Err(AdapterError::Unsupported("files"))
     }
     /// Stores `data` as `name` in `folder` without replacing anything ("name (2).ext" when the
-    /// name is taken); returns the new file's path.
-    async fn cloud_upload(&self, _folder: &str, _name: &str, _data: Vec<u8>) -> Result<String> {
+    /// name is taken), telling `progress` as it goes; returns the new file's path.
+    async fn cloud_upload(&self, _folder: &str, _name: &str, _data: Vec<u8>, _progress: Progress) -> Result<String> {
         Err(AdapterError::Unsupported("files"))
     }
     async fn cloud_mkdir(&self, _path: &str) -> Result<()> {

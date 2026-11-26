@@ -179,9 +179,8 @@ through the chats' call messages), a lock against running the app twice (only bi
 build and the installed app run side by side, which broke Matrix encryption once).
 
 To test (from 1.7 and the next release): Find a time and documents in Nextcloud Office on a real
-Nextcloud; zooming a shared screen by pinching on macOS (⌘ + scroll and − / + are the fallback);
-quick edit; the call's start time (Talk 17+) and the break hint after an hour; pictures on call
-tiles; the time format on System (24-hour on a Mac set to a European region); noise suppression
+Nextcloud; upload progress in Files (tested 2026-11-26: pinch zoom, quick edit, pre-join layout);
+the call's start time (Talk 17+) and the break hint after an hour; pictures on call tiles; the time format on System (24-hour on a Mac set to a European region); noise suppression
 (Hear yourself in Settings, then a real call: do the others still hear you, is the noise gone?
 If so, make it on by default before the release).
 macOS menu-bar things (Video effects, Mic Mode, the Dock) only work in the installed app, not

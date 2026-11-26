@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
-use trix_core::adapter::{AdapterError, AdapterFactory, CrawlPage, History, Result};
+use trix_core::adapter::{AdapterError, AdapterFactory, CrawlPage, History, Progress, Result};
 use trix_core::*;
 
 mod dav;
@@ -81,6 +81,8 @@ const FULL_REFRESH: Duration = Duration::from_secs(30);
 /// How often a Nextcloud without Talk is asked whether it has Talk now.
 const WITHOUT_TALK_EVERY: Duration = Duration::from_secs(600);
 const BACKFILL: u32 = 30;
+/// Uploads to Files go out in slices this big, for their progress.
+const UPLOAD_SLICE: usize = 256 * 1024;
 
 /// Stored in the OS keychain by the host.
 #[derive(Clone, Serialize, Deserialize)]
@@ -1631,7 +1633,7 @@ impl ProtocolAdapter for TalkAdapter {
         Ok(files)
     }
 
-    async fn cloud_upload(&self, folder: &str, name: &str, data: Vec<u8>) -> Result<String> {
+    async fn cloud_upload(&self, folder: &str, name: &str, data: Vec<u8>, progress: Progress) -> Result<String> {
         let folder = dav::encode_path(folder).map(|_| format!("/{}", folder.trim_matches('/'))).ok_or_else(|| err("bad path"))?;
         let name = name.replace(['/', '\\'], "_");
         if name.trim().is_empty() || name == "." || name == ".." {
@@ -1650,8 +1652,25 @@ impl ProtocolAdapter for TalkAdapter {
             if self.request(Method::HEAD, &href).send().await.map_err(net)?.status() != StatusCode::NOT_FOUND {
                 continue;
             }
-            // Never over a file that appeared in the meantime.
-            let status = self.request(Method::PUT, &href).header("If-None-Match", "*").body(data).send().await.map_err(net)?.status();
+            // Never over a file that appeared in the meantime. Sent in slices, so `progress`
+            // follows what the connection has taken (with its length, not chunked).
+            let total = data.len() as u64;
+            let data = bytes::Bytes::from(data);
+            let mut sent = 0u64;
+            let slices = futures::stream::iter((0..data.len()).step_by(UPLOAD_SLICE).map(move |at| data.slice(at..(at + UPLOAD_SLICE).min(data.len())))).map(move |slice| {
+                sent += slice.len() as u64;
+                progress(sent, total);
+                Ok::<_, std::io::Error>(slice)
+            });
+            let status = self
+                .request(Method::PUT, &href)
+                .header("If-None-Match", "*")
+                .header(reqwest::header::CONTENT_LENGTH, total)
+                .body(reqwest::Body::wrap_stream(slices))
+                .send()
+                .await
+                .map_err(net)?
+                .status();
             return match status {
                 s if s.is_success() => Ok(at(&candidate)),
                 StatusCode::INSUFFICIENT_STORAGE => Err(err("your Nextcloud storage is full")),
