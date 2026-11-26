@@ -329,6 +329,7 @@ label.btn.disabled { opacity: 0.5; pointer-events: none; }
 .pane-resize::after { content: ""; position: absolute; top: 0; bottom: 0; left: 2px; width: 2px; transition: background 0.15s 0.1s; }
 .pane-resize:hover::after, body.resizing .pane-resize::after { background: var(--accent); }
 body.resizing, body.resizing * { cursor: col-resize !important; user-select: none; }
+body.resizing.resizing-rows, body.resizing.resizing-rows * { cursor: row-resize !important; }
 .thread-pane .messages { padding: 12px 16px; }
 .thread-pane .msg { max-width: 100%; }
 .thread-divider { margin: 14px 0 0; padding-top: 8px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-muted); }
@@ -1150,6 +1151,28 @@ mark { background: rgba(255, 196, 0, 0.45); color: inherit; border-radius: 2px; 
 .talk-speaker-main .talk-tile.small.speaking { box-shadow: 0 0 0 3px var(--accent), 0 2px 10px rgba(0, 0, 0, 0.5); }
 .talk-strip.row { width: auto; height: 124px; flex-direction: row; overflow-x: auto; overflow-y: hidden; flex: none; }
 .talk-strip.row .talk-tile { height: 100%; width: auto; }
+/* The strip in a holder of its own size, with the handle on its inside edge (the strip scrolls). */
+.talk-strip-wrap { position: relative; flex: none; display: flex; min-width: 0; min-height: 0; }
+.talk-strip-wrap.side { width: 220px; }
+.talk-strip-wrap.side.double { width: 360px; }
+.talk-strip-wrap.row { --strip-h: 124px; height: var(--strip-h); }
+.talk-strip-wrap.row.double { --strip-h: 210px; }
+.talk-strip-wrap > .talk-strip { flex: 1; width: auto; min-width: 0; min-height: 0; }
+.talk-strip-wrap > .talk-strip.row { height: auto; }
+.talk-strip.double:not(.row) { display: grid; grid-template-columns: 1fr 1fr; align-content: start; }
+.talk-strip.row.double { display: grid; grid-auto-flow: column; grid-template-rows: 1fr 1fr; grid-auto-columns: calc((var(--strip-h) - 8px) / 2 * 16 / 9); }
+.talk-strip.row.double .talk-tile { width: 100%; height: 100%; }
+.talk-strip.double .talk-tile-avatar .avatar.big { width: 32px; height: 32px; font-size: 13px; }
+.talk-strip.double .talk-tile-name { font-size: 11px; left: 4px; bottom: 3px; padding: 1px 5px; }
+.strip-resize { position: absolute; z-index: 3; }
+.talk-strip-wrap.side > .strip-resize { top: 0; bottom: 0; left: -9px; width: 8px; cursor: col-resize; }
+.talk-strip-wrap.row > .strip-resize { left: 0; right: 0; height: 8px; cursor: row-resize; }
+.talk-speaker .talk-strip-wrap.row > .strip-resize { top: -9px; }
+.talk-stage-share.top .talk-strip-wrap.row > .strip-resize { bottom: -9px; }
+.strip-resize::after { content: ""; position: absolute; border-radius: 1px; transition: background 0.15s 0.1s; }
+.talk-strip-wrap.side > .strip-resize::after { top: 0; bottom: 0; left: 3px; width: 2px; }
+.talk-strip-wrap.row > .strip-resize::after { left: 0; right: 0; top: 3px; height: 2px; }
+.strip-resize:hover::after, body.resizing .strip-resize::after { background: var(--accent); }
 .talk-pin { position: absolute; top: 6px; right: 6px; z-index: 3; padding: 2px 6px; border-radius: 4px; background: rgba(0, 0, 0, 0.5); color: #fff; display: flex; font-size: 12px; opacity: 0; transition: opacity 0.15s; }
 .talk-tile:hover .talk-pin, .talk-tile.pinned .talk-pin { opacity: 1; }
 .talk-tile.pinned .talk-pin { background: var(--accent); }

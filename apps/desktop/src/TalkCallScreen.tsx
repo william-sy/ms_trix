@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { canPickSpeaker, SpeakerPicker } from "./SpeakerPicker";
 import { BackgroundPicker } from "./BackgroundPicker";
 import { rawCamera } from "./cameraEffects";
 import { useRingtone } from "./CallScreen";
 import { useDockedCardDrag } from "./callCard";
 import { Avatar } from "./Avatar";
+import { usePaneSize } from "./hooks";
 import { backend } from "./backend";
 import { dndActive } from "./dnd";
 import { CallIcon, CameraIcon, CameraOffIcon, EmojiIcon, ExpandIcon, GearIcon, HandIcon, LayoutIcon, MicIcon, MicOffIcon, PinIcon, ShareScreenIcon, SparkleIcon, NewWindowIcon } from "./Icons";
@@ -177,6 +178,8 @@ type ShareView = "side" | "top" | "content";
 const SHARE_VIEW = "trix.callShareView";
 /** Your own video hidden from your screen (the others still see it). */
 const HIDE_SELF = "trix.callHideSelf";
+/** The strip of faces in one or two lines: rows, or columns beside a shared screen. */
+const STRIP_LINES = "trix.callStripLines";
 /** How long someone talks before taking the stage, and how long whoever has it keeps it (ms). */
 const TAKE_STAGE = 1500;
 const KEEP_STAGE = 3000;
@@ -226,6 +229,12 @@ export function TalkCallScreen({ calls, conversation, me, docked, onPopOut, onPo
   const [hideSelf, setHideSelfState] = useState(() => remembered<string>(HIDE_SELF, "") === "1");
   const setHideSelf = (hide: boolean) => { setHideSelfState(hide); setLayoutMenu(false); remember(HIDE_SELF, hide ? "1" : ""); };
   const [layoutMenu, setLayoutMenu] = useState(false);
+  const [stripLines, setStripLinesState] = useState<1 | 2>(() => (remembered<string>(STRIP_LINES, "1") === "2" ? 2 : 1));
+  const setStripLines = (n: 1 | 2) => { setStripLinesState(n); setLayoutMenu(false); remember(STRIP_LINES, String(n)); };
+  // The strip's size, dragged at its inside edge: its width beside a shared screen; its height
+  // above one (dragged at the bottom) or under the speaker (at the top). Per one or two lines.
+  const sideStrip = usePaneSize(`trix.callStripWidth.${stripLines}`, 120, 320, "left");
+  const rowStrip = usePaneSize(`trix.callStripHeight.${stripLines}`, 70, 200, call?.peers.some((p) => p.screen) && shareView === "top" ? "bottom" : "top");
   const [page, setPage] = useState(0);
   const [pinned, setPinned] = useState<string | null>(null);
   /** The full hours in the call whose break hint you closed. */
@@ -282,6 +291,17 @@ export function TalkCallScreen({ calls, conversation, me, docked, onPopOut, onPo
   const selfTile = (small?: boolean) => <Tile key="self" account={call.account} self small={small} hand={call.handRaised} onHide={() => setHideSelf(true)} {...self} />;
   // Hidden only from your own screen; while minimised you still see yourself when no one else is on.
   const selfShown = !hideSelf;
+  /** The strip of faces with its handle: beside a shared screen (`side`), or a row. */
+  const strip = (tiles: ReactNode, side: boolean) => {
+    const pane = side ? sideStrip : rowStrip;
+    const style = pane.size ? (side ? { width: pane.size } : { height: pane.size, "--strip-h": `${pane.size}px` }) : undefined;
+    return (
+      <div className={`talk-strip-wrap ${side ? "side" : "row"} ${stripLines === 2 ? "double" : ""}`} style={style as CSSProperties}>
+        <div className="strip-resize" title={t("talkcall.stripResize")} {...pane.handle} />
+        <div className={`talk-strip ${side ? "" : "row"} ${stripLines === 2 ? "double" : ""}`}>{tiles}</div>
+      </div>
+    );
+  };
   // People who aren't on screen (another page, content only, minimised) must still be heard.
   const sound = (peers: TalkPeerView[]) => peers.map((p) => p.stream && <Sound key={`sound-${p.sid}`} stream={p.stream} />);
   const effective = layout === "auto" ? (call.peers.length <= 1 || pinnedPeer ? "speaker" : "gallery") : layout;
@@ -320,12 +340,7 @@ export function TalkCallScreen({ calls, conversation, me, docked, onPopOut, onPo
     if (sharer) {
       return (
         <div className={`talk-stage-share ${shareView}`}>
-          {shareView === "content" ? sound(call.peers) : (
-            <div className={`talk-strip ${shareView === "top" ? "row" : ""}`}>
-              {call.peers.map((p) => tile(p, true))}
-              {selfShown && selfTile(true)}
-            </div>
-          )}
+          {shareView === "content" ? sound(call.peers) : strip(<>{call.peers.map((p) => tile(p, true))}{selfShown && selfTile(true)}</>, shareView === "side")}
           <ZoomView className="talk-screen" resetKey={sharer.screen?.id}><Video stream={sharer.screen} /></ZoomView>
         </div>
       );
@@ -339,7 +354,7 @@ export function TalkCallScreen({ calls, conversation, me, docked, onPopOut, onPo
             {/* You, small in the corner. */}
             {selfShown && selfTile(true)}
           </div>
-          {others.length > 0 && <div className="talk-strip row">{others.map((p) => tile(p, true))}</div>}
+          {others.length > 0 && strip(others.map((p) => tile(p, true)), false)}
         </div>
       );
     }
@@ -388,6 +403,13 @@ export function TalkCallScreen({ calls, conversation, me, docked, onPopOut, onPo
               <div className="menu-label">{t("talkcall.shareView")}</div>
               {(["side", "top", "content"] as ShareView[]).map((v) => (
                 <button key={v} className="menu-item" onClick={() => setShareView(v)}>{shareView === v ? "✓ " : ""}{t(`talkcall.shareView.${v}`)}</button>
+              ))}
+              <div className="menu-sep" />
+              <div className="menu-label">{t("talkcall.strip")}</div>
+              {([1, 2] as const).map((n) => (
+                <button key={n} className="menu-item" onClick={() => setStripLines(n)}>
+                  {stripLines === n ? "✓ " : ""}{t(sharer && shareView === "side" ? `talkcall.strip.columns${n}` : `talkcall.strip.rows${n}`)}
+                </button>
               ))}
               {pinned && <button className="menu-item" onClick={() => { setPinned(null); setLayoutMenu(false); }}>{t("talkcall.unpin")}</button>}
               <div className="menu-sep" />

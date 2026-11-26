@@ -90,7 +90,7 @@ plus the open items further down). S: a few hours, M: a day or two, L: several d
 4. [x] S–M. Status from your calendar: Matrix accounts busy, "In a meeting until …", while you're
        available (setting, on by default); Nextcloud does it for Talk itself. Out of office on
        Talk profile cards (Nextcloud 28+) (2026-11-22)
-5. [ ] S–M. Call layout (idea 2026-11-23): the strip of faces (beside a shared screen, under the
+5. [x] S–M. Call layout (idea 2026-11-23, done 2026-11-26): the strip of faces (beside a shared screen, under the
        speaker) made bigger or smaller by dragging its edge, remembered; one or two rows (columns
        beside a shared screen) in the layout menu, so less scrolling through participants. Not
        per-tile resizing (Teams doesn't either); the gallery already fills the window

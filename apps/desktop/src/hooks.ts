@@ -73,30 +73,47 @@ export function useStickToBottom(ref: RefObject<HTMLElement | null>, deps: Depen
  * the CSS (null). The pane next to it keeps `keep` pixels.
  */
 export function usePaneWidth(key: string, min: number, keep: number) {
-  const [width, setWidth] = useState<number | null>(() => {
-    try { const w = Number(localStorage.getItem(key)); return w >= min ? w : null; } catch { return null; }
-  });
-  const store = (w: number | null) => {
-    try { if (w) localStorage.setItem(key, String(w)); else localStorage.removeItem(key); } catch { /* not kept */ }
+  const { size, handle } = usePaneSize(key, min, keep, "left");
+  return { width: size, handle };
+}
+
+/**
+ * A pane's size along one side, dragged by the handle on its `edge` (the pane is the handle's
+ * parent, the area sharing the room its parent): the width for "left", the height for "top" and
+ * "bottom". Remembered per `key` on this device; double-click: back to the CSS size (null).
+ */
+export function usePaneSize(key: string, min: number, keep: number, edge: "left" | "top" | "bottom") {
+  const read = (k: string) => {
+    try { const n = Number(localStorage.getItem(k)); return n >= min ? n : null; } catch { return null; }
   };
+  const [state, setState] = useState(() => ({ key, size: read(key) }));
+  // Another key (say, two rows instead of one): its own remembered size.
+  if (state.key !== key) setState({ key, size: read(key) });
+  const setSize = (size: number | null) => setState({ key, size });
+  const store = (n: number | null) => {
+    try { if (n) localStorage.setItem(key, String(n)); else localStorage.removeItem(key); } catch { /* not kept */ }
+  };
+  const vertical = edge !== "left";
   const onPointerDown = (e: ReactPointerEvent<HTMLElement>) => {
     const handle = e.currentTarget;
     const pane = handle.parentElement;
     const area = pane?.parentElement;
     if (!pane || !area || e.button !== 0) return;
     e.preventDefault();
-    const right = pane.getBoundingClientRect().right;
-    const max = Math.max(min, area.getBoundingClientRect().width - keep);
-    let last = pane.getBoundingClientRect().width;
+    const box = pane.getBoundingClientRect();
+    const room = area.getBoundingClientRect();
+    const max = Math.max(min, (vertical ? room.height : room.width) - keep);
+    let last = vertical ? box.height : box.width;
     const move = (ev: PointerEvent) => {
-      last = Math.round(Math.min(max, Math.max(min, right - ev.clientX)));
-      setWidth(last);
+      const wanted = edge === "left" ? box.right - ev.clientX : edge === "top" ? box.bottom - ev.clientY : ev.clientY - box.top;
+      last = Math.round(Math.min(max, Math.max(min, wanted)));
+      setSize(last);
     };
     const up = () => {
       handle.removeEventListener("pointermove", move);
       handle.removeEventListener("pointerup", up);
       handle.removeEventListener("pointercancel", up);
-      document.body.classList.remove("resizing");
+      document.body.classList.remove("resizing", "resizing-rows");
       store(last);
     };
     handle.setPointerCapture(e.pointerId);
@@ -104,7 +121,8 @@ export function usePaneWidth(key: string, min: number, keep: number) {
     handle.addEventListener("pointerup", up);
     handle.addEventListener("pointercancel", up);
     document.body.classList.add("resizing");
+    if (vertical) document.body.classList.add("resizing-rows");
   };
-  const onDoubleClick = () => { setWidth(null); store(null); };
-  return { width, handle: { onPointerDown, onDoubleClick } };
+  const onDoubleClick = () => { setSize(null); store(null); };
+  return { size: state.size, handle: { onPointerDown, onDoubleClick } };
 }
