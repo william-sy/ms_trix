@@ -122,8 +122,16 @@ needed) or the `.msi` (for all users, needs admin).
 - The app needs Microsoft Edge WebView2, which Windows 10 and 11 normally have; if not, the
   installer downloads it.
 
-**Linux:** install the `.deb` with `sudo apt install ./Trixcomm_<version>_amd64.deb`, or make the
-`.AppImage` executable (`chmod +x Trixcomm_*.AppImage`) and run it.
+**Linux:** on Debian and Ubuntu install the `.deb` with
+`sudo apt install ./Trixcomm_<version>_amd64.deb`. On other distributions (Fedora, Arch, Gentoo, …)
+use the `.AppImage`: it brings its own WebKitGTK, so there's nothing else to install. Make it
+executable (`chmod +x Trixcomm_*.AppImage`) and run it. AppImages need FUSE 2 (`libfuse2`; Gentoo
+`sys-fs/fuse:0`); without it, run it with `--appimage-extract-and-run`.
+
+Running the program from the `.deb` on another distribution instead ("libwebkit2gtk-4.1.so.0 =>
+not found") needs WebKitGTK with API version 4.1: Fedora `webkit2gtk4.1`, Arch `webkit2gtk-4.1`,
+openSUSE `libwebkit2gtk-4_1-0`, Gentoo `net-libs/webkit-gtk:4.1`. Don't link another version in its
+place (4.0 or 6.0): they aren't interchangeable and the app crashes.
 
 ## Building
 
