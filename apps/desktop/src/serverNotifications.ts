@@ -11,6 +11,8 @@ export interface ServerItem extends ServerNotification {
   account: string;
   /** Unique across accounts, for the feed's read and cleared lists. */
   key: string;
+  /** Its button you used (Share to chat, Accept) when the server then removed it: kept greyed. */
+  done?: string;
 }
 
 const EVERY = 120_000;
@@ -28,6 +30,16 @@ interface Known {
 const known = new Map<string, Known>();
 const listeners = new Set<() => void>();
 const changed = () => listeners.forEach((l) => l());
+
+// Notifications the server removed after you used one of their buttons (Talk's Share to chat does):
+// kept on this computer, greyed, until you take them out (Show in Files stays useful).
+const DONE = "Trixcomm.activity.doneNotices";
+let done: ServerItem[] = (() => { try { return JSON.parse(localStorage.getItem(DONE) ?? "[]") as ServerItem[]; } catch { return []; } })();
+const keepDone = (list: ServerItem[]) => {
+  done = list.slice(0, 50);
+  try { localStorage.setItem(DONE, JSON.stringify(done)); } catch { /* not kept */ }
+  changed();
+};
 
 /** Talk's own chat, call and conversation notifications: shown by the app already. */
 const fromChats = (n: ServerNotification) => n.app === "spreed" && ["chat", "call", "room"].includes(n.objectType);
@@ -91,7 +103,9 @@ export function useServerNotifications(accounts: string[]): ServerItem[] {
       window.removeEventListener("focus", onFocus);
     };
   }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
-  return accounts.flatMap((a) => known.get(a)?.items ?? []).sort((a, b) => b.at - a.at);
+  const live = accounts.flatMap((a) => known.get(a)?.items ?? []);
+  const keys = new Set(live.map((n) => n.key));
+  return [...live, ...done.filter((n) => accounts.includes(n.account) && !keys.has(n.key))].sort((a, b) => b.at - a.at);
 }
 
 const drop = (item: ServerItem) => {
@@ -101,8 +115,9 @@ const drop = (item: ServerItem) => {
   changed();
 };
 
-/** Removes it on the server, so Nextcloud's web and phone apps lose it too. */
+/** Removes it on the server, so Nextcloud's web and phone apps lose it too (a greyed one: here). */
 export async function dismissServerItem(item: ServerItem) {
+  if (item.done) return keepDone(done.filter((n) => n.key !== item.key));
   await backend.dismissServerNotification(item.account, item.id);
   drop(item);
 }
@@ -121,4 +136,8 @@ export async function runServerAction(item: ServerItem, action: ServerAction) {
   }
   await backend.serverNotificationAction(item.account, action.link, action.method, form);
   await refresh(item.account, true);
+  // Gone on the server after a button that does something (not Dismiss or Decline): kept greyed.
+  if (action.method !== "DELETE" && !known.get(item.account)?.items.some((n) => n.id === item.id)) {
+    keepDone([{ ...item, actions: [], done: action.label }, ...done.filter((n) => n.key !== item.key)]);
+  }
 }

@@ -31,6 +31,7 @@
   "activity.clear": "Wissen",
   "activity.clearHint": "Activiteit leegmaken (alleen op deze computer; nieuwe activiteit verschijnt gewoon)",
   "activity.dismiss": "Wegdoen (ook in Nextcloud)",
+  "activity.doneHint": "Gedaan. Nextcloud heeft deze melding niet meer; ✕ haalt hem hier ook weg.",
   "activity.cleared": "Activiteit gewist.",
   "activity.remove": "Uit Activiteit halen",
   "activity.undo": "Ongedaan maken",

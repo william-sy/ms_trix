@@ -45,7 +45,9 @@
   shared with you, calendar invitations and reminders, Deck cards, announcements, a call recording
   that's ready, updates for admins. With the person's picture and the app's icon, and the server's
   own buttons (Accept, Decline, Share to chat, …), plus *Show in Files* when it's about one of your
-  files (a call recording, a share). A click opens it (a Talk link or one of your own
+  files (a call recording, a share). When a button makes Nextcloud remove the notification (Talk's
+  *Share to chat* does), it stays in Activity greyed, with ✓ and what you did, until you take it
+  out. A click opens it (a Talk link or one of your own
   files right in the app); ✕ dismisses it in Nextcloud too, so the web and your phone agree. New
   ones also pop up as a system notification (not during Do not disturb).
 - **More** in the rail (Nextcloud): lists the apps your Nextcloud offers you (Office, Photos,

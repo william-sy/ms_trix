@@ -100,7 +100,7 @@ export function ActivityPane({ items, server, nextcloud, isUnread: unseen, selec
           const showFile = file && (file.path || file.link) && (() => (file.path ? showInFiles(n.account, `/${file.path.replace(/^\/+/, "")}`) : openLink(file.link!)));
           return (
           // A row with buttons of its own (Accept, Decline): a div, buttons can't hold buttons.
-          <div key={n.key} role="button" tabIndex={0} className={`activity server-notice ${unseen(serverEntry(n)) ? "unseen" : ""} ${busy === n.key ? "busy" : ""}`}
+          <div key={n.key} role="button" tabIndex={0} className={`activity server-notice ${unseen(serverEntry(n)) ? "unseen" : ""} ${busy === n.key ? "busy" : ""} ${n.done ? "done" : ""}`}
             title={n.link ? t("activity.openNotice") : undefined} onClick={() => openNotice(n)} onKeyDown={(e) => { if (e.key === "Enter" && e.target === e.currentTarget) openNotice(n); }}>
             <NoticePicture n={n} />
             <span className="row-text">
@@ -109,8 +109,9 @@ export function ActivityPane({ items, server, nextcloud, isUnread: unseen, selec
                 <span className="row-time">{formatTime(n.at)}</span>
               </span>
               {n.message.length > 0 && <span className="row-preview"><Rich parts={n.message} /></span>}
-              {(n.actions.length > 0 || showFile) && (
+              {(n.actions.length > 0 || showFile || n.done) && (
                 <span className="notice-actions">
+                  {n.done && <span className="notice-done" title={t("activity.doneHint")}>✓ {n.done}</span>}
                   {[...n.actions].sort((x, y) => Number(y.primary) - Number(x.primary)).map((action, i) => (
                     <button key={i} className={`btn small ${action.primary ? "primary" : ""}`} disabled={busy === n.key}
                       onClick={(e) => { e.stopPropagation(); if (action.method === "WEB") openLink(action.link); else act(n, () => runServerAction(n, action)); }}>{action.label}</button>
@@ -119,7 +120,7 @@ export function ActivityPane({ items, server, nextcloud, isUnread: unseen, selec
                 </span>
               )}
             </span>
-            <span className="activity-remove" role="button" title={t("activity.dismiss")} onClick={(e) => { e.stopPropagation(); act(n, () => dismissServerItem(n)); }}>✕</span>
+            <span className="activity-remove" role="button" title={n.done ? t("activity.remove") : t("activity.dismiss")} onClick={(e) => { e.stopPropagation(); act(n, () => dismissServerItem(n)); }}>✕</span>
             <span className="activity-toggle" role="button" title={unseen(serverEntry(n)) ? t("activity.markRead") : t("activity.markUnread")}
               onClick={(e) => { e.stopPropagation(); onSetRead(serverEntry(n), unseen(serverEntry(n))); }} />
           </div>

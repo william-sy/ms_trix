@@ -31,6 +31,7 @@
   "activity.clear": "Clear",
   "activity.clearHint": "Empty the Activity feed (only on this computer; new activity still shows up)",
   "activity.dismiss": "Dismiss (also in Nextcloud)",
+  "activity.doneHint": "Done. Nextcloud no longer has this notification; ✕ removes it here too.",
   "activity.cleared": "Activity cleared.",
   "activity.remove": "Remove from Activity",
   "activity.undo": "Undo",

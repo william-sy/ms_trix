@@ -617,6 +617,9 @@ mark { background: rgba(255, 196, 0, 0.45); color: inherit; border-radius: 2px; 
 :root[data-theme="dark"] :is(.notice-icon, .notice-app) img { filter: invert(1); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme]) :is(.notice-icon, .notice-app) img { filter: invert(1); } }
 .notice-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+/* Greyed, but its Show in Files button as usual. */
+.server-notice.done :is(.row-top, .row-preview, .avatar-wrap) { opacity: 0.55; }
+.notice-done { align-self: center; font-size: 12px; color: var(--text-muted); }
 .msg.flash .bubble { animation: flash 1.6s ease; }
 @keyframes flash { 0%, 40% { box-shadow: 0 0 0 3px var(--accent); } 100% { box-shadow: 0 0 0 0 transparent; } }
 
