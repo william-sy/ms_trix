@@ -51,8 +51,9 @@
   files right in the app); ✕ dismisses it in Nextcloud too, so the web and your phone agree. New
   ones also pop up as a system notification (not during Do not disturb).
 - **More** in the rail (Nextcloud): lists the apps your Nextcloud offers you (Office, Photos,
-  Music, Deck, whatever it has), with their icons; one click opens it in your browser. With
-  several Nextcloud accounts, each has its own row.
+  Music, Deck, whatever it has), with their icons; one click opens it in your browser. Talk,
+  Files, Notes, Calendar and Contacts are left out (they're in the app). With several Nextcloud
+  accounts, each has its own part.
 - **Time format setting** (Settings → Time format): System, 24-hour (14:20) or 12-hour
   (2:20 PM), whatever the app's language. System goes by your computer's language and region, so
   English on a European Mac now shows 14:20 instead of 2:20 PM.

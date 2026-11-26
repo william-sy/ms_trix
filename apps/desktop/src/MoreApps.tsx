@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { backend } from "./backend";
 import { t } from "./i18n";
 import { MoreIcon } from "./Icons";
@@ -6,7 +6,10 @@ import type { Org, ServerApp } from "./types";
 
 // More in the rail: the apps your Nextcloud offers in its own web pages (Office, Photos, Music,
 // Deck, …), as Nextcloud's app menu lists them; one click opens it in the browser. Asked when the
-// menu first opens, then kept for the rest of the run.
+// menu first opens, then kept for the rest of the run. The ones the app has itself are left out.
+
+/** Talk, Files, Notes, Calendar, and Contacts (coming to the app). */
+const IN_APP = new Set(["spreed", "files", "notes", "calendar", "contacts"]);
 
 const loaded = new Map<string, Promise<ServerApp[]>>();
 const appsOf = (account: string) => {
@@ -23,6 +26,26 @@ export function MoreApps({ orgs }: { orgs: Org[] }) {
   const [open, setOpen] = useState(false);
   const [apps, setApps] = useState<Record<string, ServerApp[] | string>>({});
   const ref = useRef<HTMLDivElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
+
+  // Within the window: moved up as far as it needs (the button sits halfway down the rail), and
+  // scrolling inside when even that isn't enough.
+  useLayoutEffect(() => {
+    const el = menu.current;
+    const anchor = ref.current;
+    if (!open || !el || !anchor) return;
+    const fit = () => {
+      const top = anchor.getBoundingClientRect().top;
+      const margin = 12;
+      const height = Math.min(el.scrollHeight, window.innerHeight - 2 * margin);
+      const up = Math.max(0, Math.min(top + height - (window.innerHeight - margin), top - margin));
+      el.style.top = `${-up}px`;
+      el.style.maxHeight = `${window.innerHeight - (top - up) - margin}px`;
+    };
+    fit();
+    window.addEventListener("resize", fit);
+    return () => window.removeEventListener("resize", fit);
+  }, [open, apps]);
 
   useEffect(() => {
     if (!open) return;
@@ -48,7 +71,7 @@ export function MoreApps({ orgs }: { orgs: Org[] }) {
         <span className="rail-label">{t("rail.more")}</span>
       </button>
       {open && (
-        <div className="menu more-menu" role="menu">
+        <div className="menu more-menu" role="menu" ref={menu}>
           <div className="menu-title">{t("more.title")}</div>
           {orgs.map((org) => {
             const list = apps[org.id];
@@ -59,7 +82,7 @@ export function MoreApps({ orgs }: { orgs: Org[] }) {
                   : typeof list === "string" ? <p className="more-note">{t("more.failed", { error: list })}</p>
                   : (
                     <div className="more-grid">
-                      {list.map((app) => (
+                      {list.filter((app) => !IN_APP.has(app.id)).map((app) => (
                         <button key={app.id} className="more-app" role="menuitem" title={app.href} onClick={() => launch(app)}>
                           <span className="more-icon">{app.icon && <img src={app.icon} alt="" draggable={false} />}</span>
                           <span className="more-name">{app.name}</span>
