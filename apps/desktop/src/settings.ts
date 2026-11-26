@@ -1,4 +1,5 @@
 import type { CameraQuality } from "./videoQuality";
+import type { NoiseSuppression } from "./noiseSuppression";
 import type { Ringtone } from "./ringtone";
 import { setClock, setLanguage, type Clock, type Key } from "./i18n";
 
@@ -70,6 +71,8 @@ export interface Settings {
   cameraEffect: string;
   /** How sharp the camera is sent in calls; "auto" as Talk's web app does it (videoQuality.ts). */
   cameraQuality: CameraQuality;
+  /** Background noise taken out of your microphone in calls (noiseSuppression.ts). */
+  noiseSuppression: NoiseSuppression;
   /** Their names, to find the same device again if its id changes. */
   deviceLabels: Record<string, string>;
   /** Enter sends (Shift+Enter = new line); off: Enter = new line, ⌘/Ctrl+Enter sends. */
@@ -128,6 +131,7 @@ const defaults: Settings = {
   cameraId: null,
   cameraEffect: "none",
   cameraQuality: "auto",
+  noiseSuppression: "off",
   deviceLabels: {},
   enterSends: true,
   density: "comfortable",

@@ -14,6 +14,7 @@ import { callLog, registerPlayer, type TalkCalls, type TalkPeerView } from "./ta
 import type { Conversation } from "./types";
 import { formatDuration } from "./voice";
 import { CAMERA_QUALITIES, type CameraQuality } from "./videoQuality";
+import { currentNoise, NOISE_LEVELS, rawMic, type NoiseSuppression } from "./noiseSuppression";
 import { ZoomView } from "./ZoomView";
 
 type Player = HTMLMediaElement & { setSinkId?: (id: string) => Promise<void> };
@@ -62,19 +63,24 @@ function Sound({ stream }: { stream: MediaStream }) {
   return <audio ref={ref} autoPlay />;
 }
 
-/** The speaker choice during a call (headphones plugged in halfway, …). */
-export function SpeakerButton() {
+/** The speaker choice during a call (headphones plugged in halfway, …), and noise suppression. */
+export function SpeakerButton({ onNoise }: { onNoise?: (level: NoiseSuppression) => void }) {
   const [open, setOpen] = useState(false);
   return (
     <span className="bg-anchor">
       <button className={`icon-btn ${open ? "on" : ""}`} title={t("av.speaker")} onClick={() => setOpen(!open)}><GearIcon /></button>
-      {open && <div className="menu speaker-menu" onMouseLeave={() => setOpen(false)}><b>{t("av.speaker")}</b><SpeakerPicker /></div>}
+      {open && (
+        <div className="menu speaker-menu" onMouseLeave={() => setOpen(false)}>
+          <b>{t("av.speaker")}</b><SpeakerPicker />
+          {onNoise && <><b>{t("av.noise")}</b><NoiseSelect onPick={onNoise} /></>}
+        </div>
+      )}
     </span>
   );
 }
 
-/** The device a microphone or camera track comes from (behind a background effect, too). */
-const inUse = (track?: MediaStreamTrack) => (track && rawCamera(track).getSettings().deviceId) ?? null;
+/** The device a microphone or camera track comes from (behind noise suppression or a background effect, too). */
+const inUse = (track?: MediaStreamTrack) => (track && (track.kind === "audio" ? rawMic(track) : rawCamera(track)).getSettings().deviceId) ?? null;
 
 /** Microphone or camera list; a device picked is saved, so the next call starts with it. */
 function DeviceSelect({ kind, devices, value, onPick }: {
@@ -105,6 +111,17 @@ function QualitySelect() {
   );
 }
 
+/** Noise suppression (the same setting as in Settings); the call changes it at once. */
+function NoiseSelect({ onPick }: { onPick: (level: NoiseSuppression) => void }) {
+  const [level, setLevel] = useState(currentNoise());
+  useEffect(() => onSettingsChanged((s) => setLevel(s.noiseSuppression)), []);
+  return (
+    <select value={level} title={t("av.noiseHint")} onChange={(e) => onPick(e.target.value as NoiseSuppression)}>
+      {NOISE_LEVELS.map((l) => <option key={l} value={l}>{t(`av.noise.${l}`)}</option>)}
+    </select>
+  );
+}
+
 /** In a Talk call: microphone, speaker, camera and its quality, switched without leaving. */
 function DeviceButton({ calls }: { calls: TalkCalls }) {
   const [open, setOpen] = useState(false);
@@ -118,6 +135,7 @@ function DeviceButton({ calls }: { calls: TalkCalls }) {
       {open && (
         <div className="menu speaker-menu" onMouseLeave={() => setOpen(false)}>
           {mic && <><b>{t("av.microphone")}</b><DeviceSelect kind="audioinput" devices={devices} value={inUse(mic)} onPick={(id) => calls.switchDevice("audioinput", id)} /></>}
+          {mic && <><b>{t("av.noise")}</b><NoiseSelect onPick={calls.setNoise} /></>}
           <b>{t("av.speaker")}</b><SpeakerPicker />
           {camera && <><b>{t("av.camera")}</b><DeviceSelect kind="videoinput" devices={devices} value={inUse(camera)} onPick={(id) => calls.switchDevice("videoinput", id)} /></>}
           {camera && <><b>{t("av.quality")}</b><QualitySelect /></>}
@@ -440,6 +458,7 @@ function PreJoin({ calls, name, onPopOut }: { calls: TalkCalls; name: string; on
         <div className="prejoin-side">
           {/* The device in use (saved in Settings, or the system's) until another is picked. */}
           <label>{t("av.microphone")}<DeviceSelect kind="audioinput" devices={devices} value={micId ?? inUse(call.local?.getAudioTracks()[0])} onPick={(id) => { setMicId(id); calls.reprepare(hasCamera, id, cameraId); }} /></label>
+          <label>{t("av.noise")}<NoiseSelect onPick={calls.setNoise} /></label>
           <label>{t("av.speaker")}<SpeakerPicker /></label>
           <label>{t("av.camera")}<DeviceSelect kind="videoinput" devices={devices} value={cameraId ?? inUse(call.local?.getVideoTracks()[0])} onPick={(id) => { setCameraId(id); calls.reprepare(true, micId, id); }} /></label>
           {hasCamera && <label>{t("av.quality")}<QualitySelect /></label>}

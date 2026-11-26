@@ -35,5 +35,7 @@ function mediapipe(): Plugin {
 export default defineConfig({
   plugins: [react(), mediapipe()],
   clearScreen: false,
+  // Audio worklets (noise suppression) load as files of their own, not inlined as data: URLs.
+  build: { assetsInlineLimit: (file) => (file.endsWith("Worklet.js") ? false : undefined) },
   server: { port: 5173, strictPort: true },
 });

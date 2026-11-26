@@ -6,6 +6,7 @@ import { startMeter } from "./voice";
 import { BackgroundPicker } from "./BackgroundPicker";
 import { processCamera, switchEffect } from "./cameraEffects";
 import { CAMERA_QUALITIES, type CameraQuality } from "./videoQuality";
+import { NOISE_LEVELS, processMic, type NoiseSuppression } from "./noiseSuppression";
 
 type Section = { settings: Settings; set: (patch: Partial<Settings>) => void };
 
@@ -91,6 +92,14 @@ export function AudioVideoSettings({ settings, set }: Section) {
         <h2>{t("av.microphone")}</h2>
         {picker("audioinput", settings.micId, pick("audioinput", "micId"))}
         <MicTest deviceId={resolve("audioinput", settings.micId)} onStarted={() => unnamed && void refresh(false)} />
+        <label className="av-quality">
+          <span>{t("av.noise")}</span>
+          <select value={settings.noiseSuppression} onChange={(e) => set({ noiseSuppression: e.target.value as NoiseSuppression })}>
+            {NOISE_LEVELS.map((l) => <option key={l} value={l}>{t(`av.noise.${l}`)}</option>)}
+          </select>
+        </label>
+        <p className="hint">{t("av.noiseHint")}</p>
+        <NoiseTest deviceId={resolve("audioinput", settings.micId)} level={settings.noiseSuppression} speakerId={canPickSpeaker ? settings.speakerId : null} />
       </section>
       <section>
         <h2>{t("av.speaker")}</h2>
@@ -144,6 +153,44 @@ function MicTest({ deviceId, onStarted }: { deviceId: string | null; onStarted: 
         </span>
       )}
       {level !== null && <span className="hint">{t("av.speakNow")}</span>}
+    </div>
+  );
+}
+
+/** Records a few seconds through the chosen noise suppression and plays it back: what others hear. */
+function NoiseTest({ deviceId, level, speakerId }: { deviceId: string | null; level: NoiseSuppression; speakerId: string | null }) {
+  const [phase, setPhase] = useState<"idle" | "recording" | "playing">("idle");
+  const [error, setError] = useState<string | null>(null);
+  const run = async () => {
+    setError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: deviceId ? { deviceId: { exact: deviceId } } : true });
+      const track = await processMic(stream.getAudioTracks()[0]!, level, setError);
+      const recorder = new MediaRecorder(new MediaStream([track]));
+      const chunks: Blob[] = [];
+      recorder.ondataavailable = (e) => chunks.push(e.data);
+      recorder.onstop = async () => {
+        track.stop();
+        const url = URL.createObjectURL(new Blob(chunks, { type: recorder.mimeType }));
+        const audio = new Audio(url) as HTMLAudioElement & { setSinkId?: (id: string) => Promise<void> };
+        if (speakerId && audio.setSinkId) await audio.setSinkId(speakerId).catch(() => {});
+        audio.onended = audio.onerror = () => { URL.revokeObjectURL(url); setPhase("idle"); };
+        setPhase("playing");
+        await audio.play().catch(() => setPhase("idle"));
+      };
+      recorder.start();
+      setPhase("recording");
+      window.setTimeout(() => recorder.stop(), 5000);
+    } catch (e) {
+      setError(String(e));
+      setPhase("idle");
+    }
+  };
+  return (
+    <div className="av-test">
+      <button className="btn small" disabled={phase !== "idle"} onClick={() => void run()}>{t("av.noiseTest")}</button>
+      {phase !== "idle" && <span className="hint">{t(phase === "recording" ? "av.noiseRecording" : "av.noisePlaying")}</span>}
+      {error && <span className="error">{error}</span>}
     </div>
   );
 }

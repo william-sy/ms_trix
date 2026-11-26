@@ -20,6 +20,12 @@
   (*since 14:20*), and its timer counts from then, also when others were in it before you joined
   (Talk 17 and later; older servers: since you joined). After every full hour of the call a small
   hint suggests a short break (close it with ✕; it comes back after the next hour).
+- **Noise suppression in calls** (Talk and Matrix): takes background noise out of your microphone
+  before the others hear it. *Standard* (RNNoise) for steady noise such as a fan or hum, *High*
+  (DeepFilterNet 3) also for keyboards, voices in the room and the street. Choose it in Settings →
+  Audio & video (with *Hear yourself*: 5 seconds recorded and played back as the others would
+  hear it), before joining, or during a call from the ⚙ menu. It all runs on your own computer;
+  nothing is sent anywhere. Off unless you turn it on.
 - **Time format setting** (Settings → Time format): System, 24-hour (14:20) or 12-hour
   (2:20 PM), whatever the app's language. System goes by your computer's language and region, so
   English on a European Mac now shows 14:20 instead of 2:20 PM.

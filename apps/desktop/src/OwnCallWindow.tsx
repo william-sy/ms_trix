@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { backend } from "./backend";
 import { storedCorner } from "./callCard";
 import { warmUpEffects } from "./cameraEffects";
+import { warmUpNoise } from "./noiseSuppression";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { t } from "./i18n";
 import { callLog as log, setCallsInOwnWindow, useTalkCallEngine, type CallWindowParams } from "./talkCalls";
@@ -58,7 +59,7 @@ export function CallWindow() {
     if (!p) return;
     if (!shownLogged) log(`call page shown after ${Math.round(performance.now())} ms`);
     shownLogged = true;
-    const timer = window.setTimeout(() => { calls.start(p.conversation, p.video, p.silent); warmUpEffects(); }, 0);
+    const timer = window.setTimeout(() => { calls.start(p.conversation, p.video, p.silent); warmUpEffects(); warmUpNoise(); }, 0);
     return () => window.clearTimeout(timer);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 

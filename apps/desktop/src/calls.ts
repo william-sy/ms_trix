@@ -6,6 +6,7 @@ import { backend, isLive, onCallSignal, type CallSignal } from "./backend";
 import { currentSettings } from "./settings";
 import { openMic } from "./voice";
 import { currentEffect, processCamera, switchEffect, type CameraEffect } from "./cameraEffects";
+import { currentNoise, processMic, switchNoise, type NoiseSuppression } from "./noiseSuppression";
 import { cameraConstraints, cameraLevel } from "./videoQuality";
 import { pickScreen, screenStopped } from "./screenShare";
 
@@ -251,6 +252,12 @@ class Call {
     void this.send("sdp_stream_metadata_changed", { [METADATA]: this.metadata() });
   }
 
+  /** Background noise out of your microphone, or back in. */
+  async setNoise(level: NoiseSuppression) {
+    await switchNoise(this.state.local, [this.pc], level, (why) => console.warn(why));
+    this.set({ local: this.state.local });
+  }
+
   /** Blur or replace the camera background; the same stream keeps its id (stream metadata). */
   async setBackground(effect: CameraEffect) {
     await switchEffect(this.state.local, [this.pc], effect);
@@ -294,6 +301,9 @@ async function openMedia(video: boolean): Promise<MediaStream> {
     video ? navigator.mediaDevices.getUserMedia({ video: cameraConstraint() }).catch(() => null) : null,
   ]);
   for (const t of cam?.getVideoTracks() ?? []) mic.addTrack(await processCamera(t));
+  const raw = mic.getAudioTracks()[0];
+  const cleaned = raw && await processMic(raw, currentNoise(), (why) => console.warn(why));
+  if (raw && cleaned !== raw) { mic.removeTrack(raw); mic.addTrack(cleaned!); }
   return mic;
 }
 
@@ -327,6 +337,7 @@ export interface Calls {
   setCamera: (on: boolean) => void;
   setSharing: (on: boolean) => void;
   setBackground: (effect: CameraEffect) => void;
+  setNoise: (level: NoiseSuppression) => void;
   setMinimized: (minimized: boolean) => void;
   setHold: (on: boolean) => void;
   dismiss: () => void;
@@ -442,6 +453,7 @@ export function useMatrixCalls(onError: (message: string) => void, onRing: (conv
     setSharing: (on) => guard(() => current.current?.setSharing(on)),
     // A failed background change shouldn't end the call.
     setBackground: (effect) => void current.current?.setBackground(effect).catch((e) => handlers.current.onError(String(e))),
+    setNoise: (level) => void current.current?.setNoise(level).catch((e) => handlers.current.onError(String(e))),
     setMinimized: (minimized) => current.current?.set({ minimized }),
     setHold: (on) => current.current?.setHold(on),
     dismiss: () => { current.current = null; setCall(null); },

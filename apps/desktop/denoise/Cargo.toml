@@ -1,0 +1,36 @@
+[package]
+name = "trix-denoise"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "DeepFilterNet 3 noise suppression for calls, as a plain WebAssembly module for an AudioWorklet"
+publish = false
+
+# Built on its own for wasm32 (scripts/build-denoise.sh), not with the app's workspace: its
+# output, models/deepfilternet3.wasm, is committed, so the app's builds don't need this.
+[workspace]
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# DeepFilterNet's Rust runtime with its DeepFilterNet 3 model built in, pinned to a commit we
+# checked; fixes we need go on our own branch of it.
+deep_filter = { git = "https://github.com/Rikorose/DeepFilterNet", rev = "7b14b895fe7fc42cab72b4a4c1e49c982bd6404b", default-features = false, features = ["tract", "default-model"] }
+ndarray = "0.15"
+# The model runtime at the version DeepFilterNet's own lock file has: from 0.21.5 on it moved to
+# ndarray 0.16, which DeepFilterNet's code doesn't build with.
+tract-core = "=0.21.4"
+tract-hir = "=0.21.4"
+tract-onnx = "=0.21.4"
+tract-pulse = "=0.21.4"
+# The model runtime links random numbers (for ONNX's random ops, which DeepFilterNet doesn't
+# use); WebAssembly without JavaScript has no source for them, so they fail if ever asked for.
+getrandom = { version = "0.2", features = ["custom"] }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

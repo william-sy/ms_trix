@@ -145,7 +145,7 @@ export function CallScreen({ calls, conversation }: Props) {
         <span className="muted">{status}</span>
         {call.sharing && <button className="sharing-pill" onClick={() => void calls.setSharing(false)}><ShareScreenIcon /> {t("share.youreSharing")} · <b>{t("mxcall.stopShare")}</b></button>}
         <span className="spacer" />
-        <SpeakerButton />
+        <SpeakerButton onNoise={calls.setNoise} />
         {stage && pipSupported() && <button className="icon-btn" title={t("mxcall.pip")} onClick={pictureInPicture}>⧉</button>}
         <button className="icon-btn" title={win.floating ? t("call.fullSize") : t("call.smallWindow")} onClick={win.toggle}>{win.floating ? <ExpandIcon /> : <PopInIcon />}</button>
         <button className="icon-btn" title={t("mxcall.minimize")} onClick={() => calls.setMinimized(true)}>⤡</button>

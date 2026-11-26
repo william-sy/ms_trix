@@ -15,6 +15,7 @@ import { currentSettings, isMac, onSettingsChanged } from "./settings";
 import { applyCameraLevel, cameraConstraints, cameraLevel, openedAt, type CameraLevel } from "./videoQuality";
 import { openMic } from "./voice";
 import { currentEffect, processCamera, rawCamera, switchEffect, type CameraEffect } from "./cameraEffects";
+import { currentNoise, processMic, switchNoise, type NoiseSuppression } from "./noiseSuppression";
 import { pickScreen, screenStopped } from "./screenShare";
 
 const API = "/ocs/v2.php/apps/spreed/api";
@@ -269,10 +270,16 @@ export class TalkCall {
       this.set({ local, cameraOn: local.getVideoTracks().length > 0, starting: undefined });
       // In the log, for "the camera is slow": how long the devices took, and since the page opened.
       log(`${local.getVideoTracks().length ? "camera" : "microphone"} ready after ${Math.round(performance.now() - asked)} ms (page open ${Math.round(performance.now())} ms)`);
-      this.effectReady = switchEffect(local, [], currentEffect()).then((changed) => {
-        if (changed) this.set({ local });
-        if (changed) log(`background ready after ${Math.round(performance.now())} ms`);
-      }, () => {});
+      this.effectReady = Promise.all([
+        switchEffect(local, [], currentEffect()).then((changed) => {
+          if (changed) log(`background ready after ${Math.round(performance.now())} ms`);
+          return changed;
+        }, () => false),
+        switchNoise(local, [], currentNoise(), log).then((changed) => {
+          if (changed) log(`noise suppression (${currentNoise()}) ready after ${Math.round(performance.now())} ms`);
+          return changed;
+        }, () => false),
+      ]).then(([background, noise]) => { if (background || noise) this.set({ local }); });
     } catch (e) {
       log(`couldn't open the microphone or camera: ${String(e)}`);
       this.set({ error: String(e), starting: undefined });
@@ -809,6 +816,12 @@ export class TalkCall {
     this.set({ local: this.state.local });
   }
 
+  /** Background noise out of your microphone, or back in (also in the pre-join preview). */
+  async setNoise(level: NoiseSuppression) {
+    if (await switchNoise(this.state.local, this.videoConnections(), level, log)) log(`noise suppression: ${level}`);
+    this.set({ local: this.state.local });
+  }
+
   /** In the call: another microphone or camera (`null`: the system's), sent to everyone at once. */
   async switchDevice(kind: "audioinput" | "videoinput", id: string | null) {
     const local = this.state.local;
@@ -822,7 +835,7 @@ export class TalkCall {
       const opened = await navigator.mediaDevices.getUserMedia(audio ? { audio: want } : { video: cameraConstraints(level, id ? { exact: id } : undefined) });
       if (!audio) openedAt(opened.getVideoTracks()[0], level);
       const raw = (audio ? opened.getAudioTracks() : opened.getVideoTracks())[0]!;
-      const track = audio ? raw : await processCamera(raw);
+      const track = audio ? await processMic(raw, currentNoise(), log) : await processCamera(raw);
       track.enabled = old.enabled;
       for (const pc of this.videoConnections()) {
         for (const sender of pc?.getSenders() ?? []) if (sender.track === old) await sender.replaceTrack(track).catch(() => {});
@@ -831,7 +844,7 @@ export class TalkCall {
       old.stop();
       local.addTrack(track);
       if (audio) {
-        watchMic(track);
+        watchMic(raw);
         this.selfMeter?.();
         this.selfMeter = this.publishers.video ? sentMeter(this.publishers.video, this.onSpeaking) : speakingMeter(local, this.onSpeaking);
       }
@@ -956,6 +969,9 @@ async function openMedia(video: boolean, micId?: string | null, cameraId?: strin
     video ? openCamera(cameraId, effects && currentEffect() !== "none") : null,
   ]);
   for (const t of cam?.getVideoTracks() ?? []) mic.addTrack(effects ? await processCamera(t) : t);
+  const raw = mic.getAudioTracks()[0];
+  const cleaned = raw && effects ? await processMic(raw, currentNoise(), log) : raw;
+  if (raw && cleaned !== raw) { mic.removeTrack(raw); mic.addTrack(cleaned!); }
   return mic;
 }
 
@@ -1020,6 +1036,7 @@ export interface TalkCalls {
   setCamera: (on: boolean) => void;
   setSharing: (on: boolean) => void;
   setBackground: (effect: CameraEffect) => void;
+  setNoise: (level: NoiseSuppression) => void;
   setHand: (raised: boolean) => void;
   react: (emoji: string) => void;
   setMinimized: (minimized: boolean) => void;
@@ -1118,6 +1135,7 @@ export function useTalkCallEngine(onError: (message: string) => void): TalkCalls
     setCamera: (on) => current.current?.setCamera(on),
     setSharing: (on) => void current.current?.setSharing(on).catch((e) => onError(String(e))),
     setBackground: (effect) => void current.current?.setBackground(effect).catch((e) => onError(String(e))),
+    setNoise: (level) => void current.current?.setNoise(level).catch((e) => onError(String(e))),
     setHand: (raised) => current.current?.setHand(raised),
     react: (emoji) => current.current?.react(emoji),
     setMinimized: (m) => current.current?.setMinimized(m),

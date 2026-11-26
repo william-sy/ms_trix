@@ -43,6 +43,8 @@ messages stay on your own servers.
 - Background blur, pictures and moving backgrounds (leaves in the wind, drifting clouds,
   fireflies, misty mountains, or your own video or GIF), raise hand, reactions; switch microphone, speaker or
   camera during a call
+- Noise suppression for your microphone: Standard (RNNoise) for steady noise, High
+  (DeepFilterNet 3) also for keyboards, voices in the room and the street; on your own computer
 - Calls in the app or in a window of their own (for a second screen); moving between the two
   keeps the call going
 - Matrix 1:1 voice and video calls
@@ -180,6 +182,12 @@ Trixcomm is free software: you can redistribute it and/or modify it under the te
 
 Idea: William · Sponsored by [selectedwithtrust.com](https://selectedwithtrust.com) · Made with
 Claude
+
+Built in: [DeepFilterNet](https://github.com/Rikorose/DeepFilterNet) (MIT or Apache-2.0) and
+[RNNoise](https://github.com/xiph/rnnoise) (BSD) through
+[web-noise-suppressor](https://github.com/sapphi-red/web-noise-suppressor) (MIT) for noise
+suppression, [MediaPipe](https://github.com/google-ai-edge/mediapipe) (Apache-2.0) for camera
+backgrounds.
 
 ---
 
