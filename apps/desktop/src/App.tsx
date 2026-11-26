@@ -47,6 +47,7 @@ import { ContextDialog } from "./ContextDialog";
 import { HashtagContext, HashtagPanel } from "./Hashtags";
 import { InAppLinkContext } from "./LinkPreview";
 import { useServerNotifications } from "./serverNotifications";
+import { MoreApps } from "./MoreApps";
 import { ImageCropper } from "./ImageCropper";
 import { VerificationDialog } from "./VerificationDialog";
 import { RoomLinkContext, type OpenRoomLink } from "./roomLinks";
@@ -809,7 +810,8 @@ export function App() {
           {notesOrgs.length > 0 && <RailItem icon={<NotesIcon />} label={t("rail.notes")} active={view === "notes"} onClick={() => openView("notes")} />}
           {/* Nextcloud Files, for the Nextcloud accounts in view. */}
           {cloudOrgs.length > 0 && <RailItem icon={<FilesIcon />} label={t("rail.files")} active={view === "files"} onClick={() => openView("files")} />}
-          <RailItem icon={<MoreIcon />} label="" soon />
+          {/* The other apps of the Nextcloud accounts in view, in the browser. */}
+          {cloudOrgs.length > 0 ? <MoreApps orgs={cloudOrgs} /> : <RailItem icon={<MoreIcon />} label="" soon />}
         </nav>
         <div className="main">
           <TitleBar orgFilter={state.orgFilter} query={query} onQuery={setQuery} onSettings={() => setShowSettings("general")} onPresence={setPresence} dnd={dnd} onDnd={setDnd} onOpenMessage={openMessage} onAddAccount={addAccount} onSignOut={signOut} onSecurity={setSecurityFor} />

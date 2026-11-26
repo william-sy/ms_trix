@@ -152,6 +152,15 @@ export interface Member {
 }
 
 /** A file or folder in Nextcloud Files. */
+/** An app a Nextcloud offers in its web pages (Photos, Office, Deck, …). */
+export interface ServerApp {
+  id: string;
+  name: string;
+  href: string;
+  /** A light glyph, for a coloured background. */
+  icon: string | null;
+}
+
 /** A notification from a Nextcloud itself (a share, a calendar invitation, …), apart from the chats'. */
 export interface ServerNotification {
   id: number;

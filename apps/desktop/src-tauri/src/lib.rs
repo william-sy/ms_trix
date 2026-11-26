@@ -1284,6 +1284,12 @@ async fn turn_servers(state: State<'_, AppState>, account: String) -> CmdResult<
     adapter_for(&state, &account)?.turn_servers().await.map_err(|e| e.to_string())
 }
 
+/// The apps a Nextcloud offers you in its web pages (More in the rail).
+#[tauri::command]
+async fn server_apps(state: State<'_, AppState>, account: String) -> CmdResult<Vec<trix_core::ServerApp>> {
+    adapter_for(&state, &account)?.server_apps().await.map_err(|e| e.to_string())
+}
+
 /// A Nextcloud account's own notifications (None: unchanged since `etag`), for Activity.
 #[tauri::command]
 async fn server_notifications(state: State<'_, AppState>, account: String, etag: Option<String>) -> CmdResult<Option<(Vec<trix_core::ServerNotification>, Option<String>)>> {
@@ -2850,6 +2856,7 @@ pub fn run() {
             send_call_event,
             turn_servers,
             cloud_files,
+            server_apps,
             server_notifications,
             dismiss_server_notification,
             server_notification_action,

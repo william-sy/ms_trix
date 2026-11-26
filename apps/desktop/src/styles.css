@@ -113,6 +113,17 @@ kbd { font: 11px ui-monospace, monospace; color: var(--text-subtle); }
 .menu-item:hover, .org-row:hover { background: var(--bg-hover); }
 .menu-sep { height: 1px; background: var(--border); margin: 6px 0; }
 .org-menu { left: 64px; top: 0; width: 340px; }
+.more-apps { position: relative; }
+.more-menu { left: 64px; top: 0; width: 320px; max-height: min(560px, 80vh); overflow-y: auto; }
+.more-account { padding: 8px 10px 2px; font-size: 12px; color: var(--text-muted); }
+.more-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; padding: 4px; }
+.more-app { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 4px 8px; border-radius: 6px; min-width: 0; }
+.more-app:hover { background: var(--bg-hover); }
+/* Nextcloud's app icons are light glyphs made for its coloured header. */
+.more-icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 8px; background: var(--accent); }
+.more-icon img { width: 20px; height: 20px; }
+.more-name { font-size: 12px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.more-note { margin: 0; padding: 6px 10px; font-size: 12px; color: var(--text-muted); }
 .org-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border-radius: 6px; text-align: left; }
 .org-row.selected { background: var(--accent-soft); }
 .org-row-text { flex: 1; display: flex; flex-direction: column; min-width: 0; }

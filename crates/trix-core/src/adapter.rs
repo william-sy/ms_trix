@@ -423,6 +423,10 @@ pub trait ProtocolAdapter: Send + Sync {
     async fn set_typing(&self, _conversation: &ConversationId, _typing: bool) -> Result<()> {
         Ok(())
     }
+    /// The apps the server offers you in its own web pages, in its order.
+    async fn server_apps(&self) -> Result<Vec<ServerApp>> {
+        Err(AdapterError::Unsupported("server apps"))
+    }
     /// The server's own notifications, newest first, with the tag to ask "anything new?" next
     /// time; None when nothing changed since `etag`.
     async fn server_notifications(&self, _etag: Option<&str>) -> Result<Option<(Vec<ServerNotification>, Option<String>)>> {

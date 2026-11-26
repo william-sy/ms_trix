@@ -1,8 +1,19 @@
 //! Nextcloud's own notifications (the notifications app's OCS API, v2): what the server tells you
-//! besides the chats, such as a file shared with you or a calendar invitation.
+//! besides the chats, such as a file shared with you or a calendar invitation. And the apps it
+//! offers in its web pages (its app menu), for More in the rail.
 
 use serde_json::Value;
-use trix_core::{RichPart, ServerAction, ServerNotification};
+use trix_core::{RichPart, ServerAction, ServerApp, ServerNotification};
+
+/// The server's app menu (core/navigation/apps with absolute addresses), in its order.
+pub fn apps(data: &Value) -> Vec<ServerApp> {
+    let mut list: Vec<(i64, ServerApp)> = data.as_array().into_iter().flatten().filter_map(|a| {
+        let href = text(&a["href"]).filter(|h| h.starts_with("https://") || h.starts_with("http://"))?;
+        Some((a["order"].as_i64().unwrap_or(i64::MAX), ServerApp { id: text(&a["id"])?, name: text(&a["name"])?, href, icon: text(&a["icon"]) }))
+    }).collect();
+    list.sort_by_key(|(order, _)| *order);
+    list.into_iter().map(|(_, app)| app).collect()
+}
 
 pub const PATH: &str = "/ocs/v2.php/apps/notifications/api/v2/notifications";
 
@@ -138,6 +149,16 @@ mod tests {
         let recording = &parse(&json!([{ "notification_id": 2, "subjectRich": "Recording ready: {file}", "subjectRichParameters": { "file": { "type": "file", "id": "77", "name": "Recording.webm" } } }]), "https://cloud.example")[0];
         assert_eq!(recording.subject[1].link.as_deref(), Some("https://cloud.example/f/77"));
         assert_eq!(iso_millis("2026-01-02T03:04:05-0500"), Some((days(2026, 1, 2) * 86_400 + 8 * 3600 + 4 * 60 + 5) * 1000));
+    }
+
+    #[test]
+    fn the_app_menu_in_order() {
+        let list = apps(&json!([
+            { "id": "photos", "order": 3, "href": "https://cloud.example/apps/photos/", "icon": "https://cloud.example/apps/photos/img/app.svg", "name": "Photos", "type": "link" },
+            { "id": "files", "order": 1, "href": "https://cloud.example/apps/files/", "icon": "https://cloud.example/apps/files/img/app.svg", "name": "Files", "type": "link" },
+            { "id": "odd", "order": 2, "href": "/apps/odd/", "name": "Not absolute" }
+        ]));
+        assert_eq!(list.iter().map(|a| a.id.as_str()).collect::<Vec<_>>(), ["files", "photos"]);
     }
 
     fn days(y: i64, m: u32, d: u32) -> i64 {

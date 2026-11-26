@@ -1615,6 +1615,12 @@ impl ProtocolAdapter for TalkAdapter {
         Ok(())
     }
 
+    async fn server_apps(&self) -> Result<Vec<ServerApp>> {
+        let req = self.request(Method::GET, "/ocs/v2.php/core/navigation/apps").query(&[("absolute", "true")]);
+        let data = self.ocs(req).await?.map(|(d, _)| d).unwrap_or(Value::Null);
+        Ok(notifications::apps(&data))
+    }
+
     async fn server_notifications(&self, etag: Option<&str>) -> Result<Option<(Vec<ServerNotification>, Option<String>)>> {
         let mut req = self.request(Method::GET, notifications::PATH);
         if let Some(etag) = etag {

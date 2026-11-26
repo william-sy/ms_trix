@@ -2,7 +2,7 @@
 // and the app falls back to mock data.
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import type { Attendee, Calendar, CalendarEvent, CloudFile, Conversation, FreeBusy, ConversationKind, Member, Message, NewEvent, Note, NoteChange, Org, Outgoing, Protocol, ServerNotification } from "./types";
+import type { Attendee, Calendar, CalendarEvent, CloudFile, Conversation, FreeBusy, ConversationKind, Member, Message, NewEvent, Note, NoteChange, Org, Outgoing, Protocol, ServerApp, ServerNotification } from "./types";
 import { dateLocale, t } from "./i18n";
 import { describeEvent, type RoomEvent } from "./roomEvents";
 import type { NotifyPrefs, Sounds } from "./settings";
@@ -451,6 +451,8 @@ export const backend = {
   turnServers: (account: string) => invoke<{ uris: string[]; username: string; password: string } | null>("turn_servers", { account }),
   setTexts: (texts: Record<string, string>) => invoke<void>("set_texts", { texts }),
   cloudFiles: (account: string, path: string) => invoke<CloudFile[]>("cloud_files", { account, path }),
+  /** The apps a Nextcloud offers in its web pages, in its order. */
+  serverApps: (account: string) => invoke<ServerApp[]>("server_apps", { account }),
   /** A Nextcloud's own notifications and the tag for next time; null when unchanged since `etag`. */
   serverNotifications: (account: string, etag: string | null) => invoke<[ServerNotification[], string | null] | null>("server_notifications", { account, etag }),
   /** Removes it on the server (`id` null: all of them). */

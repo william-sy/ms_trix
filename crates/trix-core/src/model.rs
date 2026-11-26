@@ -622,6 +622,18 @@ pub struct Translation {
     pub from: Option<String>,
 }
 
+/// An app the account's server offers in its own web pages (Nextcloud: Photos, Office, Deck, …).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerApp {
+    pub id: String,
+    pub name: String,
+    /// Its page on the server.
+    pub href: String,
+    /// Its icon (a light glyph, for a coloured background).
+    pub icon: Option<String>,
+}
+
 /// A notification from the account's server itself (Nextcloud: a file shared with you, a calendar
 /// invitation, a Deck card, a call recording that's ready, …), apart from the chats' own.
 #[derive(Debug, Clone, Serialize)]

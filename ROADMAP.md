@@ -78,7 +78,7 @@ with pictures, the call's start time and an hourly break hint, a time format set
 noise suppression in calls (Standard: RNNoise, High: DeepFilterNet 3; asked for by a board weighing
 a move from Teams), backgrounds under the pre-join preview, Talk call recording (moderators, on a
 server with the recording server) and joining calls that ask consent to being recorded, Nextcloud
-notifications in Activity.
+notifications in Activity, More in the rail (your Nextcloud's other apps).
 
 To do, from low to high effort (ordered 2026-11-22; the 1.6 plan and the later ideas together,
 plus the open items further down). S: a few hours, M: a day or two, L: several days, XL: weeks.
@@ -96,9 +96,10 @@ plus the open items further down). S: a few hours, M: a day or two, L: several d
        speaker) made bigger or smaller by dragging its edge, remembered; one or two rows (columns
        beside a shared screen) in the layout menu, so less scrolling through participants. Not
        per-tile resizing (Teams doesn't either); the gallery already fills the window
-6. [ ] S. More in the rail (idea 2026-11-26): the button that says "soon" lists the apps your
-       Nextcloud offers you (Office, Photos, Music, Deck, …: core/navigation/apps, with their names
-       and icons) and opens the one you pick in the browser. Several Nextcloud accounts: per account
+6. [x] S. More in the rail (idea 2026-11-26, done the same day): the button that said "soon" lists
+       the apps your Nextcloud offers you (Office, Photos, Music, Deck, …: core/navigation/apps, with
+       their names and icons) and opens the one you pick in the browser. Several Nextcloud accounts:
+       per account
 7. [ ] S–M. Phone numbers (idea 2026-11-26, with Contacts): a contact's number as a tel: link
        (the computer's own way of calling: an iPhone through the Mac, Phone Link on Windows); in a
        Talk call "Call a phone number" where the server has the SIP bridge with dial-out
