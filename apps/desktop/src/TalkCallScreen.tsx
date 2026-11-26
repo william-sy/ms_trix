@@ -8,7 +8,7 @@ import { Avatar } from "./Avatar";
 import { usePaneSize } from "./hooks";
 import { backend } from "./backend";
 import { dndActive } from "./dnd";
-import { CallIcon, CameraIcon, CameraOffIcon, EmojiIcon, ExpandIcon, GearIcon, HandIcon, LayoutIcon, MicIcon, MicOffIcon, PinIcon, ShareScreenIcon, SparkleIcon, NewWindowIcon } from "./Icons";
+import { CallIcon, CameraIcon, CameraOffIcon, EmojiIcon, ExpandIcon, GearIcon, HandIcon, LayoutIcon, MicIcon, MicOffIcon, PinIcon, RecordIcon, ShareScreenIcon, SparkleIcon, NewWindowIcon } from "./Icons";
 import { dateLocale, t } from "./i18n";
 import { currentSettings, onSettingsChanged, updateSettings } from "./settings";
 import { callLog, registerPlayer, type TalkCalls, type TalkPeerView } from "./talkCalls";
@@ -140,6 +140,31 @@ function DeviceButton({ calls }: { calls: TalkCalls }) {
           <b>{t("av.speaker")}</b><SpeakerPicker />
           {camera && <><b>{t("av.camera")}</b><DeviceSelect kind="videoinput" devices={devices} value={inUse(camera)} onPick={(id) => calls.switchDevice("videoinput", id)} /></>}
           {camera && <><b>{t("av.quality")}</b><QualitySelect /></>}
+        </div>
+      )}
+    </span>
+  );
+}
+
+/** Moderators, on a server that records calls: start recording (with video, or only the sound), or stop. */
+function RecordButton({ calls }: { calls: TalkCalls }) {
+  const [open, setOpen] = useState(false);
+  const recording = calls.call?.recording === "on" || calls.call?.recording === "starting";
+  const pick = (kind: "video" | "audio" | null) => { setOpen(false); calls.setRecording(kind); };
+  return (
+    <span className="bg-anchor">
+      <button className={`icon-btn ${recording ? "recording" : ""}`} title={recording ? t("talkcall.stopRecording") : t("talkcall.record")} onClick={() => setOpen(!open)}><RecordIcon /></button>
+      {open && (
+        <div className="menu layout-menu" onMouseLeave={() => setOpen(false)}>
+          {recording ? (
+            <button className="menu-item" onClick={() => pick(null)}>{t("talkcall.stopRecording")}</button>
+          ) : (
+            <>
+              <div className="menu-label">{t("talkcall.recordHint")}</div>
+              <button className="menu-item" onClick={() => pick("video")}>{t("talkcall.recordVideo")}</button>
+              <button className="menu-item" onClick={() => pick("audio")}>{t("talkcall.recordAudio")}</button>
+            </>
+          )}
         </div>
       )}
     </span>
@@ -382,7 +407,9 @@ export function TalkCallScreen({ calls, conversation, me, docked, onPopOut, onPo
           <span className="break-pill" role="status">{t("talkcall.breakHint", { count: hours })}<button title={t("talkcall.breakClose")} onClick={() => setBreakSeen(hours)}>✕</button></span>
         )}
         {call.sharing && <button className="sharing-pill" onClick={() => void calls.setSharing(false)}><ShareScreenIcon /> {t("share.youreSharing")} · <b>{t("mxcall.stopShare")}</b></button>}
-        {call.recording && <span className="talk-recording" role="status">● {call.recording === "on" ? t("talkcall.recording") : t("talkcall.recordingStarting")}</span>}
+        {call.recording && (call.recording !== "failed" || call.canRecord) && (
+          <span className="talk-recording" role="status">● {t(call.recording === "on" ? "talkcall.recording" : call.recording === "starting" ? "talkcall.recordingStarting" : "talkcall.recordingFailed")}</span>
+        )}
         <span className="spacer" />
         {paged && (
           <span className="talk-pager">
@@ -391,6 +418,7 @@ export function TalkCallScreen({ calls, conversation, me, docked, onPopOut, onPo
             <button className="icon-btn" title={t("talkcall.nextPage")} disabled={shownPage === pages - 1} onClick={() => setPage(shownPage + 1)}>›</button>
           </span>
         )}
+        {call.canRecord && <RecordButton calls={calls} />}
         <DeviceButton calls={calls} />
         <span className="bg-anchor">
           <button className="icon-btn" title={t("talkcall.layout")} onClick={() => setLayoutMenu(!layoutMenu)}><LayoutIcon /></button>
@@ -491,9 +519,13 @@ function PreJoin({ calls, name, onPopOut }: { calls: TalkCalls; name: string; on
           <label>{t("av.speaker")}<SpeakerPicker /></label>
           <label>{t("av.camera")}<DeviceSelect kind="videoinput" devices={devices} value={cameraId ?? inUse(call.local?.getVideoTracks()[0])} onPick={(id) => { setCameraId(id); calls.reprepare(true, micId, id); }} /></label>
           {hasCamera && <label>{t("av.quality")}<QualitySelect /></label>}
+          {call.recording === "on" && <p className="prejoin-recorded">● {t("talkcall.beingRecorded")}</p>}
+          {call.consent && (
+            <label className="prejoin-consent"><input type="checkbox" checked={!!call.consented} onChange={(e) => calls.setConsent(e.target.checked)} />{t("talkcall.consent")}</label>
+          )}
           <div className="prejoin-actions">
             <button className="btn" onClick={calls.cancel}>{t("common.cancel")}</button>
-            <button className="btn primary" onClick={calls.join}>{t("talkcall.joinNow")}</button>
+            <button className="btn primary" disabled={call.consent && !call.consented} title={call.consent && !call.consented ? t("talkcall.consentFirst") : undefined} onClick={calls.join}>{t("talkcall.joinNow")}</button>
           </div>
         </div>
       </div>

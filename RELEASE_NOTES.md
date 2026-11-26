@@ -35,6 +35,11 @@
   screen, under the speaker) to make the faces bigger or smaller; double-click it for the standard
   size. The layout menu has one or two rows of faces (columns beside a shared screen), so you
   scroll less through a big call. Both are remembered.
+- **Record Talk calls:** on a Nextcloud with Talk's recording server, owners and moderators get a
+  record button in the call's header: record video and sound, or only the sound, and stop again.
+  Everyone in the call sees *Recording*; the recording lands in the Files of whoever started it.
+  A recording that fails shows as such for those who can record. The button only shows where the
+  server records calls.
 - **Time format setting** (Settings → Time format): System, 24-hour (14:20) or 12-hour
   (2:20 PM), whatever the app's language. System goes by your computer's language and region, so
   English on a European Mac now shows 14:20 instead of 2:20 PM.
@@ -51,6 +56,9 @@
   restarted.
 - Call times from an hour on read 1:30:23 instead of 90:23 (calls, voice messages, the calls
   list).
+- Talk calls that ask everyone to agree to being recorded (a setting of the server or the
+  conversation, Talk 18 and later) couldn't be joined. The pre-join screen now has a box to tick
+  for that, and says when a call is already being recorded.
 - Talk calls showed initials instead of people's pictures, and an empty circle for yourself;
   your own and everyone's profile picture now show when the camera is off.
 

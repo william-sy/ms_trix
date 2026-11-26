@@ -403,7 +403,11 @@ impl TalkAdapter {
         }
         if !status.is_success() {
             let message = body["ocs"]["meta"]["message"].as_str().filter(|m| !m.is_empty()).map(ToOwned::to_owned).unwrap_or_else(|| status.to_string());
-            return Err(AdapterError::Other(message));
+            // Talk says why in the data ("400 Bad Request (consent)").
+            return Err(AdapterError::Other(match body["ocs"]["data"]["error"].as_str().filter(|e| !e.is_empty() && !message.contains(e)) {
+                Some(why) => format!("{message} ({why})"),
+                None => message,
+            }));
         }
         Ok(Some((body["ocs"]["data"].clone(), headers)))
     }
@@ -1106,11 +1110,15 @@ impl ProtocolAdapter for TalkAdapter {
 
     /// Talk's call and signalling REST endpoints, for the call engine in the UI.
     async fn call_api(&self, method: &str, path: &str, form: &[(String, String)], timeout_secs: u64) -> Result<(String, String)> {
-        // Calls (room and call membership, signalling) and conversation settings: the room API,
-        // creating a meeting, bans, poll drafts, and clearing the chat history.
+        // Calls (room and call membership, signalling, starting and stopping a recording, what the
+        // server offers) and conversation settings: the room API, creating a meeting, bans, poll
+        // drafts, and clearing the chat history.
         let method = Method::from_bytes(method.as_bytes()).map_err(|_| AdapterError::Other("bad method".into()))?;
         let allowed = ["/ocs/v2.php/apps/spreed/api/v3/signaling/", "/ocs/v2.php/apps/spreed/api/v4/call/", "/ocs/v2.php/apps/spreed/api/v4/room/", "/ocs/v2.php/apps/spreed/api/v1/ban/"];
+        let recording = path.strip_prefix("/ocs/v2.php/apps/spreed/api/v1/recording/").is_some_and(|token| !token.is_empty() && token.chars().all(|c| c.is_ascii_alphanumeric()));
         let ok = allowed.iter().any(|p| path.starts_with(p))
+            || (recording && (method == Method::POST || method == Method::DELETE))
+            || (path == "/ocs/v2.php/cloud/capabilities" && method == Method::GET)
             || (path == ROOM && method == Method::POST)
             || (path.starts_with(POLL) && path.ends_with("/drafts"))
             || (path.starts_with(CHAT) && method == Method::DELETE && path[CHAT.len()..].trim_matches('/').chars().all(|c| c.is_ascii_alphanumeric()));

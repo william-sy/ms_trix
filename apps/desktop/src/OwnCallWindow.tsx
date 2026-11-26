@@ -5,7 +5,7 @@ import { storedCorner } from "./callCard";
 import { warmUpEffects } from "./cameraEffects";
 import { warmUpNoise } from "./noiseSuppression";
 import { ErrorBoundary } from "./ErrorBoundary";
-import { t } from "./i18n";
+import { friendlyError, t } from "./i18n";
 import { callLog as log, setCallsInOwnWindow, useTalkCallEngine, type CallWindowParams } from "./talkCalls";
 import { TalkCallScreen } from "./TalkCallScreen";
 import type { Conversation } from "./types";
@@ -31,7 +31,7 @@ export function CallWindow() {
   const [p] = useState(params);
   const [docked, setDocked] = useState(() => p?.docked !== false);
   const [notice, setNotice] = useState<string | null>(null);
-  const calls = useTalkCallEngine((e) => setNotice(e));
+  const calls = useTalkCallEngine((e) => setNotice(friendlyError(e)));
   const call = calls.call;
   const callsRef = useRef(calls);
   callsRef.current = calls;

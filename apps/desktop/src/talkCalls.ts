@@ -63,8 +63,13 @@ export interface TalkCallState {
   speakingSelf: boolean;
   handRaised: boolean;
   reactions: FloatingReaction[];
-  /** The call is being recorded (Talk's recording server). */
-  recording?: "starting" | "on";
+  /** The call is being recorded (Talk's recording server); "failed" only matters to those who can record. */
+  recording?: "starting" | "on" | "failed";
+  /** You may start and stop recording: a moderator, on a server with Talk's recording server. */
+  canRecord?: boolean;
+  /** Joining needs your consent to the call being recorded (the server or conversation asks it), and whether you gave it. */
+  consent?: boolean;
+  consented?: boolean;
   connectedAt?: number;
   /** When the call itself started (someone may have been in it before you), if Talk tells. */
   startedAt?: number;
@@ -203,6 +208,12 @@ export class TalkCall {
   private quality?: { camera: MediaStreamTrack; level: CameraLevel };
   private spokeAt = 0;
   private spokeTimer?: number;
+  /** What the server and conversation say about recording, read once with the preview (joining waits for it). */
+  private roomRead?: Promise<void>;
+  /** The server records calls (Talk's recording server is set up). */
+  private recordable = false;
+  /** Checks the conversation now rather than at the next round. */
+  private wakeRoom?: () => void;
 
   constructor(conversation: string, private update: (s: TalkCallState) => void) {
     const [account, token] = conversation.split("|") as [string, string];
@@ -251,8 +262,36 @@ export class TalkCall {
    * device asked for while the previous request is still open (devices picked in quick succession).
    */
   prepare(video: boolean, micId?: string | null, cameraId?: string | null): Promise<void> {
+    this.roomRead ??= this.checkRecording();
     this.preparing = this.preparing.then(() => this.openPreview(video, micId, cameraId));
     return this.preparing;
+  }
+
+  /**
+   * Before joining: whether the server records calls (and you may start one), and whether joining
+   * needs your consent to being recorded (Talk 18 on; the server asks it of every call, or lets
+   * each conversation choose). Unknown counts as not needed: Talk then says so when joining.
+   */
+  private async checkRecording() {
+    try {
+      const [caps, room] = await Promise.all([backend.callApi(this.state.account, "GET", "/ocs/v2.php/cloud/capabilities", []).then(([json]) => JSON.parse(json)), this.api("GET", `/v4/room/${this.token}`)]);
+      const talk = caps?.capabilities?.spreed ?? {};
+      const features: string[] = talk.features ?? [];
+      const call = talk.config?.call ?? {};
+      this.recordable = features.includes("recording-v1") && call.recording === true;
+      const asked = Number(call["recording-consent"] ?? 0);
+      const consent = features.includes("recording-consent") && (asked === 1 || (asked === 2 && Number(room?.recordingConsent) === 1));
+      if (consent) log("joining needs consent to recording");
+      this.set({ consent });
+      this.readRoom(room);
+    } catch (e) {
+      log(`couldn't check recording: ${String(e)}`);
+    }
+  }
+
+  /** You agree (or no longer) to the call being recorded, when joining asks it. */
+  setConsent(agreed: boolean) {
+    this.set({ consented: agreed });
   }
 
   private async openPreview(video: boolean, micId?: string | null, cameraId?: string | null) {
@@ -295,6 +334,9 @@ export class TalkCall {
   }
 
   async start() {
+    await this.roomRead;
+    // Joining needs your consent first: the box to tick shows in the pre-join screen.
+    if (this.state.consent && !this.state.consented) return;
     this.set({ phase: "joining" });
     try {
       const settings = await this.api("GET", `/v3/signaling/settings`, { token: this.token });
@@ -319,7 +361,7 @@ export class TalkCall {
         ? this.internalSignaling()
         : await this.externalSignaling(settings);
       const flags = IN_CALL | WITH_AUDIO | (local.getVideoTracks().length && this.state.cameraOn ? WITH_VIDEO : 0);
-      await this.api("POST", `/v4/call/${this.token}`, { flags: String(flags), silent: String(this.silent) });
+      await this.api("POST", `/v4/call/${this.token}`, { flags: String(flags), silent: String(this.silent), ...(this.state.consent && this.state.consented ? { recordingConsent: "true" } : {}) });
       log(`in the call (flags ${flags}${this.state.muted ? ", muted" : ""}), ${this.sig.mcu ? "via the video server (MCU)" : "peer to peer"}`);
       void logSpeaker();
       await names;
@@ -742,22 +784,40 @@ export class TalkCall {
   }
 
   /** Talk tells everyone when a call is recorded; check the conversation now and then. */
-  /** Whether the call is being recorded, and when it started (Talk 17 on). */
   private async watchRoom() {
     while (!this.closed) {
       try {
-        const room = await this.api("GET", `/v4/room/${this.token}`);
-        // callRecording: 0 off, 1 video, 2 audio, 3/4 starting, 5 failed.
-        const status = Number(room?.callRecording ?? 0);
-        const recording = status === 1 || status === 2 ? "on" : status === 3 || status === 4 ? "starting" : undefined;
-        if (recording !== this.state.recording) this.set({ recording });
-        // The server's clock: never later than when we joined (a call we started ourselves).
-        const started = Number(room?.callStartTime ?? 0) * 1000;
-        const startedAt = started > 0 ? Math.min(started, this.state.connectedAt ?? Date.now()) : undefined;
-        if (startedAt !== this.state.startedAt) this.set({ startedAt });
+        this.readRoom(await this.api("GET", `/v4/room/${this.token}`));
       } catch { /* try again next round */ }
-      await new Promise((r) => window.setTimeout(r, 15_000));
+      // Sooner while a recording starts: the recording server joins within seconds.
+      await new Promise<void>((r) => { this.wakeRoom = r; window.setTimeout(r, this.state.recording === "starting" ? 2_000 : 15_000); });
     }
+  }
+
+  /** Whether the call is being recorded (and you may start or stop that), and when it started (Talk 17 on). */
+  private readRoom(room: Any) {
+    // callRecording: 0 off, 1 video, 2 audio, 3/4 starting, 5 failed.
+    const status = Number(room?.callRecording ?? 0);
+    const recording = status === 1 || status === 2 ? "on" : status === 3 || status === 4 ? "starting" : status === 5 ? "failed" : undefined;
+    // Owners and moderators (not guests) of a conversation on this server.
+    const canRecord = this.recordable && [1, 2].includes(Number(room?.participantType)) && !room?.remoteServer;
+    // The server's clock: never later than when we joined (a call we started ourselves).
+    const started = Number(room?.callStartTime ?? 0) * 1000;
+    const startedAt = started > 0 ? Math.min(started, this.state.connectedAt ?? Date.now()) : undefined;
+    if (recording !== this.state.recording || canRecord !== !!this.state.canRecord || startedAt !== this.state.startedAt) this.set({ recording, canRecord, startedAt });
+  }
+
+  /** Has Talk's recording server record the call (with video, or only the sound), or stop (moderators). */
+  async setRecording(kind: "video" | "audio" | null) {
+    if (kind) {
+      await this.api("POST", `/v1/recording/${this.token}`, { status: kind === "video" ? "1" : "2" });
+      this.set({ recording: "starting" });
+    } else {
+      await this.api("DELETE", `/v1/recording/${this.token}`);
+      this.set({ recording: undefined });
+    }
+    log(kind ? `recording asked for (${kind})` : "recording stopped");
+    this.wakeRoom?.();
   }
 
   private reactionId = 0;
@@ -1037,6 +1097,10 @@ export interface TalkCalls {
   setSharing: (on: boolean) => void;
   setBackground: (effect: CameraEffect) => void;
   setNoise: (level: NoiseSuppression) => void;
+  /** Pre-join: you agree to the call being recorded (when joining asks it). */
+  setConsent: (agreed: boolean) => void;
+  /** Start recording the call (video, or sound only) or stop it (`null`); moderators. */
+  setRecording: (kind: "video" | "audio" | null) => void;
   setHand: (raised: boolean) => void;
   react: (emoji: string) => void;
   setMinimized: (minimized: boolean) => void;
@@ -1136,6 +1200,8 @@ export function useTalkCallEngine(onError: (message: string) => void): TalkCalls
     setSharing: (on) => void current.current?.setSharing(on).catch((e) => onError(String(e))),
     setBackground: (effect) => void current.current?.setBackground(effect).catch((e) => onError(String(e))),
     setNoise: (level) => void current.current?.setNoise(level).catch((e) => onError(String(e))),
+    setConsent: (agreed) => current.current?.setConsent(agreed),
+    setRecording: (kind) => void current.current?.setRecording(kind).catch((e) => onError(String(e))),
     setHand: (raised) => current.current?.setHand(raised),
     react: (emoji) => current.current?.react(emoji),
     setMinimized: (m) => current.current?.setMinimized(m),

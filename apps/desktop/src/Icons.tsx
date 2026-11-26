@@ -43,6 +43,7 @@ export const ShareScreenIcon = () => <Svg><rect x="3" y="4" width="18" height="1
 export const HandIcon = () => <Svg><path d="M8 13V6.5a1.5 1.5 0 0 1 3 0V12M11 11V4.5a1.5 1.5 0 0 1 3 0V11M14 11V6a1.5 1.5 0 0 1 3 0v8a7 7 0 0 1-7 7h-.5a6 6 0 0 1-4.6-2.2L3.5 16a1.5 1.5 0 0 1 2.3-2L8 16" /></Svg>;
 export const SparkleIcon = () => <Svg><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6" /></Svg>;
 export const PinIcon = ({ size }: { size?: number }) => <Svg size={size}><path d="M9 4h6l-1 6 3 3H7l3-3-1-6ZM12 13v7" /></Svg>;
+export const RecordIcon = () => <Svg><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="3.5" fill="currentColor" /></Svg>;
 export const LayoutIcon = () => <Svg><rect x="4" y="4" width="16" height="16" rx="2" /><path d="M4 12h16M12 4v16" /></Svg>;
 export const ExpandIcon = () => <Svg><path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7" /></Svg>;
 export const PopInIcon = () => <Svg><rect x="3" y="4" width="18" height="16" rx="2" /><rect x="12" y="12" width="7" height="6" rx="1" /></Svg>;

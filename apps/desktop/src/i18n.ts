@@ -58,6 +58,11 @@ const errorPatterns: [RegExp, Key][] = [
   [/M_TOO_LARGE|\b413 Payload Too Large/, "error.tooLarge"],
   [/M_USER_IN_USE/, "error.nameTaken"],
   [/M_INVALID_PARAM|M_BAD_JSON/, "error.invalid"],
+  // Talk's reasons (the host adds them: "400 Bad Request (consent)").
+  [/\b400 Bad Request \(consent\)/, "error.recordingConsent"],
+  [/\b400 Bad Request \(config\)/, "error.recordingSetup"],
+  [/\b400 Bad Request \(recording\)/, "error.recordingRunning"],
+  [/\b400 Bad Request \(call\)/, "error.noCall"],
   [/error sending request|connection (refused|reset|closed)|dns error|operation timed out/i, "error.network"],
 ];
 

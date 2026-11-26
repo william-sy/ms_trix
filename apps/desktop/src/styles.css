@@ -1210,6 +1210,10 @@ html.reminder-page .meeting-reminder { inset: 0; border-radius: 12px; box-shadow
 .calendar-reply .segmented button { white-space: nowrap; }
 .qr-scanner { width: 100%; max-height: 300px; border-radius: 8px; background: #000; transform: scaleX(-1); object-fit: cover; }
 .talk-recording { margin-left: 10px; padding: 2px 8px; border-radius: 4px; background: #c4314b; color: #fff; font-size: 12px; font-weight: 600; }
+.call-head .icon-btn.recording { color: #e5566e; }
+.prejoin-recorded { margin: 0; font-size: 13px; color: #e5566e; }
+.prejoin-side .prejoin-consent { flex-direction: row; align-items: flex-start; gap: 8px; line-height: 1.35; color: #fff; }
+.prejoin-consent input { margin-top: 2px; flex: none; }
 
 /* ---------- Sharing your screen ---------- */
 .break-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 4px 3px 10px; border-radius: 999px; font-size: 12px; background: rgba(255, 255, 255, 0.12); color: #fff; }
