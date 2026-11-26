@@ -160,7 +160,7 @@ export interface ServerNotification {
   objectType: string;
   at: number;
   /** The subject in pieces: plain text (kind null) and named people, files and the like. */
-  subject: { text: string; kind: string | null; id: string | null; link: string | null }[];
+  subject: { text: string; kind: string | null; id: string | null; link: string | null; path: string | null }[];
   message: string;
   link: string | null;
   icon: string | null;

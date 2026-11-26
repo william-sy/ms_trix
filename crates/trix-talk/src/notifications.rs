@@ -34,7 +34,7 @@ fn one(n: &Value) -> Option<ServerNotification> {
 }
 
 fn plain(text: String) -> RichPart {
-    RichPart { text, kind: None, id: None, link: None }
+    RichPart { text, kind: None, id: None, link: None, path: None }
 }
 
 /// "{user} shared {file} with you" and its parameters, in pieces; an unknown {placeholder} stays text.
@@ -57,7 +57,7 @@ fn parts(rich: &str, params: &Value) -> Vec<RichPart> {
             Some(name) => {
                 push(&mut out, &rest[..open]);
                 let id = text(&param["id"]).or_else(|| param["id"].as_i64().map(|n| n.to_string()));
-                out.push(RichPart { text: name, kind: text(&param["type"]), id, link: text(&param["link"]) });
+                out.push(RichPart { text: name, kind: text(&param["type"]), id, link: text(&param["link"]), path: text(&param["path"]) });
             }
             None => push(&mut out, &rest[..=close]),
         }
@@ -93,7 +93,7 @@ mod tests {
             "subjectRich": "{user} shared {file} with you",
             "subjectRichParameters": {
                 "user": { "type": "user", "id": "anna", "name": "Anna" },
-                "file": { "type": "file", "id": 4711, "name": "report.pdf", "link": "https://cloud.example/f/4711" }
+                "file": { "type": "file", "id": 4711, "name": "report.pdf", "link": "https://cloud.example/f/4711", "path": "Shared/report.pdf" }
             },
             "message": "", "link": "https://cloud.example/f/4711", "icon": "https://cloud.example/apps/files_sharing/img/app-dark.svg",
             "actions": [{ "label": "Accept", "link": "https://cloud.example/ocs/v2.php/apps/files_sharing/api/v1/remote_shares/pending/3", "type": "post", "primary": true }]
@@ -105,6 +105,7 @@ mod tests {
         assert_eq!(n.subject.iter().map(|p| p.text.as_str()).collect::<String>(), "Anna shared report.pdf with you");
         assert_eq!(n.subject[0].kind.as_deref(), Some("user"));
         assert_eq!(n.subject[2].id.as_deref(), Some("4711"));
+        assert_eq!(n.subject[2].path.as_deref(), Some("Shared/report.pdf"));
         assert_eq!(n.subject[3], plain(" with you".into()));
         assert_eq!(n.actions[0].method, "POST");
         assert!(n.alert && n.message.is_empty());

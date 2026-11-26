@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Avatar } from "./Avatar";
 import { formatTime, type ActivityItem } from "./backend";
 import { t } from "./i18n";
+import { showInFiles } from "./filesNav";
 import { useOpenLink } from "./LinkPreview";
 import { dismissServerItem, runServerAction, type ServerItem } from "./serverNotifications";
 
@@ -92,7 +93,10 @@ export function ActivityPane({ items, server, nextcloud, isUnread: unseen, selec
             <span className="activity-toggle" role="button" title={unseen(a) ? t("activity.markRead") : t("activity.markUnread")}
               onClick={(e) => { e.stopPropagation(); onSetRead(a, unseen(a)); }} />
           </button>
-        ) : n && (
+        ) : n && (() => {
+          // A file it's about (a recording, a share) that's in your own files.
+          const file = n.subject.find((p) => p.kind === "file" && p.path)?.path?.replace(/^\/+/, "");
+          return (
           // A row with buttons of its own (Accept, Decline): a div, buttons can't hold buttons.
           <div key={n.key} role="button" tabIndex={0} className={`activity server-notice ${unseen(serverEntry(n)) ? "unseen" : ""} ${busy === n.key ? "busy" : ""}`}
             title={n.link ? t("activity.openNotice") : undefined} onClick={() => openNotice(n)} onKeyDown={(e) => { if (e.key === "Enter" && e.target === e.currentTarget) openNotice(n); }}>
@@ -103,12 +107,13 @@ export function ActivityPane({ items, server, nextcloud, isUnread: unseen, selec
                 <span className="row-time">{formatTime(n.at)}</span>
               </span>
               {n.message && <span className="row-preview">{n.message}</span>}
-              {n.actions.length > 0 && (
+              {(n.actions.length > 0 || file) && (
                 <span className="notice-actions">
                   {[...n.actions].sort((x, y) => Number(y.primary) - Number(x.primary)).map((action, i) => (
                     <button key={i} className={`btn small ${action.primary ? "primary" : ""}`} disabled={busy === n.key}
                       onClick={(e) => { e.stopPropagation(); if (action.method === "WEB") openLink(action.link); else act(n, () => runServerAction(n, action)); }}>{action.label}</button>
                   ))}
+                  {file && <button className="btn small" onClick={(e) => { e.stopPropagation(); showInFiles(n.account, `/${file}`); }}>{t("files.showInFiles")}</button>}
                 </span>
               )}
             </span>
@@ -116,7 +121,8 @@ export function ActivityPane({ items, server, nextcloud, isUnread: unseen, selec
             <span className="activity-toggle" role="button" title={unseen(serverEntry(n)) ? t("activity.markRead") : t("activity.markUnread")}
               onClick={(e) => { e.stopPropagation(); onSetRead(serverEntry(n), unseen(serverEntry(n))); }} />
           </div>
-        ))}
+          );
+        })())}
       </div>
     </aside>
   );

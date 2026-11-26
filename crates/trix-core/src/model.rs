@@ -653,6 +653,8 @@ pub struct RichPart {
     pub kind: Option<String>,
     pub id: Option<String>,
     pub link: Option<String>,
+    /// A file's place in your own files, when the server says.
+    pub path: Option<String>,
 }
 
 /// A button on a server notification (Accept, Decline, Share to chat, …).
