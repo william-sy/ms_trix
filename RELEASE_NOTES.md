@@ -1,14 +1,8 @@
 # Release notes
 
-## 1.8.1 (not released yet)
+## 1.8.1 (2026-11-26)
 
-### Fixed
-- Matrix teams: rooms you're in could be missing from their team in the Teams view (and show as
-  a plain room in Chat) until something about them changed, when the room loaded before its team,
-  or when the room names the team as its own without the team listing it (Element shows those
-  under the team too).
-
-## 1.8.0 (2026-11-26)
+1.8.0 was tagged but never released; this is it, with one more fix.
 
 ### New
 - **Drafts:** a message you're typing stays in the box when you go to another chat, and is there
@@ -76,6 +70,10 @@
   English on a European Mac now shows 14:20 instead of 2:20 PM.
 
 ### Fixed
+- Matrix teams: rooms you're in could be missing from their team in the Teams view (and show as
+  a plain room in Chat) until something about them changed, when the room loaded before its team,
+  or when the room names the team as its own without the team listing it (Element shows those
+  under the team too).
 - The reply box in a thread used only half its width for text, next to its buttons. When the
   box is narrow (a thread, or a small window) the buttons now go on a row under the text, so the
   text gets the full width; the thread's box also sits closer to the edges.
