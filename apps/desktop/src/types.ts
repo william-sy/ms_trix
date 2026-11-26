@@ -159,15 +159,24 @@ export interface ServerNotification {
   app: string;
   objectType: string;
   at: number;
-  /** The subject in pieces: plain text (kind null) and named people, files and the like. */
-  subject: { text: string; kind: string | null; id: string | null; link: string | null; path: string | null }[];
-  message: string;
+  /** The subject and the message under it in pieces: plain text (kind null) and named people, files and the like. */
+  subject: RichPart[];
+  message: RichPart[];
   link: string | null;
   icon: string | null;
   /** Buttons; method "WEB" opens the link. */
   actions: ServerAction[];
   /** False for ones the server keeps quiet. */
   alert: boolean;
+}
+
+export interface RichPart {
+  text: string;
+  kind: string | null;
+  id: string | null;
+  link: string | null;
+  /** A file's place in your own files, when the server says. */
+  path: string | null;
 }
 
 export interface ServerAction {

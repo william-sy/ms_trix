@@ -4,7 +4,8 @@ import { formatTime, type ActivityItem } from "./backend";
 import { t } from "./i18n";
 import { showInFiles } from "./filesNav";
 import { useOpenLink } from "./LinkPreview";
-import { dismissServerItem, runServerAction, type ServerItem } from "./serverNotifications";
+import { dismissServerItem, noticeFile, runServerAction, type ServerItem } from "./serverNotifications";
+import type { RichPart } from "./types";
 
 type Filter = "all" | "mention" | "reply" | "reaction" | "keyword" | "unread" | "nextcloud";
 
@@ -95,8 +96,8 @@ export function ActivityPane({ items, server, nextcloud, isUnread: unseen, selec
           </button>
         ) : n && (() => {
           // A file it's about (a recording, a share): by its place in your files, or its link.
-          const file = n.subject.find((p) => p.kind === "file" && (p.path || p.link));
-          const showFile = file && (() => (file.path ? showInFiles(n.account, `/${file.path.replace(/^\/+/, "")}`) : openLink(file.link!)));
+          const file = noticeFile(n);
+          const showFile = file && (file.path || file.link) && (() => (file.path ? showInFiles(n.account, `/${file.path.replace(/^\/+/, "")}`) : openLink(file.link!)));
           return (
           // A row with buttons of its own (Accept, Decline): a div, buttons can't hold buttons.
           <div key={n.key} role="button" tabIndex={0} className={`activity server-notice ${unseen(serverEntry(n)) ? "unseen" : ""} ${busy === n.key ? "busy" : ""}`}
@@ -104,10 +105,10 @@ export function ActivityPane({ items, server, nextcloud, isUnread: unseen, selec
             <NoticePicture n={n} />
             <span className="row-text">
               <span className="row-top">
-                <span className="row-name">{n.subject.map((p, i) => (p.kind ? <b key={i}>{p.text}</b> : <span key={i}>{p.text}</span>))}</span>
+                <span className="row-name"><Rich parts={n.subject} /></span>
                 <span className="row-time">{formatTime(n.at)}</span>
               </span>
-              {n.message && <span className="row-preview">{n.message}</span>}
+              {n.message.length > 0 && <span className="row-preview"><Rich parts={n.message} /></span>}
               {(n.actions.length > 0 || showFile) && (
                 <span className="notice-actions">
                   {[...n.actions].sort((x, y) => Number(y.primary) - Number(x.primary)).map((action, i) => (
@@ -128,6 +129,9 @@ export function ActivityPane({ items, server, nextcloud, isUnread: unseen, selec
     </aside>
   );
 }
+
+/** Text with the names of things (people, files, conversations) in bold. */
+const Rich = ({ parts }: { parts: RichPart[] }) => <>{parts.map((p, i) => (p.kind ? <b key={i}>{p.text}</b> : <span key={i}>{p.text}</span>))}</>;
 
 /** The person it's about (their picture), with the app's icon on it; or just the app's icon. */
 function NoticePicture({ n }: { n: ServerItem }) {

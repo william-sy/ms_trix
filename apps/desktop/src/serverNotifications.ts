@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { backend, isLive } from "./backend";
-import type { ServerAction, ServerNotification } from "./types";
+import type { RichPart, ServerAction, ServerNotification } from "./types";
 
 // Nextcloud's own notifications in Activity: a file shared with you, a calendar invitation, a Deck
 // card, an announcement, a call recording that's ready. Talk's chat and call notifications are left
@@ -32,7 +32,10 @@ const changed = () => listeners.forEach((l) => l());
 /** Talk's own chat, call and conversation notifications: shown by the app already. */
 const fromChats = (n: ServerNotification) => n.app === "spreed" && ["chat", "call", "room"].includes(n.objectType);
 
-export const subjectText = (n: ServerNotification) => n.subject.map((p) => p.text).join("");
+export const richText = (parts: RichPart[]) => parts.map((p) => p.text).join("");
+
+/** The file it's about (a call recording, a share), from its subject or message. */
+export const noticeFile = (n: ServerNotification) => [...n.subject, ...n.message].find((p) => p.kind === "file" && (p.id || p.path || p.link));
 
 async function refresh(account: string, force = false): Promise<boolean> {
   const before = known.get(account);
@@ -44,11 +47,15 @@ async function refresh(account: string, force = false): Promise<boolean> {
     }
     const [list, etag] = got;
     const items = list.filter((n) => !fromChats(n)).map((n) => ({ ...n, account, key: `nc:${account}:${n.id}` }));
-    if (!before) void backend.logUi(`server notifications for ${account}: ${list.length}, ${items.length} besides the chats`).catch(() => {});
+    if (!before) {
+      // What each carries (no texts), for when a button doesn't show.
+      const shape = (n: ServerNotification) => `${n.app}/${n.objectType} [${[...n.subject, ...n.message].filter((p) => p.kind).map((p) => `${p.kind}${p.path ? "+path" : ""}${p.link ? "+link" : ""}`).join(" ")}] ${n.actions.map((a) => a.method).join("/")}`;
+      void backend.logUi(`server notifications for ${account}: ${list.length}, ${items.length} besides the chats${items.length ? `: ${items.map(shape).join("; ")}` : ""}`).catch(() => {});
+    }
     // Pop-ups only for ones that came in while the app runs (not the ones already there at start).
     if (before) {
       const seen = new Set(before.items.map((n) => n.id));
-      for (const n of items) if (!seen.has(n.id) && n.alert) void backend.notify(subjectText(n), n.message).catch(() => {});
+      for (const n of items) if (!seen.has(n.id) && n.alert) void backend.notify(richText(n.subject), richText(n.message)).catch(() => {});
     }
     known.set(account, { etag, items, at: Date.now() });
     changed();
@@ -109,7 +116,7 @@ export async function runServerAction(item: ServerItem, action: ServerAction) {
   const form: [string, string][] = [];
   if (item.app === "spreed" && item.objectType === "recording") {
     form.push(["timestamp", String(Math.floor(item.at / 1000))]);
-    const file = item.subject.find((p) => p.kind === "file")?.id;
+    const file = noticeFile(item)?.id;
     if (file && action.link.endsWith("/share-chat")) form.push(["fileId", file]);
   }
   await backend.serverNotificationAction(item.account, action.link, action.method, form);

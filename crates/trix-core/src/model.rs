@@ -633,9 +633,10 @@ pub struct ServerNotification {
     pub object_type: String,
     /// When it was made (ms).
     pub at: i64,
-    /// The subject in pieces: plain text, and the names of people, files and the like.
+    /// The subject and the message under it, in pieces: plain text, and the names of people,
+    /// files and the like.
     pub subject: Vec<RichPart>,
-    pub message: String,
+    pub message: Vec<RichPart>,
     pub link: Option<String>,
     /// The app's icon on the server.
     pub icon: Option<String>,

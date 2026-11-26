@@ -9,9 +9,8 @@ pub const PATH: &str = "/ocs/v2.php/apps/notifications/api/v2/notifications";
 /// The list as the server (at `server`) sends it, newest first.
 pub fn parse(data: &Value, server: &str) -> Vec<ServerNotification> {
     let mut list: Vec<ServerNotification> = data.as_array().into_iter().flatten().filter_map(one).collect();
-    // A file named by its id alone (Talk's call recordings): its /f/ link, which the app can find
-    // in your files (Show in Files).
-    for part in list.iter_mut().flat_map(|n| n.subject.iter_mut()) {
+    // A file named by its id alone: its /f/ link, which the app can find in your files (Show in Files).
+    for part in list.iter_mut().flat_map(|n| n.subject.iter_mut().chain(n.message.iter_mut())) {
         if part.kind.as_deref() == Some("file") && part.link.is_none() && part.path.is_none() {
             part.link = part.id.as_deref().filter(|id| id.chars().all(|c| c.is_ascii_digit())).map(|id| format!("{server}/f/{id}"));
         }
@@ -24,14 +23,18 @@ fn text(v: &Value) -> Option<String> {
 }
 
 fn one(n: &Value) -> Option<ServerNotification> {
-    let subject = parts(n["subjectRich"].as_str().unwrap_or_default(), &n["subjectRichParameters"]);
+    // Rich (with names of things) where the server gives it, else the plain text.
+    let rich = |kind: &str| {
+        let pieces = parts(n[format!("{kind}Rich")].as_str().unwrap_or_default(), &n[format!("{kind}RichParameters")]);
+        if pieces.is_empty() { text(&n[kind]).map(plain).into_iter().collect() } else { pieces }
+    };
     Some(ServerNotification {
         id: n["notification_id"].as_i64()?,
         app: text(&n["app"]).unwrap_or_default(),
         object_type: text(&n["object_type"]).unwrap_or_default(),
         at: n["datetime"].as_str().and_then(iso_millis).unwrap_or(0),
-        subject: if subject.is_empty() { text(&n["subject"]).map(plain).into_iter().collect() } else { subject },
-        message: text(&n["message"]).unwrap_or_default(),
+        subject: rich("subject"),
+        message: rich("message"),
         link: text(&n["link"]),
         icon: text(&n["icon"]),
         actions: n["actions"].as_array().into_iter().flatten().filter_map(|a| {
@@ -117,6 +120,12 @@ mod tests {
         assert_eq!(n.subject[3], plain(" with you".into()));
         assert_eq!(n.actions[0].method, "POST");
         assert!(n.alert && n.message.is_empty());
+        // Talk's call recording: the file is named in the message.
+        let recording = &parse(&json!([{ "notification_id": 3, "subject": "Call recording now available", "subjectRich": "Call recording now available", "subjectRichParameters": [],
+            "messageRich": "The recording for the call in {call} was uploaded to {file}.",
+            "messageRichParameters": { "call": { "type": "call", "id": "9", "name": "Team" }, "file": { "type": "file", "id": "78", "name": "Recording.webm" } } }]), "https://cloud.example")[0];
+        assert_eq!(recording.subject, vec![plain("Call recording now available".into())]);
+        assert_eq!(recording.message[3].link.as_deref(), Some("https://cloud.example/f/78"));
     }
 
     #[test]
