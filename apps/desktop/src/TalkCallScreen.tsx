@@ -454,6 +454,13 @@ function PreJoin({ calls, name, onPopOut }: { calls: TalkCalls; name: string; on
             <button className={`call-btn ${call.cameraOn ? "" : "off"}`} title={call.cameraOn ? t("mxcall.cameraOff") : t("mxcall.cameraOn")}
               onClick={() => (hasCamera ? calls.setCamera(!call.cameraOn) : calls.reprepare(true, micId, cameraId))}>{hasCamera && call.cameraOn ? <CameraIcon /> : <CameraOffIcon />}</button>
           </div>
+          {/* The biggest choice, as wide as the preview (two rows), keeping the side column short. */}
+          {hasCamera && (
+            <div className="prejoin-bg">
+              <span>{t("bg.title")}</span>
+              <BackgroundPicker onPick={calls.setBackground} />
+            </div>
+          )}
         </div>
         <div className="prejoin-side">
           {/* The device in use (saved in Settings, or the system's) until another is picked. */}
@@ -462,12 +469,6 @@ function PreJoin({ calls, name, onPopOut }: { calls: TalkCalls; name: string; on
           <label>{t("av.speaker")}<SpeakerPicker /></label>
           <label>{t("av.camera")}<DeviceSelect kind="videoinput" devices={devices} value={cameraId ?? inUse(call.local?.getVideoTracks()[0])} onPick={(id) => { setCameraId(id); calls.reprepare(true, micId, id); }} /></label>
           {hasCamera && <label>{t("av.quality")}<QualitySelect /></label>}
-          {hasCamera && (
-            <div className="prejoin-bg">
-              <span>{t("bg.title")}</span>
-              <BackgroundPicker onPick={calls.setBackground} />
-            </div>
-          )}
           <div className="prejoin-actions">
             <button className="btn" onClick={calls.cancel}>{t("common.cancel")}</button>
             <button className="btn primary" onClick={calls.join}>{t("talkcall.joinNow")}</button>
