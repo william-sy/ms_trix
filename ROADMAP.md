@@ -143,8 +143,9 @@ plus the open items further down). S: a few hours, M: a day or two, L: several d
        (CardDAV, as the calendar): your address books, and everyone on the server by searching (its
        own list of all accounts isn't read: it can be very long). A card has Chat and Call (the Talk
        1:1 chat, made when there's none) when they have an account there, by cloud id or email;
-       Chat on Matrix for a Matrix id on the card; mail and phone links. Later: editing cards,
-       pictures from the cards
+       Chat on Matrix for a Matrix id on the card; mail and phone links. Teams (asked the same day):
+       your Nextcloud Teams with what's shared with them (core teams API, NC 29+) and their members.
+       Later: editing cards, pictures from the cards, managing teams
 15. [ ] M–L. Chat beside the call (idea 2026-11-23, like Teams' meeting chat): 💬 in the call's
        header opens the conversation's chat as a panel on the right (the stage narrows; its own
        window grows if there's room), with an unread count while closed; docked and in its own

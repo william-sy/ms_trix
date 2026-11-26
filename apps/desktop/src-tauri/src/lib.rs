@@ -1284,6 +1284,18 @@ async fn turn_servers(state: State<'_, AppState>, account: String) -> CmdResult<
     adapter_for(&state, &account)?.turn_servers().await.map_err(|e| e.to_string())
 }
 
+/// The Nextcloud Teams an account is in (Contacts).
+#[tauri::command]
+async fn server_teams(state: State<'_, AppState>, account: String) -> CmdResult<Vec<trix_core::ServerTeam>> {
+    adapter_for(&state, &account)?.server_teams().await.map_err(|e| e.to_string())
+}
+
+/// A Nextcloud Team's members and what's shared with it.
+#[tauri::command]
+async fn server_team(state: State<'_, AppState>, account: String, id: String) -> CmdResult<trix_core::ServerTeamDetails> {
+    adapter_for(&state, &account)?.server_team(&id).await.map_err(|e| e.to_string())
+}
+
 /// The people in a Nextcloud account's address books (Contacts).
 #[tauri::command]
 async fn contacts(state: State<'_, AppState>, account: String) -> CmdResult<Vec<trix_core::Contact>> {
@@ -2865,6 +2877,8 @@ pub fn run() {
             cloud_files,
             server_apps,
             contacts,
+            server_teams,
+            server_team,
             server_notifications,
             dismiss_server_notification,
             server_notification_action,

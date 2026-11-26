@@ -55,7 +55,10 @@
   Talk chat with them when they have an account on that Nextcloud (from the card's cloud id or
   email address), *Chat on Matrix* for a Matrix id on the card; email addresses open your mail app,
   phone numbers your computer's phone app (an iPhone through the Mac, Phone Link on Windows). The
-  search goes through names, work, addresses and numbers.
+  search goes through names, work, addresses and numbers. *Teams* lists your Nextcloud Teams: what's
+  shared with a team (its Talk conversation and folders open right in the app, Deck boards and the
+  rest in the browser; Nextcloud 29 and later) and its members (a click shows their card, with Chat
+  and Call).
 - **More** in the rail (Nextcloud): lists the apps your Nextcloud offers you (Office, Photos,
   Music, Deck, whatever it has), with their icons; one click opens it in your browser. Talk,
   Files, Notes, Calendar and Contacts are left out (they're in the app). With several Nextcloud

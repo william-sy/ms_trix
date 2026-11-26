@@ -622,6 +622,53 @@ pub struct Translation {
     pub from: Option<String>,
 }
 
+/// A Nextcloud Team (formerly Circles) you're in.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerTeam {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+    /// How many members it has.
+    pub members: u32,
+    /// Its page on the server.
+    pub link: Option<String>,
+}
+
+/// A team's members and what's shared with it.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerTeamDetails {
+    pub members: Vec<TeamMember>,
+    pub resources: Vec<TeamResource>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TeamMember {
+    pub name: String,
+    /// Their account on this server, for a person.
+    pub user: Option<String>,
+    /// "user", "group", "email", "contact", "team" or "other".
+    pub kind: String,
+    /// "owner", "admin", "moderator" or "member".
+    pub role: String,
+    /// Invited, or asked to join, but not in yet.
+    pub pending: bool,
+}
+
+/// Something shared with a team: a Talk conversation, a folder, a Deck board, …
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TeamResource {
+    pub label: String,
+    pub url: String,
+    /// The app it's from ("talk", "files", "deck", …) and that app's name.
+    pub provider: String,
+    pub provider_name: String,
+    pub emoji: Option<String>,
+}
+
 /// Someone in your address books (Nextcloud Contacts).
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]

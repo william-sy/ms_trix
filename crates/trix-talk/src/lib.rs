@@ -29,6 +29,7 @@ use trix_core::*;
 mod contacts;
 mod dav;
 mod notifications;
+mod teams;
 
 pub const PROTOCOL: &str = "talk";
 /// Nextcloud Notes' REST API.
@@ -1653,6 +1654,24 @@ impl ProtocolAdapter for TalkAdapter {
         all.retain(|c| !c.id.contains(GENERATED) || c.user.as_ref().is_none_or(|u| !yours.contains(u)));
         all.sort_by_cached_key(|c| c.name.to_lowercase());
         Ok(all)
+    }
+
+    async fn server_teams(&self) -> Result<Vec<ServerTeam>> {
+        let data = self.ocs(self.request(Method::GET, teams::CIRCLES)).await?.map(|(d, _)| d).unwrap_or(Value::Null);
+        Ok(teams::teams(&data, &self.session.server))
+    }
+
+    async fn server_team(&self, id: &str) -> Result<ServerTeamDetails> {
+        if id.is_empty() || !id.chars().all(|c| c.is_ascii_alphanumeric()) {
+            return Err(err("unknown team"));
+        }
+        let members = self.ocs(self.request(Method::GET, &format!("{}/{id}/members", teams::CIRCLES)));
+        // What's shared with it: Nextcloud 29 and later.
+        let resources = self.ocs(self.request(Method::GET, &format!("/ocs/v2.php/teams/{id}/resources")));
+        let (members, resources) = futures::join!(members, resources);
+        let members = members?.map(|(d, _)| d).unwrap_or(Value::Null);
+        let resources = resources.ok().flatten().map(|(d, _)| d).unwrap_or(Value::Null);
+        Ok(teams::details(&members, &resources))
     }
 
     async fn server_apps(&self) -> Result<Vec<ServerApp>> {

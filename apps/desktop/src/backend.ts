@@ -2,7 +2,7 @@
 // and the app falls back to mock data.
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import type { Attendee, Calendar, CalendarEvent, CloudFile, Conversation, FreeBusy, ConversationKind, Member, Message, NewEvent, Note, NoteChange, Org, Outgoing, Protocol, ServerApp, ServerNotification, Contact } from "./types";
+import type { Attendee, Calendar, CalendarEvent, CloudFile, Conversation, FreeBusy, ConversationKind, Member, Message, NewEvent, Note, NoteChange, Org, Outgoing, Protocol, ServerApp, ServerNotification, Contact, ServerTeam, ServerTeamDetails } from "./types";
 import { dateLocale, t } from "./i18n";
 import { describeEvent, type RoomEvent } from "./roomEvents";
 import type { NotifyPrefs, Sounds } from "./settings";
@@ -451,6 +451,10 @@ export const backend = {
   turnServers: (account: string) => invoke<{ uris: string[]; username: string; password: string } | null>("turn_servers", { account }),
   setTexts: (texts: Record<string, string>) => invoke<void>("set_texts", { texts }),
   cloudFiles: (account: string, path: string) => invoke<CloudFile[]>("cloud_files", { account, path }),
+  /** The Nextcloud Teams an account is in, by name. */
+  serverTeams: (account: string) => invoke<ServerTeam[]>("server_teams", { account }),
+  /** A Nextcloud Team's members and what's shared with it. */
+  serverTeam: (account: string, id: string) => invoke<ServerTeamDetails>("server_team", { account, id }),
   /** The people in a Nextcloud account's address books, by name. */
   contacts: (account: string) => invoke<Contact[]>("contacts", { account }),
   /** The apps a Nextcloud offers in its web pages, in its order. */

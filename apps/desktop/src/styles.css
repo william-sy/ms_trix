@@ -129,6 +129,12 @@ kbd { font: 11px ui-monospace, monospace; color: var(--text-subtle); }
 .contact-details dt { color: var(--text-muted); font-size: 13px; }
 .contact-details dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .contact-text { white-space: pre-wrap; }
+.contact-card .filters, .contacts-list .filters { padding-top: 0; }
+.contact-section { margin: 6px 0 -8px; font-size: 14px; font-weight: 600; }
+.team-resources, .team-members { display: flex; flex-direction: column; max-width: 640px; margin: 0 -12px; }
+.contact-row.static { cursor: default; }
+.contact-row.static:hover { background: none; }
+.team-resource-kind { flex: none; min-width: 32px; padding: 2px 6px; border-radius: 4px; background: var(--bg-hover); font-size: 11px; text-align: center; color: var(--text-muted); }
 
 .more-apps { position: relative; }
 .more-menu { left: 64px; top: 0; width: 380px; overflow-y: auto; }

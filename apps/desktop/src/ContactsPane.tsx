@@ -2,12 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 import { Avatar } from "./Avatar";
 import { backend } from "./backend";
 import { t } from "./i18n";
-import type { Contact, Member, Org } from "./types";
+import { useOpenLink } from "./LinkPreview";
+import type { Contact, Member, Org, ServerTeam, ServerTeamDetails } from "./types";
 
 // Contacts: the people in your Nextcloud address books, and anyone on your Nextcloud by searching
 // (the server's own list of all its accounts can be very long, so it isn't listed). A name opens
 // its card: chat or call in Talk when they have an account on that Nextcloud, a Matrix chat for a
-// Matrix id on the card, and their addresses and numbers (mail and phone links).
+// Matrix id on the card, and their addresses and numbers (mail and phone links). Teams: your
+// Nextcloud Teams, with what's shared with them (a Talk conversation, folders, boards) and members.
 
 /** Address books per account, read once per run (Refresh reads them again). */
 const loaded = new Map<string, Promise<Contact[]>>();
@@ -27,6 +29,19 @@ const contactsOf = (account: string, again = false) => {
   return list;
 };
 
+/** Teams per account, read once per run (Refresh reads them again). */
+const teamsLoaded = new Map<string, Promise<ServerTeam[]>>();
+const teamsOf = (account: string, again = false) => {
+  let list = again ? undefined : teamsLoaded.get(account);
+  if (!list) {
+    list = backend.serverTeams(account);
+    teamsLoaded.set(account, list);
+    void list.then((found) => backend.logUi(`teams for ${account}: ${found.length}`), (e) => backend.logUi(`teams for ${account}: ${String(e)}`)).catch(() => {});
+    list.catch(() => teamsLoaded.delete(account));
+  }
+  return list;
+};
+
 /** Accounts found by address (a card without a cloud id): per account and address, null for none. */
 const byAddress = new Map<string, Promise<string | null>>();
 const userByEmail = (account: string, email: string) => {
@@ -39,7 +54,9 @@ const userByEmail = (account: string, email: string) => {
   return found;
 };
 
-type Picked = { account: string; contact: Contact } | { account: string; member: Member };
+type Person = { account: string; contact: Contact } | { account: string; member: Member };
+type Picked = Person | { account: string; team: ServerTeam };
+const pickedKey = (p: Picked) => `${p.account} ${"contact" in p ? p.contact.id : "member" in p ? p.member.userId : `team:${p.team.id}`}`;
 
 interface Props {
   /** The Nextcloud accounts in view. */
@@ -57,7 +74,9 @@ const matches = (c: Contact, q: string) => {
 };
 
 export function ContactsPane({ orgs, matrix, onChat }: Props) {
+  const [tab, setTab] = useState<"people" | "teams">("people");
   const [books, setBooks] = useState<Record<string, Contact[] | string>>({});
+  const [teams, setTeams] = useState<Record<string, ServerTeam[] | string>>({});
   const [query, setQuery] = useState("");
   const [people, setPeople] = useState<Record<string, Member[]>>({});
   const [picked, setPicked] = useState<Picked | null>(null);
@@ -66,6 +85,7 @@ export function ContactsPane({ orgs, matrix, onChat }: Props) {
   const load = (again = false) => {
     for (const org of orgs) {
       contactsOf(org.id, again).then((list) => setBooks((b) => ({ ...b, [org.id]: list })), (e) => setBooks((b) => ({ ...b, [org.id]: String(e) })));
+      teamsOf(org.id, again).then((list) => setTeams((x) => ({ ...x, [org.id]: list })), (e) => setTeams((x) => ({ ...x, [org.id]: String(e) })));
     }
   };
   useEffect(() => load(), [accounts]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -87,7 +107,11 @@ export function ContactsPane({ orgs, matrix, onChat }: Props) {
     return { org, error: typeof list === "string" ? list : null, loading: list === undefined, cards, people: q ? (people[org.id] ?? []).filter((m) => !known.has(m.userId)) : [] };
   }), [orgs, books, people, q]);
   const nothing = shown.every((s) => !s.loading && !s.cards.length && !s.people.length);
-  const isPicked = (account: string, id: string) => !!picked && picked.account === account && ("contact" in picked ? picked.contact.id : picked.member.userId) === id;
+  const isPicked = (key: string) => !!picked && pickedKey(picked) === key;
+  const teamsShown = orgs.map((org) => {
+    const list = teams[org.id];
+    return { org, error: typeof list === "string" ? list : null, loading: list === undefined, teams: Array.isArray(list) ? list.filter((x) => !q || x.name.toLowerCase().includes(q) || (x.description ?? "").toLowerCase().includes(q)) : [] };
+  });
 
   return (
     <>
@@ -99,8 +123,30 @@ export function ContactsPane({ orgs, matrix, onChat }: Props) {
           </div>
         </header>
         <div className="contacts-search">
-          <input type="search" value={query} placeholder={t("contacts.search")} onChange={(e) => setQuery(e.target.value)} />
+          <input type="search" value={query} placeholder={t(tab === "teams" ? "contacts.searchTeams" : "contacts.search")} onChange={(e) => setQuery(e.target.value)} />
         </div>
+        <div className="filters">
+          {(["people", "teams"] as const).map((x) => <button key={x} className={`pill ${tab === x ? "on" : ""}`} onClick={() => setTab(x)}>{t(`contacts.${x}`)}</button>)}
+        </div>
+        {tab === "teams" ? (
+          <div className="list-scroll">
+            {teamsShown.map(({ org, error, loading, teams: list }) => (
+              <div key={org.id} className="section">
+                {orgs.length > 1 && <div className="section-head">{org.name}</div>}
+                {loading && <p className="empty">{t("contacts.loading")}</p>}
+                {/* No Teams app on that Nextcloud: nothing to say. */}
+                {error && !/not found|404/i.test(error) && <p className="empty">{t("contacts.teamsFailed", { error })}</p>}
+                {list.map((x) => (
+                  <button key={x.id} className={`row contact-row ${isPicked(`${org.id} team:${x.id}`) ? "selected" : ""}`} onClick={() => setPicked({ account: org.id, team: x })}>
+                    <Avatar account={org.id} name={x.name} className="kind-group" />
+                    <span className="row-text"><span className="row-name">{x.name}</span><span className="row-preview">{t("contacts.teamMembers", { count: x.members })}</span></span>
+                  </button>
+                ))}
+              </div>
+            ))}
+            {teamsShown.every((x) => !x.loading && !x.teams.length) && <p className="empty">{t(q ? "contacts.noMatch" : "contacts.teamsEmpty")}</p>}
+          </div>
+        ) : (
         <div className="list-scroll">
           {shown.map(({ org, error, loading, cards, people: found }) => (
             <div key={org.id} className="section">
@@ -110,7 +156,7 @@ export function ContactsPane({ orgs, matrix, onChat }: Props) {
               {loading && <p className="empty">{t("contacts.loading")}</p>}
               {error && <p className="empty">{t("contacts.failed", { error })}</p>}
               {cards.map((c) => (
-                <button key={c.id} className={`row contact-row ${isPicked(org.id, c.id) ? "selected" : ""}`} onClick={() => setPicked({ account: org.id, contact: c })}>
+                <button key={c.id} className={`row contact-row ${isPicked(`${org.id} ${c.id}`) ? "selected" : ""}`} onClick={() => setPicked({ account: org.id, contact: c })}>
                   <Avatar account={org.id} media={c.user ? `user:${c.user}` : undefined} name={c.name} />
                   <span className="row-text">
                     <span className="row-name">{c.name}</span>
@@ -120,7 +166,7 @@ export function ContactsPane({ orgs, matrix, onChat }: Props) {
               ))}
               {found.length > 0 && <div className="section-head">{t("contacts.onServer", { name: org.name })}</div>}
               {found.map((m) => (
-                <button key={m.userId} className={`row contact-row ${isPicked(org.id, m.userId) ? "selected" : ""}`} onClick={() => setPicked({ account: org.id, member: m })}>
+                <button key={m.userId} className={`row contact-row ${isPicked(`${org.id} ${m.userId}`) ? "selected" : ""}`} onClick={() => setPicked({ account: org.id, member: m })}>
                   <Avatar account={org.id} media={m.avatar ?? undefined} name={m.name} />
                   <span className="row-text"><span className="row-name">{m.name}</span><span className="row-preview">{m.userId}</span></span>
                 </button>
@@ -129,14 +175,73 @@ export function ContactsPane({ orgs, matrix, onChat }: Props) {
           ))}
           {nothing && <p className="empty">{t(q ? "contacts.noMatch" : "contacts.empty")}</p>}
         </div>
+        )}
       </aside>
-      {picked ? <ContactCard key={`${picked.account} ${"contact" in picked ? picked.contact.id : picked.member.userId}`} picked={picked} org={orgs.find((o) => o.id === picked.account)} matrix={matrix} onChat={onChat} />
-        : <main className="chat-view empty-view"><p>{t("contacts.pick")}</p></main>}
+      {!picked ? <main className="chat-view empty-view"><p>{t("contacts.pick")}</p></main>
+        : "team" in picked ? <TeamCard key={pickedKey(picked)} account={picked.account} team={picked.team} onPerson={(member) => setPicked({ account: picked.account, member })} />
+        : <ContactCard key={pickedKey(picked)} picked={picked} org={orgs.find((o) => o.id === picked.account)} matrix={matrix} onChat={onChat} />}
     </>
   );
 }
 
-function ContactCard({ picked, org, matrix, onChat }: { picked: Picked; org?: Org; matrix?: Org; onChat: Props["onChat"] }) {
+/** A team: what's shared with it (opened in the app where it can: a Talk conversation, a folder) and its members. */
+function TeamCard({ account, team, onPerson }: { account: string; team: ServerTeam; onPerson: (member: Member) => void }) {
+  const [details, setDetails] = useState<ServerTeamDetails | string | null>(null);
+  const openLink = useOpenLink();
+  useEffect(() => {
+    backend.serverTeam(account, team.id).then(setDetails, (e) => setDetails(String(e)));
+  }, [account, team.id]);
+  const roles: Record<string, string> = { owner: t("contacts.role.owner"), admin: t("contacts.role.admin"), moderator: t("contacts.role.moderator") };
+  return (
+    <main className="chat-view contact-card">
+      <div className="contact-head">
+        <Avatar account={account} name={team.name} className="contact-avatar kind-group" />
+        <div>
+          <h2>{team.name}</h2>
+          <p className="muted">{t("contacts.teamMembers", { count: team.members })}</p>
+        </div>
+      </div>
+      {team.description && <p className="contact-text">{team.description}</p>}
+      {team.link && <div className="contact-actions"><button className="btn" onClick={() => void backend.openUrl(team.link!).catch(() => {})}>{t("contacts.openTeam")}</button></div>}
+      {details === null && <p className="muted">{t("contacts.loading")}</p>}
+      {typeof details === "string" && <p className="muted">{t("contacts.teamsFailed", { error: details })}</p>}
+      {details && typeof details !== "string" && (
+        <>
+          <h3 className="contact-section">{t("contacts.shared")}</h3>
+          {details.resources.length === 0 && <p className="muted contact-note">{t("contacts.sharedNone")}</p>}
+          <div className="team-resources">
+            {details.resources.map((r, i) => (
+              <button key={i} className="row contact-row" title={r.url} onClick={() => openLink(r.url)}>
+                <span className="team-resource-kind">{r.emoji ?? r.providerName}</span>
+                <span className="row-text"><span className="row-name">{r.label}</span></span>
+              </button>
+            ))}
+          </div>
+          <h3 className="contact-section">{t("contacts.members")}</h3>
+          <div className="team-members">
+            {details.members.map((m, i) => {
+              const row = (
+                <>
+                  <Avatar account={account} media={m.user ? `user:${m.user}` : undefined} name={m.name} className={m.kind === "user" || m.kind === "email" || m.kind === "contact" ? "" : "kind-group"} />
+                  <span className="row-text">
+                    <span className="row-name">{m.name}</span>
+                    {(roles[m.role] || m.pending || m.kind === "group" || m.kind === "team") && (
+                      <span className="row-preview">{[roles[m.role], m.kind === "group" ? t("contacts.kind.group") : m.kind === "team" ? t("contacts.kind.team") : null, m.pending ? t("contacts.invited") : null].filter(Boolean).join(" · ")}</span>
+                    )}
+                  </span>
+                </>
+              );
+              return m.user ? <button key={i} className="row contact-row" onClick={() => onPerson({ userId: m.user!, name: m.name, avatar: `user:${m.user}` })}>{row}</button>
+                : <div key={i} className="row contact-row static">{row}</div>;
+            })}
+          </div>
+        </>
+      )}
+    </main>
+  );
+}
+
+function ContactCard({ picked, org, matrix, onChat }: { picked: Person; org?: Org; matrix?: Org; onChat: Props["onChat"] }) {
   const { account } = picked;
   const contact = "contact" in picked ? picked.contact : null;
   const name = contact?.name ?? ("member" in picked ? picked.member.name : "");

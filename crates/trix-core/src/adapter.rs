@@ -428,6 +428,14 @@ pub trait ProtocolAdapter: Send + Sync {
     async fn contacts(&self) -> Result<Vec<Contact>> {
         Err(AdapterError::Unsupported("contacts"))
     }
+    /// The server's teams you're in (Nextcloud Teams), by name.
+    async fn server_teams(&self) -> Result<Vec<ServerTeam>> {
+        Err(AdapterError::Unsupported("teams"))
+    }
+    /// A team's members and what's shared with it.
+    async fn server_team(&self, _id: &str) -> Result<ServerTeamDetails> {
+        Err(AdapterError::Unsupported("teams"))
+    }
     /// The apps the server offers you in its own web pages, in its order.
     async fn server_apps(&self) -> Result<Vec<ServerApp>> {
         Err(AdapterError::Unsupported("server apps"))

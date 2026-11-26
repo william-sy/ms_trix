@@ -152,6 +152,23 @@ export interface Member {
 }
 
 /** A file or folder in Nextcloud Files. */
+/** A Nextcloud Team (formerly Circles) you're in. */
+export interface ServerTeam {
+  id: string;
+  name: string;
+  description: string | null;
+  members: number;
+  /** Its page on the server. */
+  link: string | null;
+}
+
+export interface ServerTeamDetails {
+  /** Owners first. */
+  members: { name: string; user: string | null; kind: "user" | "group" | "email" | "contact" | "team" | "other"; role: "owner" | "admin" | "moderator" | "member"; pending: boolean }[];
+  /** What's shared with it (Nextcloud 29+): Talk conversations, folders, Deck boards, … */
+  resources: { label: string; url: string; provider: string; providerName: string; emoji: string | null }[];
+}
+
 /** Someone in your Nextcloud address books. */
 export interface Contact {
   /** Its card's address on the server. */
