@@ -1,6 +1,6 @@
 # Release notes
 
-## 1.8 (not released yet)
+## 1.8.0 (2026-11-26)
 
 ### New
 - **Drafts:** a message you're typing stays in the box when you go to another chat, and is there

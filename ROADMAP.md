@@ -72,7 +72,7 @@
 
 1.7 (released 2026-11-24): see RELEASE_NOTES.md. Files, Find a time, offline accounts, camera quality.
 
-Next release (1.7.1 or 1.8, not released yet): small things from daily use (see RELEASE_NOTES.md):
+1.8.0 (released 2026-11-26): small things from daily use and the Nextcloud side (see RELEASE_NOTES.md):
 drafts, a wider thread pane, zoom into a shared screen, quick edit (Arrow Up), Talk call tiles
 with pictures, the call's start time and an hourly break hint, a time format setting (24-hour),
 noise suppression in calls (Standard: RNNoise, High: DeepFilterNet 3; asked for by a board weighing
@@ -211,7 +211,7 @@ Dropped 2026-11-25: a Talk call history (Talk keeps no call log to ask for; it w
 through the chats' call messages), a lock against running the app twice (only bites when the dev
 build and the installed app run side by side, which broke Matrix encryption once).
 
-To test (from 1.7 and the next release): Find a time and documents in Nextcloud Office on a real
+To test (from 1.7 and 1.8): Find a time and documents in Nextcloud Office on a real
 Nextcloud; upload progress in Files (tested 2026-11-26: pinch zoom, quick edit, pre-join layout);
 the call's start time (Talk 17+) and the break hint after an hour; pictures on call tiles; the time format on System (24-hour on a Mac set to a European region); Talk call
 recording on a server with the recording server (the record button only shows for moderators
