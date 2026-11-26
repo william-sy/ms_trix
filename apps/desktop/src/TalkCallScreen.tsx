@@ -153,7 +153,7 @@ function RecordButton({ calls }: { calls: TalkCalls }) {
   const pick = (kind: "video" | "audio" | null) => { setOpen(false); calls.setRecording(kind); };
   return (
     <span className="bg-anchor">
-      <button className={`icon-btn ${recording ? "recording" : ""}`} title={recording ? t("talkcall.stopRecording") : t("talkcall.record")} onClick={() => setOpen(!open)}><RecordIcon /></button>
+      <button className={`icon-btn ${recording ? "recording" : ""}`} title={recording ? t("talkcall.stopRecording") : t("talkcall.record")} disabled={calls.call?.recording === "stopping"} onClick={() => setOpen(!open)}><RecordIcon /></button>
       {open && (
         <div className="menu layout-menu" onMouseLeave={() => setOpen(false)}>
           {recording ? (
@@ -408,7 +408,7 @@ export function TalkCallScreen({ calls, conversation, me, docked, onPopOut, onPo
         )}
         {call.sharing && <button className="sharing-pill" onClick={() => void calls.setSharing(false)}><ShareScreenIcon /> {t("share.youreSharing")} · <b>{t("mxcall.stopShare")}</b></button>}
         {call.recording && (call.recording !== "failed" || call.canRecord) && (
-          <span className="talk-recording" role="status">● {t(call.recording === "on" ? "talkcall.recording" : call.recording === "starting" ? "talkcall.recordingStarting" : "talkcall.recordingFailed")}</span>
+          <span className="talk-recording" role="status">● {t(call.recording === "on" ? "talkcall.recording" : call.recording === "starting" ? "talkcall.recordingStarting" : call.recording === "stopping" ? "talkcall.recordingStopping" : "talkcall.recordingFailed")}</span>
         )}
         <span className="spacer" />
         {paged && (

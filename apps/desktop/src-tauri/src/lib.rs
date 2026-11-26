@@ -1284,6 +1284,24 @@ async fn turn_servers(state: State<'_, AppState>, account: String) -> CmdResult<
     adapter_for(&state, &account)?.turn_servers().await.map_err(|e| e.to_string())
 }
 
+/// A Nextcloud account's own notifications (None: unchanged since `etag`), for Activity.
+#[tauri::command]
+async fn server_notifications(state: State<'_, AppState>, account: String, etag: Option<String>) -> CmdResult<Option<(Vec<trix_core::ServerNotification>, Option<String>)>> {
+    adapter_for(&state, &account)?.server_notifications(etag.as_deref()).await.map_err(|e| e.to_string())
+}
+
+/// Removes a server notification (`id` None: all), on the server.
+#[tauri::command]
+async fn dismiss_server_notification(state: State<'_, AppState>, account: String, id: Option<i64>) -> CmdResult<()> {
+    adapter_for(&state, &account)?.dismiss_server_notification(id).await.map_err(|e| e.to_string())
+}
+
+/// One of a server notification's buttons (Accept, Decline, …).
+#[tauri::command]
+async fn server_notification_action(state: State<'_, AppState>, account: String, link: String, method: String, form: Vec<(String, String)>) -> CmdResult<()> {
+    adapter_for(&state, &account)?.server_notification_action(&link, &method, &form).await.map_err(|e| e.to_string())
+}
+
 /// A folder of a Nextcloud account's Files.
 #[tauri::command]
 async fn cloud_files(state: State<'_, AppState>, account: String, path: String) -> CmdResult<Vec<trix_core::CloudFile>> {
@@ -2832,6 +2850,9 @@ pub fn run() {
             send_call_event,
             turn_servers,
             cloud_files,
+            server_notifications,
+            dismiss_server_notification,
+            server_notification_action,
             cloud_recent,
             cloud_search,
             cloud_upload_paths,

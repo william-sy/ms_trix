@@ -423,6 +423,19 @@ pub trait ProtocolAdapter: Send + Sync {
     async fn set_typing(&self, _conversation: &ConversationId, _typing: bool) -> Result<()> {
         Ok(())
     }
+    /// The server's own notifications, newest first, with the tag to ask "anything new?" next
+    /// time; None when nothing changed since `etag`.
+    async fn server_notifications(&self, _etag: Option<&str>) -> Result<Option<(Vec<ServerNotification>, Option<String>)>> {
+        Err(AdapterError::Unsupported("server notifications"))
+    }
+    /// Removes a server notification (`None`: all of them), for the account's other apps too.
+    async fn dismiss_server_notification(&self, _id: Option<i64>) -> Result<()> {
+        Err(AdapterError::Unsupported("server notifications"))
+    }
+    /// Does one of a server notification's actions (`link` and `method` as the server gave them).
+    async fn server_notification_action(&self, _link: &str, _method: &str, _form: &[(String, String)]) -> Result<()> {
+        Err(AdapterError::Unsupported("server notifications"))
+    }
     /// Lists a folder of the account's cloud storage ("/" is the root).
     async fn cloud_files(&self, _path: &str) -> Result<Vec<CloudFile>> {
         Err(AdapterError::Unsupported("files"))

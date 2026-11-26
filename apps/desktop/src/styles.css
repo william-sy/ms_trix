@@ -596,6 +596,16 @@ mark { background: rgba(255, 196, 0, 0.45); color: inherit; border-radius: 2px; 
 .activity .row-name b { font-weight: 600; }
 .activity-kind { position: absolute; right: -4px; bottom: -4px; min-width: 16px; height: 16px; padding: 0 2px; border-radius: 8px; font-size: 10px; line-height: 16px; text-align: center; background: var(--accent); color: var(--accent-text); box-shadow: 0 0 0 2px var(--bg-list); }
 .activity-kind.k-reaction { background: var(--bg-menu); color: inherit; font-size: 11px; }
+/* Nextcloud's own notifications: the app's icon (dark glyphs, turned light in the dark theme), its buttons. */
+.server-notice { cursor: pointer; }
+.server-notice.busy { opacity: 0.6; }
+.notice-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--bg-hover); }
+.notice-icon img { width: 18px; height: 18px; }
+.activity-kind.notice-app { display: grid; place-items: center; padding: 0; width: 16px; background: var(--bg-menu); }
+.activity-kind.notice-app img { width: 11px; height: 11px; }
+:root[data-theme="dark"] :is(.notice-icon, .notice-app) img { filter: invert(1); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme]) :is(.notice-icon, .notice-app) img { filter: invert(1); } }
+.notice-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .msg.flash .bubble { animation: flash 1.6s ease; }
 @keyframes flash { 0%, 40% { box-shadow: 0 0 0 3px var(--accent); } 100% { box-shadow: 0 0 0 0 transparent; } }
 

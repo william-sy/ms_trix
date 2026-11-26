@@ -64,7 +64,7 @@ export interface TalkCallState {
   handRaised: boolean;
   reactions: FloatingReaction[];
   /** The call is being recorded (Talk's recording server); "failed" only matters to those who can record. */
-  recording?: "starting" | "on" | "failed";
+  recording?: "starting" | "on" | "stopping" | "failed";
   /** You may start and stop recording: a moderator, on a server with Talk's recording server. */
   canRecord?: boolean;
   /** Joining needs your consent to the call being recorded (the server or conversation asks it), and whether you gave it. */
@@ -214,6 +214,8 @@ export class TalkCall {
   private recordable = false;
   /** Checks the conversation now rather than at the next round. */
   private wakeRoom?: () => void;
+  /** When you stopped the recording: it shows as stopping until the recording server has left. */
+  private stoppedAt = 0;
 
   constructor(conversation: string, private update: (s: TalkCallState) => void) {
     const [account, token] = conversation.split("|") as [string, string];
@@ -789,8 +791,9 @@ export class TalkCall {
       try {
         this.readRoom(await this.api("GET", `/v4/room/${this.token}`));
       } catch { /* try again next round */ }
-      // Sooner while a recording starts: the recording server joins within seconds.
-      await new Promise<void>((r) => { this.wakeRoom = r; window.setTimeout(r, this.state.recording === "starting" ? 2_000 : 15_000); });
+      // Sooner while a recording starts or stops: the recording server joins (or leaves) within seconds.
+      const soon = this.state.recording === "starting" || this.state.recording === "stopping";
+      await new Promise<void>((r) => { this.wakeRoom = r; window.setTimeout(r, soon ? 2_000 : 15_000); });
     }
   }
 
@@ -798,7 +801,9 @@ export class TalkCall {
   private readRoom(room: Any) {
     // callRecording: 0 off, 1 video, 2 audio, 3/4 starting, 5 failed.
     const status = Number(room?.callRecording ?? 0);
-    const recording = status === 1 || status === 2 ? "on" : status === 3 || status === 4 ? "starting" : status === 5 ? "failed" : undefined;
+    const on = status === 1 || status === 2;
+    if (!on) this.stoppedAt = 0;
+    const recording = on ? (Date.now() - this.stoppedAt < 60_000 ? "stopping" : "on") : status === 3 || status === 4 ? "starting" : status === 5 ? "failed" : undefined;
     // Owners and moderators (not guests) of a conversation on this server.
     const canRecord = this.recordable && [1, 2].includes(Number(room?.participantType)) && !room?.remoteServer;
     // The server's clock: never later than when we joined (a call we started ourselves).
@@ -814,7 +819,8 @@ export class TalkCall {
       this.set({ recording: "starting" });
     } else {
       await this.api("DELETE", `/v1/recording/${this.token}`);
-      this.set({ recording: undefined });
+      this.stoppedAt = Date.now();
+      this.set({ recording: "stopping" });
     }
     log(kind ? `recording asked for (${kind})` : "recording stopped");
     this.wakeRoom?.();

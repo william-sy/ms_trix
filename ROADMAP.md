@@ -77,7 +77,8 @@ drafts, a wider thread pane, zoom into a shared screen, quick edit (Arrow Up), T
 with pictures, the call's start time and an hourly break hint, a time format setting (24-hour),
 noise suppression in calls (Standard: RNNoise, High: DeepFilterNet 3; asked for by a board weighing
 a move from Teams), backgrounds under the pre-join preview, Talk call recording (moderators, on a
-server with the recording server) and joining calls that ask consent to being recorded.
+server with the recording server) and joining calls that ask consent to being recorded, Nextcloud
+notifications in Activity.
 
 To do, from low to high effort (ordered 2026-11-22; the 1.6 plan and the later ideas together,
 plus the open items further down). S: a few hours, M: a day or two, L: several days, XL: weeks.
@@ -95,47 +96,60 @@ plus the open items further down). S: a few hours, M: a day or two, L: several d
        speaker) made bigger or smaller by dragging its edge, remembered; one or two rows (columns
        beside a shared screen) in the layout menu, so less scrolling through participants. Not
        per-tile resizing (Teams doesn't either); the gallery already fills the window
-6. [ ] M. High contrast and motion (the visual half of accessibility): a light and a dark
+6. [ ] S. More in the rail (idea 2026-11-26): the button that says "soon" lists the apps your
+       Nextcloud offers you (Office, Photos, Music, Deck, …: core/navigation/apps, with their names
+       and icons) and opens the one you pick in the browser. Several Nextcloud accounts: per account
+7. [ ] S–M. Phone numbers (idea 2026-11-26, with Contacts): a contact's number as a tel: link
+       (the computer's own way of calling: an iPhone through the Mac, Phone Link on Windows); in a
+       Talk call "Call a phone number" where the server has the SIP bridge with dial-out
+       (sip-support-dialout, Talk 18+): the number is added and Talk dials it
+8. [ ] M. High contrast and motion (the visual half of accessibility): a light and a dark
        high-contrast theme (strong borders, no faint grey text, no see-through surfaces), switched
        on by macOS "Increase contrast" (prefers-contrast) and Windows contrast themes
        (forced-colors, system colours); "reduce motion" respected (moving backgrounds, effects,
        fades); an extra-large text size with the layout holding up; a clear focus outline for
        keyboard use; contrast of both normal themes checked
-7. [x] M. Releases and auto-update (2026-11-23): a tag vX.Y.Z builds a GitHub Release with that
+9. [x] M. Releases and auto-update (2026-11-23): a tag vX.Y.Z builds a GitHub Release with that
        version's notes, the installers and latest.json (first release 1.5.1; hotfixes on a
        release/X.Y branch). The app checks at start and every six hours (switch in Settings →
        About, with Check for updates), "Restart to update" (not during a call), installs only
        updates signed with our own key (Tauri updater; secrets TAURI_SIGNING_PRIVATE_KEY and
        _PASSWORD). First real update: from 1.6.0 to the version after it
-8. [x] M. Links to chats (done 2026-11-26; Matrix links by room id, so links with a room address
+10. [x] M. Links to chats (done 2026-11-26; Matrix links by room id, so links with a room address
        stay plain links) (clicking room links works already): typing # suggests your chats after a
        letter or two (like @mentions), picking one inserts a link shown as the chat's name (Matrix:
        matrix.to, a pill in Element and Element X too, others are offered to join; Talk: the
        conversation link on the same Nextcloud, a card in Talk). No pick: it stays a #hashtag. Room
        links show as a pill with name and picture for chats you know. Only chats of the same
        platform are suggested
-9. [ ] M. Saved messages and "remind me about this": Save in a message's ⋯ menu, a Saved list;
+11. [ ] M. Saved messages and "remind me about this": Save in a message's ⋯ menu, a Saved list;
        Matrix in your account data (syncs between your own devices), reminders by the app (like
        send later); Talk through its own reminder API (so Talk's other clients remind you too)
-10. [ ] M. Messages in an offline chat (idea 2026-11-24): an account whose server can't be
+12. [ ] M. Messages in an offline chat (idea 2026-11-24): an account whose server can't be
        reached keeps its chat list (done in 1.7), but a Talk chat opened then is empty until the
        server is back. Show the messages kept in the local (encrypted) search index instead,
        marked as saved, until the server answers again
-11. [ ] M. Nextcloud notifications (idea 2026-11-26): what Nextcloud tells you besides Talk
-       chats, in the app: files shared with you, calendar invitations and reminders, Deck cards,
-       announcements, "your call recording is ready" (Share to chat / Dismiss), updates for admins.
-       A bell on Nextcloud accounts with the list (Nextcloud's rich text: names and files as
-       links), its action buttons, dismiss one or all (removed on the server, so the web and phone
-       agree), and a desktop notification for new ones (DND respected). Talk's own chat and call
-       notifications left out (the app has those already). Asked every few minutes with an ETag,
-       or at once through notify_push where the server has it
-12. [ ] M–L. Chat beside the call (idea 2026-11-23, like Teams' meeting chat): 💬 in the call's
+13. [x] M. Nextcloud notifications (idea 2026-11-26, done the same day): in Activity, beside
+       mentions and replies, with a Nextcloud filter: files shared with you, calendar invitations
+       and reminders, Deck cards, announcements, "your call recording is ready" (Share to chat /
+       Dismiss), updates for admins. The person's picture with the app's icon, names in bold, the
+       server's buttons (Accept, Decline, …), ✕ dismisses it on the server too (so the web and phone
+       agree); a click opens its link (Talk links and your own files in the app). New ones pop up
+       (DND respected). Talk's own chat and call notifications left out. Asked every two minutes
+       and when the window comes to the front (ETag: unchanged is a 304). Later: at once through
+       notify_push where the server has it
+14. [ ] M–L. Contacts (idea 2026-11-26): a Contacts view for Nextcloud accounts (CardDAV, as the
+       calendar): your address books and the server's own list of everyone on it. A name opens the
+       Talk 1:1 chat (made when there's none), a call button next to it; personal contacts matched
+       to accounts by cloud id or email; a Matrix id in a card opens a Matrix chat; phone numbers
+       as above
+15. [ ] M–L. Chat beside the call (idea 2026-11-23, like Teams' meeting chat): 💬 in the call's
        header opens the conversation's chat as a panel on the right (the stage narrows; its own
        window grows if there's room), with an unread count while closed; docked and in its own
        window. Messages already reach every webview (trix://messages); the work is moving sending,
        editing and reactions out of App.tsx (`act`) into a hook both windows use, then ChatView and
        Composer as they are. Files by drag and drop can follow. Talk calls only for now
-13. [x] L. Find a time (requested 2026-11-23, Teams' scheduling assistant; done 2026-11-24, to be
+16. [x] L. Find a time (requested 2026-11-23, Teams' scheduling assistant; done 2026-11-24, to be
        verified on a real Nextcloud): in New meeting (and
        Edit), everyone's free and busy times for the chosen day under People: a row per person, you
        included, the chosen time framed, click a free spot to move there; a dot on each person
@@ -145,7 +159,7 @@ plus the open items further down). S: a few hours, M: a day or two, L: several d
        outside their working hours marked unavailable if they set them; busy blocks only, no
        titles. Only for people on the same Nextcloud; email guests show as unknown. Check first
        that the Nextcloud in use answers it (one request)
-14. [x] L. Files in the rail (Nextcloud, like OneDrive in Teams): folders (browsing exists for the
+17. [x] L. Files in the rail (Nextcloud, like OneDrive in Teams): folders (browsing exists for the
        📎 menu), recent files and search; upload by drag and drop; open, download, share a link or
        into a chat; documents open in Nextcloud Office (done 2026-11-24, to be verified on a real
        Nextcloud); delete (to Nextcloud's deleted files), rename and move (2026-11-24). Later:
@@ -162,23 +176,29 @@ plus the open items further down). S: a few hours, M: a day or two, L: several d
              highlighted, instead of the browser. Talk file messages know the path in your
              storage; a file id is found with a SEARCH on oc:fileid, a share link through your
              own shares (OCS files_sharing). Links to other servers keep opening in the browser
-15. [ ] L. Accessibility for screen readers and keyboard: a label on every icon button (about 440
+18. [ ] L. Accessibility for screen readers and keyboard: a label on every icon button (about 440
        buttons, a third have a tooltip now); the message list as a list, new messages announced;
        arrow keys through messages, F6 between panes; focus kept in dialogs and given back after;
        tested with VoiceOver (and NVDA on Windows if possible)
-16. [ ] L. Matrix 1:1 calls in their own window (signalling lives in the main window; needs a
+19. [ ] L. Matrix 1:1 calls in their own window (signalling lives in the main window; needs a
        hand-over, as Talk calls have)
-17. [ ] L. Tabs in chats: Matrix room widgets (a website, a shared notepad, a dashboard) as tabs that
+20. [ ] L. Tabs in chats: Matrix room widgets (a website, a shared notepad, a dashboard) as tabs that
        sync with Element, "Add website tab"; for Talk a linked note or a Nextcloud Deck board
-18. [ ] L. Mini games, not during calls; our own designs. Matrix: two players in a direct chat with
+21. [ ] L. Mini games, not during calls; our own designs. Matrix: two players in a direct chat with
        moves as our own (encrypted, invisible) event type, only the invite and result as normal
        messages; both need Trixcomm (a room widget would make it playable in Element Desktop/Web too).
        Talk: not for two players (every move would be a visible chat line). Single-player puzzles
        work for everyone. L for the first game with its frame, each next one smaller
-19. [ ] S per language. More languages: quick to translate, but each needs someone who speaks it to
+22. [ ] S per language. More languages: quick to translate, but each needs someone who speaks it to
        check the result
-20. [ ] XL each. Zulip and Mattermost (own lists below)
-21. [ ] XL. Mobile (Tauri mobile or UniFFI)
+23. [ ] M–L / XL. SIP calls (idea 2026-11-26): a SIP account as its own connector (calls only),
+       so it works whether the Nextcloud has a phone app or not. SIP over WebSocket with the
+       WebRTC call screen the app has (M–L; only phone systems that offer it: Asterisk, FreeSWITCH,
+       some hosted ones), or a native SIP stack for any provider (XL: its own audio, echo
+       cancellation and noise suppression). Contacts' numbers call through it. Not for emergency
+       numbers (no reliable location)
+24. [ ] XL each. Zulip and Mattermost (own lists below)
+25. [ ] XL. Mobile (Tauri mobile or UniFFI)
 
 Dropped 2026-11-22 (not needed for now; back on the list if someone asks): export a chat,
 phishing list (OpenPhish), calendar on other CalDAV servers and on Exchange, email add-on (unread
@@ -193,6 +213,8 @@ Nextcloud; upload progress in Files (tested 2026-11-26: pinch zoom, quick edit, 
 the call's start time (Talk 17+) and the break hint after an hour; pictures on call tiles; the time format on System (24-hour on a Mac set to a European region); Talk call
 recording on a server with the recording server (the record button only shows for moderators
 there), and a conversation that asks consent to recording (Talk 18+: the box before joining);
+Nextcloud notifications in Activity (share a file with yourself from another account, a calendar
+invitation; their buttons, ✕ also gone in the web);
 noise suppression
 (Hear yourself in Settings, then a real call: do the others still hear you, is the noise gone?
 If so, make it on by default before the release).
@@ -210,6 +232,12 @@ Waiting on others: Matrix group calls and calls with Element X users (MatrixRTC:
 on the homeserver), OS code signing (certificates; also clicking a notification to open the chat),
 status messages other clients show (Matrix
 extended profile fields), Talk typing (skipped: see Talk follow-ups).
+Teams meetings into a Talk call (asked 2026-11-26): only the sound, through Talk's dial-out to the
+Teams meeting's dial-in number, would be clean (needs the SIP bridge and Teams Audio Conferencing;
+typing the conference ID after dialling is unverified). A bot in both calls is a server product of
+its own (Microsoft's media bots on Windows/Azure with the tenant's consent, or a browser posing as a
+guest, which breaks with Teams updates); not planned. By hand: a virtual audio device and sharing
+the Teams window.
 
 Ordered by what makes Trixcomm usable as a daily driver first. Anything not
 built yet is visibly disabled in the UI with a "coming soon" tooltip.

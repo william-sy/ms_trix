@@ -152,6 +152,31 @@ export interface Member {
 }
 
 /** A file or folder in Nextcloud Files. */
+/** A notification from a Nextcloud itself (a share, a calendar invitation, …), apart from the chats'. */
+export interface ServerNotification {
+  id: number;
+  /** The app it's from ("files_sharing", "spreed", …) and what about. */
+  app: string;
+  objectType: string;
+  at: number;
+  /** The subject in pieces: plain text (kind null) and named people, files and the like. */
+  subject: { text: string; kind: string | null; id: string | null; link: string | null }[];
+  message: string;
+  link: string | null;
+  icon: string | null;
+  /** Buttons; method "WEB" opens the link. */
+  actions: ServerAction[];
+  /** False for ones the server keeps quiet. */
+  alert: boolean;
+}
+
+export interface ServerAction {
+  label: string;
+  link: string;
+  method: string;
+  primary: boolean;
+}
+
 export interface CloudFile {
   name: string;
   path: string;

@@ -40,6 +40,13 @@
   Everyone in the call sees *Recording*; the recording lands in the Files of whoever started it.
   A recording that fails shows as such for those who can record. The button only shows where the
   server records calls.
+- **Nextcloud notifications in Activity:** what your Nextcloud tells you besides the chats now
+  shows in Activity, next to mentions and replies (and under its own *Nextcloud* filter): files
+  shared with you, calendar invitations and reminders, Deck cards, announcements, a call recording
+  that's ready, updates for admins. With the person's picture and the app's icon, and the server's
+  own buttons (Accept, Decline, Share to chat, …). A click opens it (a Talk link or one of your own
+  files right in the app); ✕ dismisses it in Nextcloud too, so the web and your phone agree. New
+  ones also pop up as a system notification (not during Do not disturb).
 - **Time format setting** (Settings → Time format): System, 24-hour (14:20) or 12-hour
   (2:20 PM), whatever the app's language. System goes by your computer's language and region, so
   English on a European Mac now shows 14:20 instead of 2:20 PM.

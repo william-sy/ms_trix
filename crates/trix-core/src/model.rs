@@ -622,6 +622,50 @@ pub struct Translation {
     pub from: Option<String>,
 }
 
+/// A notification from the account's server itself (Nextcloud: a file shared with you, a calendar
+/// invitation, a Deck card, a call recording that's ready, …), apart from the chats' own.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerNotification {
+    pub id: i64,
+    /// The app it comes from ("files_sharing", "spreed", …) and what it's about.
+    pub app: String,
+    pub object_type: String,
+    /// When it was made (ms).
+    pub at: i64,
+    /// The subject in pieces: plain text, and the names of people, files and the like.
+    pub subject: Vec<RichPart>,
+    pub message: String,
+    pub link: Option<String>,
+    /// The app's icon on the server.
+    pub icon: Option<String>,
+    pub actions: Vec<ServerAction>,
+    /// False for ones the server wants kept quiet (no pop-up).
+    pub alert: bool,
+}
+
+/// A piece of a server notification's text: plain, or a named thing.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct RichPart {
+    pub text: String,
+    /// What the named thing is ("user", "file", "calendar-event", …); None for plain text.
+    pub kind: Option<String>,
+    pub id: Option<String>,
+    pub link: Option<String>,
+}
+
+/// A button on a server notification (Accept, Decline, Share to chat, …).
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerAction {
+    pub label: String,
+    pub link: String,
+    /// "GET", "POST", "PUT", "DELETE", or "WEB" (open the link).
+    pub method: String,
+    pub primary: bool,
+}
+
 /// A file or folder in the account's cloud storage (Nextcloud Files).
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]

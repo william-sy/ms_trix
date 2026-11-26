@@ -27,6 +27,7 @@ use trix_core::adapter::{AdapterError, AdapterFactory, CrawlPage, History, Progr
 use trix_core::*;
 
 mod dav;
+mod notifications;
 
 pub const PROTOCOL: &str = "talk";
 /// Nextcloud Notes' REST API.
@@ -1612,6 +1613,38 @@ impl ProtocolAdapter for TalkAdapter {
         };
         self.ocs(self.request(Method::PUT, "/ocs/v2.php/apps/user_status/api/v1/user_status/status").form(&[("statusType", status)])).await?;
         Ok(())
+    }
+
+    async fn server_notifications(&self, etag: Option<&str>) -> Result<Option<(Vec<ServerNotification>, Option<String>)>> {
+        let mut req = self.request(Method::GET, notifications::PATH);
+        if let Some(etag) = etag {
+            req = req.header(reqwest::header::IF_NONE_MATCH, etag);
+        }
+        let Some((data, headers)) = self.ocs(req).await? else { return Ok(None) };
+        let etag = headers.get(reqwest::header::ETAG).and_then(|v| v.to_str().ok()).map(ToOwned::to_owned);
+        Ok(Some((notifications::parse(&data), etag)))
+    }
+
+    async fn dismiss_server_notification(&self, id: Option<i64>) -> Result<()> {
+        let path = id.map_or_else(|| notifications::PATH.to_owned(), |id| format!("{}/{id}", notifications::PATH));
+        self.ocs(self.request(Method::DELETE, &path)).await.map(|_| ())
+    }
+
+    async fn server_notification_action(&self, link: &str, method: &str, form: &[(String, String)]) -> Result<()> {
+        // Only this Nextcloud's own endpoints, signed in as the account.
+        let path = link.strip_prefix(&self.session.server).unwrap_or(link);
+        let method = match method {
+            "GET" | "POST" | "PUT" | "DELETE" => Method::from_bytes(method.as_bytes()).map_err(err)?,
+            _ => return Err(AdapterError::Other(format!("not an action: {method}"))),
+        };
+        if !path.starts_with('/') || path.starts_with("//") || path.contains("..") {
+            return Err(AdapterError::Other(format!("not an action of this server: {link}")));
+        }
+        let mut req = self.request(method.clone(), path);
+        if !form.is_empty() {
+            req = if method == Method::GET || method == Method::DELETE { req.query(form) } else { req.form(form) };
+        }
+        self.ocs(req).await.map(|_| ())
     }
 
     async fn cloud_files(&self, path: &str) -> Result<Vec<CloudFile>> {

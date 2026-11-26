@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from "react";
 import { isTalkModerator, talkRoom } from "./TalkSettings";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -31,7 +31,7 @@ import { rememberChats } from "./chatLinks";
 import { NewChatDialog } from "./NewChatDialog";
 import { BrowseDialog } from "./BrowseDialog";
 import { ProfileCard, ProfileContext, type OpenProfile } from "./Profile";
-import { ActivityPane } from "./ActivityPane";
+import { ActivityPane, serverEntry } from "./ActivityPane";
 import { TeamsPane } from "./TeamsPane";
 import { RoomPanel } from "./RoomPanel";
 import { JoinRoomDialog } from "./JoinRoomDialog";
@@ -46,6 +46,7 @@ import { MeetingReminder } from "./MeetingReminder";
 import { ContextDialog } from "./ContextDialog";
 import { HashtagContext, HashtagPanel } from "./Hashtags";
 import { InAppLinkContext } from "./LinkPreview";
+import { useServerNotifications } from "./serverNotifications";
 import { ImageCropper } from "./ImageCropper";
 import { VerificationDialog } from "./VerificationDialog";
 import { RoomLinkContext, type OpenRoomLink } from "./roomLinks";
@@ -236,16 +237,18 @@ export function App() {
   }, []);
   const [seenAt, setSeenAt] = useStored("Trixcomm.activity.seenAt", 0);
   const [activityRead, setActivityRead] = useStored<{ at: number; read: string[]; unread: string[] }>("Trixcomm.activity.read", () => ({ at: seenAt, read: [], unread: [] }));
-  const activityUnread = (a: ActivityItem) => activityRead.unread.includes(a.id) || (a.at > activityRead.at && !activityRead.read.includes(a.id));
-  const setActivityItemRead = (a: ActivityItem, read: boolean) => {
-    const known = new Set(activity.map((x) => x.id)); // forget items that fell out of the feed
+  const activityUnread = (a: { id: string; at: number }) => activityRead.unread.includes(a.id) || (a.at > activityRead.at && !activityRead.read.includes(a.id));
+  // Nextcloud's own notifications (shares, invitations, …) share the feed, its badge and read state.
+  const serverItems = useServerNotifications(useMemo(() => state.orgs.filter((o) => o.protocol === "talk").map((o) => o.id), [state.orgs]));
+  const setActivityItemRead = (a: { id: string }, read: boolean) => {
+    const known = new Set([...activity.map((x) => x.id), ...serverItems.map((n) => n.key)]); // forget items that fell out of the feed
     const keep = (ids: string[]) => ids.filter((id) => id !== a.id && known.has(id));
     setActivityRead({ at: activityRead.at, read: read ? [...keep(activityRead.read), a.id] : keep(activityRead.read), unread: read ? keep(activityRead.unread) : [...keep(activityRead.unread), a.id] });
   };
   // Cleared from the feed, on this computer: everything up to `at`, plus single items.
   const [activityCleared, setActivityCleared] = useStored<{ at: number; ids: string[] }>("Trixcomm.activity.cleared", () => ({ at: 0, ids: [] }));
   const [undoClear, setUndoClear] = useState<{ at: number; ids: string[] } | null>(null);
-  const activityShown = (a: ActivityItem) => a.at > activityCleared.at && !activityCleared.ids.includes(a.id);
+  const activityShown = (a: { id: string; at: number }) => a.at > activityCleared.at && !activityCleared.ids.includes(a.id);
   const removeActivity = (a: ActivityItem) => {
     const known = new Set(activity.map((x) => x.id));
     setActivityCleared({ at: activityCleared.at, ids: [...activityCleared.ids.filter((id) => known.has(id)), a.id] });
@@ -765,6 +768,7 @@ export function App() {
   const calendarOrgsAll = isLive ? state.orgs.filter((o) => calendarAccounts.includes(o.id)) : [];
   const calendarOrgs = cloudOrgs.filter((o) => calendarAccounts.includes(o.id));
   const inOrg = (key: string) => state.orgFilter === "all" || key.startsWith(`${state.orgFilter}|`);
+  const shownServer = serverItems.filter((n) => inOrg(`${n.account}|`) && activityShown(serverEntry(n)));
   const teamChannels = new Set(teams.filter((t) => inOrg(t.key)).flatMap((t) => t.channels));
   const teamsBadge = state.convs.filter((c) => teamChannels.has(c.id) && isUnread(c) && !c.muted).length;
   const attention = state.orgs.find((o) => needsAttention(security[o.id]) && !dismissed.has(o.id));
@@ -791,7 +795,7 @@ export function App() {
       <div className="app">
         <nav className="rail">
           <OrgSwitcher current={state.orgFilter} unread={unread} onSelect={selectOrg} onAddAccount={addAccount} />
-          <RailItem icon={<BellIcon />} label={t("rail.activity")} active={view === "activity"} badge={activity.filter((a) => a.at > seenAt && inOrg(a.conversation) && activityShown(a)).length} onClick={() => openView("activity")} />
+          <RailItem icon={<BellIcon />} label={t("rail.activity")} active={view === "activity"} badge={activity.filter((a) => a.at > seenAt && inOrg(a.conversation) && activityShown(a)).length + shownServer.filter((n) => n.at > seenAt).length} onClick={() => openView("activity")} />
           <RailItem icon={<ChatIcon />} label={t("rail.chat")} active={view === "chat"} badge={chatBadge} onClick={() => openView("chat")} />
           {can("teams") && <RailItem icon={<TeamsIcon />} label={t("rail.teams")} active={view === "teams"} badge={teamsBadge} onClick={() => openView("teams")} />}
           {/* A calls overview (history, ongoing calls) comes later; calls start from a chat. */}
@@ -838,6 +842,7 @@ export function App() {
             {view === "calls" && <CallsPane convs={state.convs} onOpen={(id) => { setView("chat"); act({ type: "select", id }); }} />}
             {view === "activity" && (
               <ActivityPane items={activity.filter((a) => inOrg(a.conversation) && activityShown(a))} isUnread={activityUnread} selected={activitySelected}
+                server={shownServer} nextcloud={state.orgs.some((o) => o.protocol === "talk" && inOrg(`${o.id}|`))} onNotice={setNotice}
                 onMarkAllRead={() => setActivityRead({ at: Date.now(), read: [], unread: [] })} onSetRead={setActivityItemRead}
                 onRemove={removeActivity}
                 onClear={() => { setUndoClear(activityCleared); setActivityCleared({ at: Date.now(), ids: [] }); setActivityRead({ at: Date.now(), read: [], unread: [] }); }}
