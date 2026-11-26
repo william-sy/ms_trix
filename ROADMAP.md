@@ -7,7 +7,8 @@
   clients (Element, mobile) also move archived chats out of the way
 - GIF picker: skipped for now; keep as an idea (needs a third-party service + privacy notice)
 - Calls/verification are tested with a colleague on a real homeserver
-- No signing certificates or GitHub repo yet: unsigned dev builds for now
+- No signing certificates yet: unsigned builds (GitHub Releases since 1.5.1, updates by themselves
+  since 1.6)
 - First users: an organisation on Matrix + Nextcloud Talk. Next protocols: Zulip and Mattermost (own roadmaps
   below); XMPP and IRC skipped. Languages: English + Dutch for now
 - Microsoft Teams chats (2026-11-20): not pursued. Through Microsoft Graph there are no calls,
@@ -55,10 +56,6 @@
 
 1.4 (released 2026-11-19): fixes (see RELEASE_NOTES.md).
 
-1.6 (released 2026-11-23): see RELEASE_NOTES.md. Renamed to Trixcomm; updates by themselves.
-
-1.7 (released 2026-11-24): see RELEASE_NOTES.md. Files, Find a time, offline accounts, camera quality.
-
 1.5 (released 2026-11-22), besides what's in RELEASE_NOTES.md:
 - [x] Activity: a way to clear it (empty the feed, or remove single items)
 - [x] Tables in the composer (size grid, 6 × 6 at most); Talk messages rendered from Markdown;
@@ -70,6 +67,14 @@
       in). Maybe a weekday hint while typing. Words like "tomorrow" or "next Thursday": skipped
 - [x] Pinned messages (Matrix; Talk 23+), Talk threads (Talk 22+), pictures sent together in one
       bubble, notes search in the text, Home/End, a loading screen and camera warm-up for calls
+
+1.6 (released 2026-11-23): see RELEASE_NOTES.md. Renamed to Trixcomm; updates by themselves.
+
+1.7 (released 2026-11-24): see RELEASE_NOTES.md. Files, Find a time, offline accounts, camera quality.
+
+Next release (1.7.1 or 1.8, not released yet): small things from daily use (see RELEASE_NOTES.md):
+drafts, a wider thread pane, zoom into a shared screen, quick edit (Arrow Up), Talk call tiles
+with pictures, the call's start time and an hourly break hint, a time format setting (24-hour).
 
 To do, from low to high effort (ordered 2026-11-22; the 1.6 plan and the later ideas together,
 plus the open items further down). S: a few hours, M: a day or two, L: several days, XL: weeks.
@@ -167,6 +172,16 @@ Dropped 2026-11-22 (not needed for now; back on the list if someone asks): expor
 phishing list (OpenPhish), calendar on other CalDAV servers and on Exchange, email add-on (unread
 count and notifications, later a Mail view), pop out a chat into its own window.
 
+Dropped 2026-11-25: a Talk call history (Talk keeps no call log to ask for; it would mean digging
+through the chats' call messages), a lock against running the app twice (only bites when the dev
+build and the installed app run side by side, which broke Matrix encryption once).
+
+To test (from 1.7 and the next release): Find a time and documents in Nextcloud Office on a real
+Nextcloud; zooming a shared screen by pinching on macOS (⌘ + scroll and − / + are the fallback);
+quick edit; the call's start time (Talk 17+) and the break hint after an hour; pictures on call
+tiles; the time format on System (24-hour on a Mac set to a European region).
+macOS menu-bar things (Video effects, Mic Mode, the Dock) only work in the installed app, not
+the dev build.
 To test (from 1.6): Translate in a message's ⋯ menu (only shows when the Nextcloud has a
 translation provider); out of office on a Talk profile card; "In a meeting" on Matrix during a
 meeting; whether Nextcloud shows "In a meeting" on Talk by itself; Copy link to this chat.
