@@ -1,6 +1,6 @@
 [package]
 name = "ms-trix-desktop"
-version = "1.8.1"
+version = "1.8.2"
 description = "Trixcomm desktop app"
 license = "GPL-3.0-or-later"
 edition = "2024"

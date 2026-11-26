@@ -1,6 +1,6 @@
 # Release notes
 
-## 1.8.2 (not released yet)
+## 1.8.2 (2026-11-26)
 
 ### Fixed
 - Chats could be missing after starting the app (Matrix rooms, also from their team in the Teams

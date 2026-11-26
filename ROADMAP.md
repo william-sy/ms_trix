@@ -72,7 +72,7 @@
 
 1.7 (released 2026-11-24): see RELEASE_NOTES.md. Files, Find a time, offline accounts, camera quality.
 
-1.8.1 (released 2026-11-26; 1.8.0 was tagged but not released): small things from daily use and the Nextcloud side (see RELEASE_NOTES.md):
+1.8.2 (released 2026-11-26; 1.8.0 was tagged but not released, 1.8.1 and 1.8.2 are fixes on top): small things from daily use and the Nextcloud side (see RELEASE_NOTES.md):
 drafts, a wider thread pane, zoom into a shared screen, quick edit (Arrow Up), Talk call tiles
 with pictures, the call's start time and an hourly break hint, a time format setting (24-hour),
 noise suppression in calls (Standard: RNNoise, High: DeepFilterNet 3; asked for by a board weighing
