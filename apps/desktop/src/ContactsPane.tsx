@@ -23,7 +23,7 @@ const contactsOf = (account: string, again = false) => {
       const books = new Map<string, number>();
       for (const c of cards) books.set(c.book, (books.get(c.book) ?? 0) + 1);
       void backend.logUi(`contacts for ${account}: ${cards.length}${books.size ? ` (${[...books].map(([b, n]) => `${b} ${n}`).join(", ")})` : ""}`).catch(() => {});
-    }, (e) => void backend.logUi(`contacts for ${account}: ${String(e)}`).catch(() => {}));
+    }, (e) => { if (!/not signed in/.test(String(e))) void backend.logUi(`contacts for ${account}: ${String(e)}`).catch(() => {}); });
     list.catch(() => loaded.delete(account));
   }
   return list;
@@ -36,7 +36,7 @@ const teamsOf = (account: string, again = false) => {
   if (!list) {
     list = backend.serverTeams(account);
     teamsLoaded.set(account, list);
-    void list.then((found) => backend.logUi(`teams for ${account}: ${found.length}`), (e) => backend.logUi(`teams for ${account}: ${String(e)}`)).catch(() => {});
+    void list.then((found) => backend.logUi(`teams for ${account}: ${found.length}`), (e) => (/not signed in/.test(String(e)) ? undefined : backend.logUi(`teams for ${account}: ${String(e)}`))).catch(() => {});
     list.catch(() => teamsLoaded.delete(account));
   }
   return list;
@@ -83,9 +83,16 @@ export function ContactsPane({ orgs, matrix, onChat }: Props) {
   const accounts = orgs.map((o) => o.id).join(" ");
 
   const load = (again = false) => {
+    // Just after the app starts an account may not be signed in yet: asked again a moment later
+    // (for up to a minute), still showing "Loading…".
+    const ask = <T,>(get: (again: boolean) => Promise<T>, set: (v: T | string) => void, tries = 0) =>
+      get(again && tries === 0).then(set, (e) => {
+        if (/not signed in/.test(String(e)) && tries < 20) window.setTimeout(() => ask(get, set, tries + 1), 3000);
+        else set(String(e));
+      });
     for (const org of orgs) {
-      contactsOf(org.id, again).then((list) => setBooks((b) => ({ ...b, [org.id]: list })), (e) => setBooks((b) => ({ ...b, [org.id]: String(e) })));
-      teamsOf(org.id, again).then((list) => setTeams((x) => ({ ...x, [org.id]: list })), (e) => setTeams((x) => ({ ...x, [org.id]: String(e) })));
+      ask((a) => contactsOf(org.id, a), (list) => setBooks((b) => ({ ...b, [org.id]: list })));
+      ask((a) => teamsOf(org.id, a), (list) => setTeams((x) => ({ ...x, [org.id]: list })));
     }
   };
   useEffect(() => load(), [accounts]); // eslint-disable-line react-hooks/exhaustive-deps
