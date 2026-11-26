@@ -307,6 +307,10 @@ built yet is visibly disabled in the UI with a "coming soon" tooltip.
       set your own Available / Away / Appear offline per account
 
 ## Known issues
+- [ ] S. Teams view (and Chat list) fill in for a few seconds after start without saying so: a team
+      shows one room, then all of them, which looks like rooms are missing (2026-11-26, the user
+      thought so). Show "Loading your teams…" under an account until its first sync after start
+      is done. Planned for the version after 1.8.1
 - [x] Hover actions overlay covered the previous message when tightly grouped
 - [x] Wide code blocks didn't wrap when the window got narrower
 - [ ] macOS: no notifications arrive (2026-11-25, macOS 27): the notification plugin still uses
