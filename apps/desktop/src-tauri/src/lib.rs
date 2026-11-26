@@ -1284,6 +1284,12 @@ async fn turn_servers(state: State<'_, AppState>, account: String) -> CmdResult<
     adapter_for(&state, &account)?.turn_servers().await.map_err(|e| e.to_string())
 }
 
+/// The people in a Nextcloud account's address books (Contacts).
+#[tauri::command]
+async fn contacts(state: State<'_, AppState>, account: String) -> CmdResult<Vec<trix_core::Contact>> {
+    adapter_for(&state, &account)?.contacts().await.map_err(|e| e.to_string())
+}
+
 /// The apps a Nextcloud offers you in its web pages (More in the rail).
 #[tauri::command]
 async fn server_apps(state: State<'_, AppState>, account: String) -> CmdResult<Vec<trix_core::ServerApp>> {
@@ -1939,8 +1945,9 @@ fn watch_call(app: AppHandle, id: ConversationId, label: String) {
 
 #[tauri::command]
 fn open_url(app: AppHandle, url: String) -> CmdResult<()> {
-    // Only web and mail links; never file:// or custom schemes from message content.
-    if !(url.starts_with("https://") || url.starts_with("http://") || url.starts_with("mailto:")) {
+    // Only web, mail and phone links; never file:// or custom schemes from message content.
+    let phone = url.strip_prefix("tel:").is_some_and(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit() || " +-().".contains(c)));
+    if !(url.starts_with("https://") || url.starts_with("http://") || url.starts_with("mailto:") || phone) {
         return Err("unsupported link".into());
     }
     app.opener().open_url(url, None::<&str>).map_err(|e| e.to_string())
@@ -2857,6 +2864,7 @@ pub fn run() {
             turn_servers,
             cloud_files,
             server_apps,
+            contacts,
             server_notifications,
             dismiss_server_notification,
             server_notification_action,

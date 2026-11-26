@@ -423,6 +423,11 @@ pub trait ProtocolAdapter: Send + Sync {
     async fn set_typing(&self, _conversation: &ConversationId, _typing: bool) -> Result<()> {
         Ok(())
     }
+    /// The people in your address books, by name (not the server's list of all its accounts:
+    /// those are found with `search_users`).
+    async fn contacts(&self) -> Result<Vec<Contact>> {
+        Err(AdapterError::Unsupported("contacts"))
+    }
     /// The apps the server offers you in its own web pages, in its order.
     async fn server_apps(&self) -> Result<Vec<ServerApp>> {
         Err(AdapterError::Unsupported("server apps"))

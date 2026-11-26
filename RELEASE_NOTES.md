@@ -50,6 +50,12 @@
   out. A click opens it (a Talk link or one of your own
   files right in the app); ✕ dismisses it in Nextcloud too, so the web and your phone agree. New
   ones also pop up as a system notification (not during Do not disturb).
+- **Contacts** in the rail (Nextcloud): the people in your Nextcloud address books, and anyone on
+  your Nextcloud by searching. Pick someone for their card: *Chat* and *Call* open (or start) the
+  Talk chat with them when they have an account on that Nextcloud (from the card's cloud id or
+  email address), *Chat on Matrix* for a Matrix id on the card; email addresses open your mail app,
+  phone numbers your computer's phone app (an iPhone through the Mac, Phone Link on Windows). The
+  search goes through names, work, addresses and numbers.
 - **More** in the rail (Nextcloud): lists the apps your Nextcloud offers you (Office, Photos,
   Music, Deck, whatever it has), with their icons; one click opens it in your browser. Talk,
   Files, Notes, Calendar and Contacts are left out (they're in the app). With several Nextcloud

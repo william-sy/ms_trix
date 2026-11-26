@@ -26,6 +26,7 @@ use tokio::task::JoinHandle;
 use trix_core::adapter::{AdapterError, AdapterFactory, CrawlPage, History, Progress, Result};
 use trix_core::*;
 
+mod contacts;
 mod dav;
 mod notifications;
 
@@ -1613,6 +1614,42 @@ impl ProtocolAdapter for TalkAdapter {
         };
         self.ocs(self.request(Method::PUT, "/ocs/v2.php/apps/user_status/api/v1/user_status/status").form(&[("statusType", status)])).await?;
         Ok(())
+    }
+
+    async fn contacts(&self) -> Result<Vec<Contact>> {
+        let root = format!("/remote.php/dav/addressbooks/users/{}/", percent_encoding::utf8_percent_encode(&self.dav_user().await, percent_encoding::NON_ALPHANUMERIC));
+        let xml = self.dav("PROPFIND", &root, "1", contacts::PROPFIND_ADDRESSBOOKS.into()).await?;
+        let books: Vec<(String, String)> = dav::multistatus(&xml)
+            .into_iter()
+            .filter(|r| r.types.iter().any(|t| t == "addressbook"))
+            // The server's own list of all its accounts can be very long: they're found by searching.
+            .filter(|r| !r.href.contains("z-server-generated--"))
+            // From "/remote.php/" on: the server address may itself have a path.
+            .filter_map(|r| {
+                let path = r.href.find("/remote.php/dav/addressbooks/").map(|at| r.href[at..].to_owned())?;
+                let name = r.props.get("displayname").cloned().unwrap_or_else(|| dav::decode(path.trim_end_matches('/').rsplit('/').next().unwrap_or_default()));
+                (!path.contains("..")).then_some((name, path))
+            })
+            .collect();
+        let server = &self.session.server;
+        let queries = books.iter().map(|(name, path)| async move {
+            let xml = self.dav("REPORT", path, "1", contacts::ADDRESSBOOK_QUERY.into()).await?;
+            Ok::<_, AdapterError>(dav::multistatus(&xml).into_iter().filter_map(|r| contacts::parse(r.props.get("address-data")?, &r.href, name, server)).collect::<Vec<_>>())
+        });
+        let mut all = Vec::new();
+        let mut failed = None;
+        for result in futures::future::join_all(queries).await {
+            match result {
+                Ok(found) => all.extend(found),
+                Err(e) => failed = Some(e),
+            }
+        }
+        // One address book that can't be read leaves the others; none at all is an error.
+        if let (true, Some(e)) = (all.is_empty(), failed) {
+            return Err(e);
+        }
+        all.sort_by_cached_key(|c| c.name.to_lowercase());
+        Ok(all)
     }
 
     async fn server_apps(&self) -> Result<Vec<ServerApp>> {

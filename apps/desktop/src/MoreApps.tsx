@@ -8,7 +8,7 @@ import type { Org, ServerApp } from "./types";
 // Deck, …), as Nextcloud's app menu lists them; one click opens it in the browser. Asked when the
 // menu first opens, then kept for the rest of the run. The ones the app has itself are left out.
 
-/** Talk, Files, Notes, Calendar, and Contacts (coming to the app). */
+/** Talk, Files, Notes, Calendar and Contacts. */
 const IN_APP = new Set(["spreed", "files", "notes", "calendar", "contacts"]);
 
 const loaded = new Map<string, Promise<ServerApp[]>>();

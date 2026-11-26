@@ -3,7 +3,7 @@ import { isTalkModerator, talkRoom } from "./TalkSettings";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { backend, isLive, pickedUrl, subscribe, videoThumb, type ActivityItem, type Connection, type PickedFile, type DirectoryRoom, type SecurityStatus, type TeamView, type UploadProgress, type Verification } from "./backend";
-import { BellIcon, CalendarIcon, CallIcon, ChatIcon, FilesIcon, MoreIcon, NotesIcon, TeamsIcon } from "./Icons";
+import { BellIcon, CalendarIcon, CallIcon, ChatIcon, ContactsIcon, FilesIcon, MoreIcon, NotesIcon, TeamsIcon } from "./Icons";
 import { NotesPane } from "./NotesPane";
 import { FilesPane } from "./FilesPane";
 import { SHOW_IN_FILES, type FilesReveal } from "./filesNav";
@@ -48,6 +48,7 @@ import { HashtagContext, HashtagPanel } from "./Hashtags";
 import { InAppLinkContext } from "./LinkPreview";
 import { useServerNotifications } from "./serverNotifications";
 import { MoreApps } from "./MoreApps";
+import { ContactsPane } from "./ContactsPane";
 import { ImageCropper } from "./ImageCropper";
 import { VerificationDialog } from "./VerificationDialog";
 import { RoomLinkContext, type OpenRoomLink } from "./roomLinks";
@@ -104,6 +105,8 @@ export function App() {
   const [dragging, setDragging] = useState<false | "chat" | "thread">(false);
   // Conversation to open once it shows up (after /join or /query).
   const [pendingOpen, setPendingOpen] = useState<string | null>(null);
+  // A call to start once its (new) chat shows up, from Contacts.
+  const [pendingCall, setPendingCall] = useState<string | null>(null);
   const [staged, setStaged] = useState<Record<string, Attachment[]>>({});
   // Our own status per account, as chosen in this app; remembered across restarts.
   const [ownPresence, setOwnPresence] = useState<Record<string, { presence: PresenceState; status?: string }>>(() => {
@@ -197,7 +200,7 @@ export function App() {
   const [teamInfo, setTeamInfo] = useState<TeamView | null>(null);
   const [cropFor, setCropFor] = useState<{ kind: "me"; account: string } | { kind: "room" | "memberRoom"; key: string } | null>(null);
   const [joinPreview, setJoinPreview] = useState<{ account: string; room: DirectoryRoom; via: string[] } | null>(null);
-  const [view, setView] = useState<"activity" | "chat" | "teams" | "calls" | "calendar" | "notes" | "files">("chat");
+  const [view, setView] = useState<"activity" | "chat" | "teams" | "calls" | "calendar" | "notes" | "files" | "contacts">("chat");
   const viewRef = useRef(view);
   viewRef.current = view;
   // Show in Files (from a chat): the Files view, at that file.
@@ -471,6 +474,13 @@ export function App() {
     });
     return () => { off.then((f) => f()); };
   }, []);
+
+  useEffect(() => {
+    if (pendingCall && state.convs.some((c) => c.id === pendingCall)) {
+      talkCalls.start(pendingCall, lastCameraOn());
+      setPendingCall(null);
+    }
+  }, [pendingCall, state.convs]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (pendingOpen && state.convs.some((c) => c.id === pendingOpen)) {
@@ -804,6 +814,8 @@ export function App() {
             <RailItem icon={<CallIcon />} label={t("rail.calls")} active={view === "calls"} onClick={() => openView("calls")}
               badge={calls.history.filter((r) => r.direction === "in" && !r.duration && r.outcome !== "answered_elsewhere" && r.at > callsSeenAt).length} />
           )}
+          {/* Nextcloud Contacts (CardDAV) and everyone on the Nextcloud, for the accounts in view. */}
+          {cloudOrgs.length > 0 && <RailItem icon={<ContactsIcon />} label={t("rail.contacts")} active={view === "contacts"} onClick={() => openView("contacts")} />}
           {/* Nextcloud Calendar (CalDAV) for the Nextcloud accounts in view. */}
           {calendarOrgs.length > 0 && <RailItem icon={<CalendarIcon />} label={t("rail.calendar")} active={view === "calendar"} onClick={() => openView("calendar")} />}
           {/* Nextcloud Notes, for the Nextcloud accounts that have the Notes app. */}
@@ -840,6 +852,15 @@ export function App() {
                 onJoinCall={(id) => { setView("chat"); act({ type: "select", id }); talkCalls.start(id, lastCameraOn()); }} />
             )}
             {view === "notes" && <NotesPane orgs={notesOrgs} />}
+            {view === "contacts" && (
+              <ContactsPane orgs={cloudOrgs} matrix={state.orgs.find((o) => o.protocol === "matrix" && inOrg(`${o.id}|`)) ?? state.orgs.find((o) => o.protocol === "matrix")}
+                onChat={(account, user, call) => backend.createChat(account, [user], null).then((out) => {
+                  if (!out.open) return;
+                  setView("chat");
+                  setPendingOpen(out.open);
+                  if (call) setPendingCall(out.open);
+                }, (e) => setNotice(String(e)))} />
+            )}
             {view === "files" && <FilesPane orgs={cloudOrgs} convs={state.convs} reveal={filesReveal} />}
             {view === "calls" && <CallsPane convs={state.convs} onOpen={(id) => { setView("chat"); act({ type: "select", id }); }} />}
             {view === "activity" && (
@@ -856,7 +877,7 @@ export function App() {
                 conv={{ id: teamInfo.key, orgId: teamInfo.account, kind: "team", name: teamInfo.name, preview: "", time: "", sortKey: 0, favourite: false, muted: false, encrypted: false, unread: 0, mentions: 0, marked: false, avatar: teamInfo.avatar ?? undefined }} />
             )}
             {/* The calendar, notes and files fill the whole width, like Teams; the other views are a list beside the chat. */}
-            {view === "calendar" || view === "notes" || view === "files" ? null : selected ? (
+            {view === "calendar" || view === "notes" || view === "files" || view === "contacts" ? null : selected ? (
               <ChatView conv={selected} messages={timeline(state, selected)} dispatch={act} onNotice={setNotice} focusMessage={focusMessage?.conversation === selected.id ? focusMessage.message : null} onFocused={() => setFocusState(null)}
                 onLoadOlder={(limit) => loadOlder(selected.id, limit)} onLoadThread={(root) => loadThread(selected.id, root)}
                 onCommand={(name, args) => runCommand(selected.id, name, args)} attachments={staged[selected.id] ?? []} upload={uploads[selected.id]} onPreview={(m) => setPreview({ conversation: selected.id, message: m })}

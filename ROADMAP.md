@@ -78,7 +78,7 @@ with pictures, the call's start time and an hourly break hint, a time format set
 noise suppression in calls (Standard: RNNoise, High: DeepFilterNet 3; asked for by a board weighing
 a move from Teams), backgrounds under the pre-join preview, Talk call recording (moderators, on a
 server with the recording server) and joining calls that ask consent to being recorded, Nextcloud
-notifications in Activity, More in the rail (your Nextcloud's other apps).
+notifications in Activity, More in the rail (your Nextcloud's other apps), Contacts.
 
 To do, from low to high effort (ordered 2026-11-22; the 1.6 plan and the later ideas together,
 plus the open items further down). S: a few hours, M: a day or two, L: several days, XL: weeks.
@@ -100,8 +100,8 @@ plus the open items further down). S: a few hours, M: a day or two, L: several d
        the apps your Nextcloud offers you (Office, Photos, Music, Deck, …: core/navigation/apps, with
        their names and icons) and opens the one you pick in the browser. Several Nextcloud accounts:
        per account
-7. [ ] S–M. Phone numbers (idea 2026-11-26, with Contacts): a contact's number as a tel: link
-       (the computer's own way of calling: an iPhone through the Mac, Phone Link on Windows); in a
+7. [ ] S–M. Phone numbers (idea 2026-11-26): a contact's number as a tel: link (the computer's own
+       way of calling: an iPhone through the Mac, Phone Link on Windows; done with Contacts); in a
        Talk call "Call a phone number" where the server has the SIP bridge with dial-out
        (sip-support-dialout, Talk 18+): the number is added and Talk dials it
 8. [ ] M. High contrast and motion (the visual half of accessibility): a light and a dark
@@ -139,11 +139,12 @@ plus the open items further down). S: a few hours, M: a day or two, L: several d
        (DND respected). Talk's own chat and call notifications left out. Asked every two minutes
        and when the window comes to the front (ETag: unchanged is a 304). Later: at once through
        notify_push where the server has it
-14. [ ] M–L. Contacts (idea 2026-11-26): a Contacts view for Nextcloud accounts (CardDAV, as the
-       calendar): your address books and the server's own list of everyone on it. A name opens the
-       Talk 1:1 chat (made when there's none), a call button next to it; personal contacts matched
-       to accounts by cloud id or email; a Matrix id in a card opens a Matrix chat; phone numbers
-       as above
+14. [x] M–L. Contacts (idea 2026-11-26, done the same day): a Contacts view for Nextcloud accounts
+       (CardDAV, as the calendar): your address books, and everyone on the server by searching (its
+       own list of all accounts isn't read: it can be very long). A card has Chat and Call (the Talk
+       1:1 chat, made when there's none) when they have an account there, by cloud id or email;
+       Chat on Matrix for a Matrix id on the card; mail and phone links. Later: editing cards,
+       pictures from the cards
 15. [ ] M–L. Chat beside the call (idea 2026-11-23, like Teams' meeting chat): 💬 in the call's
        header opens the conversation's chat as a panel on the right (the stage narrows; its own
        window grows if there's room), with an unread count while closed; docked and in its own
@@ -215,7 +216,8 @@ the call's start time (Talk 17+) and the break hint after an hour; pictures on c
 recording on a server with the recording server (the record button only shows for moderators
 there), and a conversation that asks consent to recording (Talk 18+: the box before joining);
 Nextcloud notifications in Activity (share a file with yourself from another account, a calendar
-invitation; their buttons, ✕ also gone in the web);
+invitation; their buttons, ✕ also gone in the web); Contacts (Chat and Call from a card, a card
+found by its email, a phone number on a Mac with an iPhone);
 noise suppression
 (Hear yourself in Settings, then a real call: do the others still hear you, is the noise gone?
 If so, make it on by default before the release).

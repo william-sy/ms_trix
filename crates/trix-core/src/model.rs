@@ -622,6 +622,34 @@ pub struct Translation {
     pub from: Option<String>,
 }
 
+/// Someone in your address books (Nextcloud Contacts).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Contact {
+    /// Its card's address on the server.
+    pub id: String,
+    /// The address book it's in.
+    pub book: String,
+    pub name: String,
+    pub org: Option<String>,
+    pub title: Option<String>,
+    pub emails: Vec<String>,
+    pub phones: Vec<Phone>,
+    /// Their account on this same server (from the card's cloud id), for a chat.
+    pub user: Option<String>,
+    /// A Matrix id from the card ("@name:server").
+    pub matrix: Option<String>,
+    pub note: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Phone {
+    pub number: String,
+    /// "mobile", "work", "home" or "fax", when the card says.
+    pub kind: Option<String>,
+}
+
 /// An app the account's server offers in its own web pages (Nextcloud: Photos, Office, Deck, …).
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]

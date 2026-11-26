@@ -152,6 +152,24 @@ export interface Member {
 }
 
 /** A file or folder in Nextcloud Files. */
+/** Someone in your Nextcloud address books. */
+export interface Contact {
+  /** Its card's address on the server. */
+  id: string;
+  /** The address book it's in. */
+  book: string;
+  name: string;
+  org: string | null;
+  title: string | null;
+  emails: string[];
+  phones: { number: string; kind: "mobile" | "work" | "home" | "fax" | null }[];
+  /** Their account on the same Nextcloud (from the card's cloud id). */
+  user: string | null;
+  /** A Matrix id from the card. */
+  matrix: string | null;
+  note: string | null;
+}
+
 /** An app a Nextcloud offers in its web pages (Photos, Office, Deck, …). */
 export interface ServerApp {
   id: string;
