@@ -1622,7 +1622,7 @@ impl ProtocolAdapter for TalkAdapter {
         }
         let Some((data, headers)) = self.ocs(req).await? else { return Ok(None) };
         let etag = headers.get(reqwest::header::ETAG).and_then(|v| v.to_str().ok()).map(ToOwned::to_owned);
-        Ok(Some((notifications::parse(&data), etag)))
+        Ok(Some((notifications::parse(&data, &self.session.server), etag)))
     }
 
     async fn dismiss_server_notification(&self, id: Option<i64>) -> Result<()> {

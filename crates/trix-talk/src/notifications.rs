@@ -6,9 +6,17 @@ use trix_core::{RichPart, ServerAction, ServerNotification};
 
 pub const PATH: &str = "/ocs/v2.php/apps/notifications/api/v2/notifications";
 
-/// The list as the server sends it (newest first).
-pub fn parse(data: &Value) -> Vec<ServerNotification> {
-    data.as_array().into_iter().flatten().filter_map(one).collect()
+/// The list as the server (at `server`) sends it, newest first.
+pub fn parse(data: &Value, server: &str) -> Vec<ServerNotification> {
+    let mut list: Vec<ServerNotification> = data.as_array().into_iter().flatten().filter_map(one).collect();
+    // A file named by its id alone (Talk's call recordings): its /f/ link, which the app can find
+    // in your files (Show in Files).
+    for part in list.iter_mut().flat_map(|n| n.subject.iter_mut()) {
+        if part.kind.as_deref() == Some("file") && part.link.is_none() && part.path.is_none() {
+            part.link = part.id.as_deref().filter(|id| id.chars().all(|c| c.is_ascii_digit())).map(|id| format!("{server}/f/{id}"));
+        }
+    }
+    list
 }
 
 fn text(v: &Value) -> Option<String> {
@@ -98,7 +106,7 @@ mod tests {
             "message": "", "link": "https://cloud.example/f/4711", "icon": "https://cloud.example/apps/files_sharing/img/app-dark.svg",
             "actions": [{ "label": "Accept", "link": "https://cloud.example/ocs/v2.php/apps/files_sharing/api/v1/remote_shares/pending/3", "type": "post", "primary": true }]
         }]);
-        let list = parse(&data);
+        let list = parse(&data, "https://cloud.example");
         assert_eq!(list.len(), 1);
         let n = &list[0];
         assert_eq!(n.at, (days(2026, 11, 26) * 86_400 + 8 * 3600 + 30 * 60) * 1000);
@@ -113,11 +121,13 @@ mod tests {
 
     #[test]
     fn plain_subjects_and_unknown_placeholders() {
-        let n = &parse(&json!([{ "notification_id": 1, "subject": "Update available", "datetime": "2026-01-02T03:04:05Z", "shouldNotify": false }]))[0];
+        let n = &parse(&json!([{ "notification_id": 1, "subject": "Update available", "datetime": "2026-01-02T03:04:05Z", "shouldNotify": false }]), "https://cloud.example")[0];
         assert_eq!(n.subject, vec![plain("Update available".into())]);
         assert_eq!(n.at, (days(2026, 1, 2) * 86_400 + 3 * 3600 + 4 * 60 + 5) * 1000);
         assert!(!n.alert);
         assert_eq!(parts("{who} said {x}", &json!({ "who": { "name": "Bo" } })).iter().map(|p| p.text.as_str()).collect::<String>(), "Bo said {x}");
+        let recording = &parse(&json!([{ "notification_id": 2, "subjectRich": "Recording ready: {file}", "subjectRichParameters": { "file": { "type": "file", "id": "77", "name": "Recording.webm" } } }]), "https://cloud.example")[0];
+        assert_eq!(recording.subject[1].link.as_deref(), Some("https://cloud.example/f/77"));
         assert_eq!(iso_millis("2026-01-02T03:04:05-0500"), Some((days(2026, 1, 2) * 86_400 + 8 * 3600 + 4 * 60 + 5) * 1000));
     }
 

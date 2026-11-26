@@ -94,8 +94,9 @@ export function ActivityPane({ items, server, nextcloud, isUnread: unseen, selec
               onClick={(e) => { e.stopPropagation(); onSetRead(a, unseen(a)); }} />
           </button>
         ) : n && (() => {
-          // A file it's about (a recording, a share) that's in your own files.
-          const file = n.subject.find((p) => p.kind === "file" && p.path)?.path?.replace(/^\/+/, "");
+          // A file it's about (a recording, a share): by its place in your files, or its link.
+          const file = n.subject.find((p) => p.kind === "file" && (p.path || p.link));
+          const showFile = file && (() => (file.path ? showInFiles(n.account, `/${file.path.replace(/^\/+/, "")}`) : openLink(file.link!)));
           return (
           // A row with buttons of its own (Accept, Decline): a div, buttons can't hold buttons.
           <div key={n.key} role="button" tabIndex={0} className={`activity server-notice ${unseen(serverEntry(n)) ? "unseen" : ""} ${busy === n.key ? "busy" : ""}`}
@@ -107,13 +108,13 @@ export function ActivityPane({ items, server, nextcloud, isUnread: unseen, selec
                 <span className="row-time">{formatTime(n.at)}</span>
               </span>
               {n.message && <span className="row-preview">{n.message}</span>}
-              {(n.actions.length > 0 || file) && (
+              {(n.actions.length > 0 || showFile) && (
                 <span className="notice-actions">
                   {[...n.actions].sort((x, y) => Number(y.primary) - Number(x.primary)).map((action, i) => (
                     <button key={i} className={`btn small ${action.primary ? "primary" : ""}`} disabled={busy === n.key}
                       onClick={(e) => { e.stopPropagation(); if (action.method === "WEB") openLink(action.link); else act(n, () => runServerAction(n, action)); }}>{action.label}</button>
                   ))}
-                  {file && <button className="btn small" onClick={(e) => { e.stopPropagation(); showInFiles(n.account, `/${file}`); }}>{t("files.showInFiles")}</button>}
+                  {showFile && <button className="btn small" onClick={(e) => { e.stopPropagation(); showFile(); }}>{t("files.showInFiles")}</button>}
                 </span>
               )}
             </span>
