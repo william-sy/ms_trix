@@ -14,7 +14,7 @@ export const TeamsIcon = () => <Svg><circle cx="9" cy="8" r="3" /><circle cx="17
 export const CallIcon = () => <Svg><path d="M6 4h3l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v3a2 2 0 0 1-2 2A15 15 0 0 1 4 6a2 2 0 0 1 2-2Z" /></Svg>;
 export const NotesIcon = () => <Svg><path d="M6 3h9l4 4v14H6Z" /><path d="M15 3v4h4M9 11h7M9 15h7M9 19h4" /></Svg>;
 export const FilesIcon = () => <Svg><path d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6Z" /></Svg>;
-export const ContactsIcon = () => <Svg><circle cx="9" cy="9" r="3.5" /><path d="M3 19c.8-3.2 3.2-5 6-5s5.2 1.8 6 5" /><circle cx="17" cy="8" r="2.5" /><path d="M16.5 13.2c2.3.2 3.9 1.8 4.5 4.3" /></Svg>;
+export const ContactsIcon = () => <Svg><rect x="4" y="3" width="14" height="18" rx="2" /><circle cx="11" cy="10" r="2.5" /><path d="M7 16.5c.7-1.8 2.2-2.7 4-2.7s3.3.9 4 2.7" /><path d="M20.5 7v3M20.5 14v3" /></Svg>;
 export const CalendarIcon = () => <Svg><rect x="4" y="5" width="16" height="15" rx="2" /><path d="M4 10h16M9 3v4M15 3v4" /></Svg>;
 export const MoreIcon = () => <Svg><circle cx="6" cy="12" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="18" cy="12" r="1" /></Svg>;
 export const SearchIcon = ({ size }: { size?: number }) => <Svg size={size}><circle cx="11" cy="11" r="6" /><path d="m20 20-4.5-4.5" /></Svg>;

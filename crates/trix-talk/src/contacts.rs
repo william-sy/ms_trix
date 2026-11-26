@@ -6,9 +6,13 @@ use trix_core::{Contact, Phone};
 pub const PROPFIND_ADDRESSBOOKS: &str = r#"<?xml version="1.0"?>
 <d:propfind xmlns:d="DAV:"><d:prop><d:displayname/><d:resourcetype/></d:prop></d:propfind>"#;
 
-/// Every card of an address book, with its vCard.
+/// Every card of an address book, with only the parts of its vCard the view uses (no pictures:
+/// the server's own address book can have hundreds of people). A server that sends whole cards
+/// anyway works too.
 pub const ADDRESSBOOK_QUERY: &str = r#"<?xml version="1.0"?>
-<card:addressbook-query xmlns:d="DAV:" xmlns:card="urn:ietf:params:xml:ns:carddav"><d:prop><card:address-data/></d:prop></card:addressbook-query>"#;
+<card:addressbook-query xmlns:d="DAV:" xmlns:card="urn:ietf:params:xml:ns:carddav"><d:prop><card:address-data>
+<card:prop name="VERSION"/><card:prop name="UID"/><card:prop name="FN"/><card:prop name="N"/><card:prop name="ORG"/><card:prop name="TITLE"/><card:prop name="EMAIL"/><card:prop name="TEL"/><card:prop name="CLOUD"/><card:prop name="IMPP"/><card:prop name="X-MATRIX"/><card:prop name="NOTE"/><card:prop name="KIND"/><card:prop name="X-ADDRESSBOOKSERVER-KIND"/>
+</card:address-data></d:prop></card:addressbook-query>"#;
 
 /// A card as a contact (`id`: its address, `book`: its address book's name); None for a group card.
 /// A cloud id on `server` gives the Nextcloud account it belongs to.

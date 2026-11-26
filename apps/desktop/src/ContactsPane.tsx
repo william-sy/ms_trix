@@ -16,6 +16,12 @@ const contactsOf = (account: string, again = false) => {
   if (!list) {
     list = backend.contacts(account);
     loaded.set(account, list);
+    // In the log: how many from which address book (no names of people).
+    void list.then((cards) => {
+      const books = new Map<string, number>();
+      for (const c of cards) books.set(c.book, (books.get(c.book) ?? 0) + 1);
+      void backend.logUi(`contacts for ${account}: ${cards.length}${books.size ? ` (${[...books].map(([b, n]) => `${b} ${n}`).join(", ")})` : ""}`).catch(() => {});
+    }, (e) => void backend.logUi(`contacts for ${account}: ${String(e)}`).catch(() => {}));
     list.catch(() => loaded.delete(account));
   }
   return list;

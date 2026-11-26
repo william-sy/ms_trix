@@ -1617,13 +1617,13 @@ impl ProtocolAdapter for TalkAdapter {
     }
 
     async fn contacts(&self) -> Result<Vec<Contact>> {
+        /// The server's own address book of its accounts ("Accounts"), and its other generated ones.
+        const GENERATED: &str = "z-server-generated--";
         let root = format!("/remote.php/dav/addressbooks/users/{}/", percent_encoding::utf8_percent_encode(&self.dav_user().await, percent_encoding::NON_ALPHANUMERIC));
         let xml = self.dav("PROPFIND", &root, "1", contacts::PROPFIND_ADDRESSBOOKS.into()).await?;
         let books: Vec<(String, String)> = dav::multistatus(&xml)
             .into_iter()
             .filter(|r| r.types.iter().any(|t| t == "addressbook"))
-            // The server's own list of all its accounts can be very long: they're found by searching.
-            .filter(|r| !r.href.contains("z-server-generated--"))
             // From "/remote.php/" on: the server address may itself have a path.
             .filter_map(|r| {
                 let path = r.href.find("/remote.php/dav/addressbooks/").map(|at| r.href[at..].to_owned())?;
@@ -1648,6 +1648,9 @@ impl ProtocolAdapter for TalkAdapter {
         if let (true, Some(e)) = (all.is_empty(), failed) {
             return Err(e);
         }
+        // Someone in your own address book and in the server's: once, as your card.
+        let yours: HashSet<String> = all.iter().filter(|c| !c.id.contains(GENERATED)).filter_map(|c| c.user.clone()).collect();
+        all.retain(|c| !c.id.contains(GENERATED) || c.user.as_ref().is_none_or(|u| !yours.contains(u)));
         all.sort_by_cached_key(|c| c.name.to_lowercase());
         Ok(all)
     }
