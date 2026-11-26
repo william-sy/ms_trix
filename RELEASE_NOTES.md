@@ -1,5 +1,13 @@
 # Release notes
 
+## 1.8.1 (not released yet)
+
+### Fixed
+- Matrix teams: rooms you're in could be missing from their team in the Teams view (and show as
+  a plain room in Chat) until something about them changed, when the room loaded before its team,
+  or when the room names the team as its own without the team listing it (Element shows those
+  under the team too).
+
 ## 1.8.0 (2026-11-26)
 
 ### New

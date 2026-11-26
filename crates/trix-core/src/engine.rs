@@ -730,13 +730,27 @@ impl Engine {
         self.teams
             .values()
             .map(|t| {
-                let channels: Vec<String> = t
+                let joined = |id: &ConversationId| self.convs.get(id).is_some_and(|e| e.conv.as_ref().is_some_and(|c| c.invited_by.is_none()));
+                let mut channels: Vec<String> = t
                     .children
                     .iter()
                     .map(|remote| ConversationId { account: t.id.account.clone(), remote: remote.clone() })
-                    .filter(|id| self.convs.get(id).is_some_and(|e| e.conv.as_ref().is_some_and(|c| c.invited_by.is_none())))
+                    .filter(joined)
                     .map(|id| id.key())
                     .collect();
+                let joined_children = channels.len();
+                // Rooms that name this team as theirs without the team listing them (Element
+                // shows those under the team too).
+                let mut claimed: Vec<String> = self
+                    .convs
+                    .iter()
+                    .filter(|(id, e)| id.account == t.id.account && !t.children.contains(&id.remote) && e.conv.as_ref().is_some_and(|c| c.team_id.as_deref() == Some(t.id.remote.as_str())))
+                    .map(|(id, _)| id)
+                    .filter(|id| joined(id))
+                    .map(|id| id.key())
+                    .collect();
+                claimed.sort();
+                channels.extend(claimed);
                 // Sub-teams we're in are shown as teams, not as channels to join.
                 let joined_subteams = t.children.iter().filter(|c| self.teams.keys().any(|k| k.account == t.id.account && &k.remote == *c)).count();
                 let parent = self
@@ -750,7 +764,7 @@ impl Engine {
                     name: t.name.clone(),
                     topic: t.topic.clone(),
                     avatar: t.avatar_url.clone(),
-                    not_joined: t.children.len().saturating_sub(channels.len() + joined_subteams),
+                    not_joined: t.children.len().saturating_sub(joined_children + joined_subteams),
                     channels,
                     space_id: t.id.remote.clone(),
                     parent,
@@ -1116,6 +1130,22 @@ mod tests {
             mentions_me: false,
             from_me,
         })
+    }
+
+    #[test]
+    fn team_channels_include_rooms_that_name_the_team() {
+        let mut e = Engine::new();
+        let space = ConversationId { account: AccountId("a".into()), remote: "!space".into() };
+        e.handle(AdapterEvent::TeamUpserted(Team { id: space.clone(), name: "Tech".into(), topic: None, avatar_url: None, children: vec!["!listed".into(), "!notjoined".into()], order: None }), 0);
+        for (remote, team) in [("!listed", None), ("!claims", Some("!space")), ("!elsewhere", Some("!other"))] {
+            let AdapterEvent::ConversationUpserted(mut c) = upsert() else { unreachable!() };
+            c.id.remote = remote.into();
+            c.team_id = team.map(Into::into);
+            e.handle(AdapterEvent::ConversationUpserted(c), 0);
+        }
+        let team = e.teams().pop().unwrap();
+        assert_eq!(team.channels, ["a|!listed", "a|!claims"]);
+        assert_eq!(team.not_joined, 1);
     }
 
     #[test]

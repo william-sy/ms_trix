@@ -2733,7 +2733,9 @@ async fn load_room(client: Client, tx: mpsc::UnboundedSender<AdapterEvent>, acco
     }
     let Some(me) = client.user_id().map(ToOwned::to_owned) else { return };
     if let Some(team) = team_for(&account, &room).await {
+        let children = team.children.clone();
         let _ = tx.send(AdapterEvent::TeamUpserted(team));
+        reannounce(&client, &tx, &account, &index, &children).await;
         return;
     }
     let Some(conv) = conversation_for(&client, &account, room.room_id()).await else { return };
@@ -2763,6 +2765,20 @@ async fn load_room(client: Client, tx: mpsc::UnboundedSender<AdapterEvent>, acco
     }
     for ev in others_receipts(&room, &id, &me, &index).await {
         let _ = tx.send(ev);
+    }
+}
+
+/// A team's rooms announced before the team itself (they load side by side) had no team to be a
+/// channel of yet: announced again now, so they show as its channels.
+async fn reannounce(client: &Client, tx: &mpsc::UnboundedSender<AdapterEvent>, account: &AccountId, index: &Mutex<Index>, children: &[String]) {
+    for child in children {
+        let Ok(id) = RoomId::parse(child) else { continue };
+        if !index.lock().unwrap().loaded.contains(&id) {
+            continue;
+        }
+        if let Some(conv) = conversation_for(client, account, &id).await {
+            let _ = tx.send(AdapterEvent::ConversationUpserted(conv));
+        }
     }
 }
 
@@ -2798,7 +2814,9 @@ async fn room_changed(client: &Client, tx: &mpsc::UnboundedSender<AdapterEvent>,
                 return;
             }
             if let Some(team) = team_for(account, &room).await {
+                let children = team.children.clone();
                 let _ = tx.send(AdapterEvent::TeamUpserted(team));
+                reannounce(client, tx, account, index, &children).await;
                 return;
             }
             if let Some(conv) = conversation_for(client, account, room_id).await {
