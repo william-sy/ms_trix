@@ -348,23 +348,31 @@ export function App() {
   const reconcile = async () => {
     restoredRef.current = true;
     setBooting(false);
+    const asked = Date.now();
     const live = await backend.conversations();
     dispatch({ type: "upsertConvs", convs: live });
-    dropGone(live, (account) => connectionsRef.current[account]?.connected ?? true);
+    dropGone(live, (account) => connectionsRef.current[account]?.connected ?? true, asked);
     dispatch({ type: "setOrgs", orgs: await backend.accounts() });
   };
+  // When each chat last came in live from the backend.
+  const liveAt = useRef(new Map<string, number>());
   // Saved chats the server no longer has. An account that hasn't synced yet (its server may be
-  // down) keeps them until it has.
-  const dropGone = (live: Conversation[], synced: (account: string) => boolean) => {
+  // down) keeps them until it has. A chat that came in live after the list was asked for (a
+  // Matrix room still loading when the account connected) is no reason to drop: the list is
+  // older than it, and nothing would bring it back until a reload.
+  const dropGone = (live: Conversation[], synced: (account: string) => boolean, asked: number) => {
     const keep = new Set(live.map((c) => c.id));
-    const stale = stateRef.current.convs.filter((c) => synced(c.orgId) && !keep.has(c.id)).map((c) => c.id);
+    const stale = stateRef.current.convs.filter((c) => synced(c.orgId) && !keep.has(c.id) && (liveAt.current.get(c.id) ?? 0) < asked).map((c) => c.id);
     if (stale.length) dispatch({ type: "removeConvs", keys: stale });
   };
   const setConnection = (account: string, connection: Connection) => {
     const was = connectionsRef.current[account];
     connectionsRef.current = { ...connectionsRef.current, [account]: connection };
     setConnections(connectionsRef.current);
-    if (connection.connected && !was?.connected && restoredRef.current) void backend.conversations().then((live) => dropGone(live, (a) => a === account));
+    if (connection.connected && !was?.connected && restoredRef.current) {
+      const asked = Date.now();
+      void backend.conversations().then((live) => dropGone(live, (a) => a === account, asked));
+    }
   };
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -376,7 +384,11 @@ export function App() {
       // Until every account is back, keep the saved ones that haven't reconnected yet
       // (their chats are on screen already; without them their badges show "?").
       accounts: (orgs) => dispatch({ type: "setOrgs", orgs: restoredRef.current ? orgs : [...orgs, ...stateRef.current.orgs.filter((o) => !orgs.some((n) => n.id === o.id))] }),
-      conversations: (convs) => dispatch({ type: "upsertConvs", convs }),
+      conversations: (convs) => {
+        const now = Date.now();
+        for (const c of convs) liveAt.current.set(c.id, now);
+        dispatch({ type: "upsertConvs", convs });
+      },
       removed: (keys) => dispatch({ type: "removeConvs", keys }),
       messages: (items) => dispatch({ type: "appendMessages", items }),
       restored: () => void reconcile(),
