@@ -27,6 +27,7 @@ const IMAGE_EXT = /\.(png|jpe?g|gif|webp|heic|bmp)$/i;
 const VIDEO_EXT = /\.(mp4|m4v|mov|webm)$/i;
 import { OrgsContext, initialState, isUnread, reducer, timeline, unreadByOrg, type Action, type OrgFilter } from "./store";
 import { loadDrafts } from "./drafts";
+import { rememberChats } from "./chatLinks";
 import { NewChatDialog } from "./NewChatDialog";
 import { BrowseDialog } from "./BrowseDialog";
 import { ProfileCard, ProfileContext, type OpenProfile } from "./Profile";
@@ -120,6 +121,8 @@ export function App() {
   // Matrix 1:1 calls; ringing also shows a system notification in case the window is hidden.
   const convsRef = useRef(state.convs);
   convsRef.current = state.convs;
+  // Links to these chats in messages show as pills (chatLinks.ts).
+  rememberChats(state.convs);
   // Talk calls run in a webview of their own, docked in the app or in a window of their own.
   const talkCalls = useTalkCallHost((id) => {
     const conv = state.convs.find((c) => c.id === id);

@@ -26,6 +26,11 @@
   Audio & video (with *Hear yourself*: 5 seconds recorded and played back as the others would
   hear it), before joining, or during a call from the ⚙ menu. It all runs on your own computer;
   nothing is sent anywhere. Off unless you turn it on.
+- **Links to chats:** type `#` and two letters of a chat's name in the message box; Tab (or a
+  click) links that chat, shown as its name. Keep typing instead and it stays a #hashtag. Matrix
+  sends a matrix.to link with the chat's name (Element shows it as a room pill; people who aren't
+  in it are offered to join), Talk the conversation's link (Talk shows a card). Links to chats you
+  know show as a pill with the chat's picture and name, also ones sent from other apps.
 - **Call layout** (Talk calls): drag the edge of the strip of faces (beside or above a shared
   screen, under the speaker) to make the faces bigger or smaller; double-click it for the standard
   size. The layout menu has one or two rows of faces (columns beside a shared screen), so you

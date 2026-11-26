@@ -430,6 +430,10 @@ button.file-chip:hover { text-decoration: underline; }
 .rich img { max-width: 240px; max-height: 160px; vertical-align: middle; }
 .rich a, .plain a { color: var(--accent); text-decoration: underline; cursor: pointer; }
 .rich a.mention { text-decoration: none; background: var(--accent-soft); padding: 0 6px; border-radius: 10px; font-weight: 600; }
+.rich a.chat-link, .plain a.chat-link { display: inline-flex; align-items: center; gap: 4px; text-decoration: none; background: var(--accent-soft); padding: 0 7px 0 3px; border-radius: 10px; font-weight: 600; vertical-align: bottom; }
+.rich a.chat-link:not(:has(img)), .plain a.chat-link:not(:has(img)) { padding-left: 7px; }
+.chat-link-picture, .rich img.chat-link-picture { width: 16px; height: 16px; max-width: none; border-radius: 50%; object-fit: cover; }
+.chat-suggestion { display: flex; align-items: center; gap: 6px; }
 .rich hr { border: 0; border-top: 1px solid var(--border); }
 mark { background: rgba(255, 196, 0, 0.45); color: inherit; border-radius: 2px; }
 .chat-search { display: flex; align-items: center; gap: 6px; padding: 6px 16px; border-bottom: 1px solid var(--border); color: var(--text-muted); }

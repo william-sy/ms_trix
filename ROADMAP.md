@@ -106,7 +106,8 @@ plus the open items further down). S: a few hours, M: a day or two, L: several d
        About, with Check for updates), "Restart to update" (not during a call), installs only
        updates signed with our own key (Tauri updater; secrets TAURI_SIGNING_PRIVATE_KEY and
        _PASSWORD). First real update: from 1.6.0 to the version after it
-8. [ ] M. Links to chats (clicking room links works already): typing # suggests your chats after a
+8. [x] M. Links to chats (done 2026-11-26; Matrix links by room id, so links with a room address
+       stay plain links) (clicking room links works already): typing # suggests your chats after a
        letter or two (like @mentions), picking one inserts a link shown as the chat's name (Matrix:
        matrix.to, a pill in Element and Element X too, others are offered to join; Talk: the
        conversation link on the same Nextcloud, a card in Talk). No pick: it stays a #hashtag. Room

@@ -33,6 +33,7 @@ import { summarize } from "./roomEvents";
 import { capabilities } from "./mock";
 import { useEscape, usePaneWidth, useStickToBottom } from "./hooks";
 import { draftKey, draftOf, keepDraft } from "./drafts";
+import { chatLinkText } from "./chatLinks";
 import { PinnedBar, PinnedDialog, usePinned } from "./Pinned";
 import { TranslationLine, useTranslation } from "./Translate";
 import { ReconnectButton } from "./Offline";
@@ -91,7 +92,11 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
   const setLevel = (level: string) => backend.setNotificationLevel(conv.id, level).catch((e) => onNotice(String(e)));
   const copyLink = () => backend.conversationLink(conv.id).then((link) => navigator.clipboard.writeText(link)).then(() => onNotice(t("talk.linkCopied")), (e) => onNotice(String(e)));
   const getMembers = useMemo(() => (isLive ? () => backend.members(conv.id) : undefined), [conv.id]);
+  // "#" in the message box links to chats on this account (Matrix and Talk).
   const org = useOrg(conv.orgId);
+  const chatLinks = useMemo(() => (org.protocol === "matrix" || org.protocol === "talk"
+    ? { list: allConvs.filter((c) => c.orgId === conv.orgId && !c.invitedBy), link: (c: Conversation) => chatLinkText(c, org) }
+    : undefined), [allConvs, conv.orgId, org]);
   // Calls open the protocol's own call screen in a separate window (Talk for now).
   const canCall = capabilities[org.protocol].calls && !conv.invitedBy;
   // Matrix: 1:1 calls in direct chats (group calls need MatrixRTC, which the server lacks).
@@ -586,7 +591,7 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
               return calls.setHold(name === "holdcall");
             }
             onCommand(name, args);
-          }} getMembers={getMembers}
+          }} getMembers={getMembers} chats={chatLinks}
           attachments={attachments} onPickFiles={onPickFiles} onPickCloud={cloudAccounts.length && !isInvite ? () => setCloudPicker(true) : undefined} onAddFiles={onAddFiles} onRemoveAttachment={onRemoveAttachment}
           onSend={(m) => { send({ ...m, replyTo: replyTo?.id }); setReplyTo(null); }} onNotice={onNotice}
           onSchedule={isLive ? (m, at) => {
@@ -615,7 +620,7 @@ export function ChatView({ conv, messages, dispatch, onNotice, onLoadOlder, onLo
               <MessageItem key={m.id} m={m} editNow={editNow(m)} account={conv.orgId} conversation={conv.id} grouped={i > 0 && all[i - 1]!.sender === m.sender} media={mediaUi.actions} {...localActions(m)} tick={tickOf(m)} />
             ))}
           </div>
-          <Composer key={threadId} initial={draftOf(draftKey(conv.id, threadId))} onDraft={(text) => keepDraft(draftKey(conv.id, threadId), text)} onEditLast={() => editLast(replies.get(threadId) ?? [])} placeholder={t("composer.threadPlaceholder")} onSend={(m) => send({ ...m, threadRoot: threadId })} onNotice={onNotice} getMembers={getMembers}
+          <Composer key={threadId} initial={draftOf(draftKey(conv.id, threadId))} onDraft={(text) => keepDraft(draftKey(conv.id, threadId), text)} onEditLast={() => editLast(replies.get(threadId) ?? [])} placeholder={t("composer.threadPlaceholder")} onSend={(m) => send({ ...m, threadRoot: threadId })} onNotice={onNotice} getMembers={getMembers} chats={chatLinks}
             attachments={threadAttachments(threadId)} onPickFiles={() => onPickFiles(threadId)} onAddFiles={(files) => onAddFiles(files, threadId)} onRemoveAttachment={(id) => onRemoveAttachment(id, threadId)} />
         </aside>
       )}

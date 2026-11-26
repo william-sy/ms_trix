@@ -10,6 +10,7 @@ import { mainWarning, useOpenLink, useOwnDomains, warningText } from "./LinkPrev
 import { useOpenProfile } from "./Profile";
 import { HASHTAG, markTerm } from "./searchQuery";
 import { parseRoomLink, useOpenRoomLink } from "./roomLinks";
+import { pillFor, pillPicture } from "./chatLinks";
 import { dateLocale, locale, t } from "./i18n";
 
 /** Adds someone's custom emoji to your own pack (same image, a free name). */
@@ -93,6 +94,23 @@ function sanitize(html: string, account: string, own: string[], sent: Date): str
     if (url) img.setAttribute("src", url);
     if (url && img.hasAttribute("data-mx-emoticon")) img.setAttribute("data-mxc", src); // for "add to my emoji"
     else img.remove();
+  }
+  // Links to chats you know: a pill with the chat's picture and name (after the images above,
+  // which only keep the homeserver's).
+  for (const a of root.querySelectorAll("a")) {
+    const chat = pillFor(a.getAttribute("href") ?? "", a.textContent ?? "");
+    if (!chat) continue;
+    a.className = "mention chat-link";
+    a.removeAttribute("title");
+    a.textContent = chat.name;
+    const picture = pillPicture(chat);
+    if (picture) {
+      const img = doc.createElement("img");
+      img.className = "chat-link-picture";
+      img.setAttribute("src", picture);
+      img.setAttribute("alt", "");
+      a.prepend(img);
+    }
   }
   markDates(doc, root, sent);
   // Code blocks with a language get its colours.
@@ -210,8 +228,11 @@ function Linked({ text, query, own, sent }: { text: string; query?: string; own:
     const url = parts[i + 1];
     const room = parts[i + 2];
     const tag = parts[i + 3];
-    const warning = url ? mainWarning(checkLink(url, url, own)) : undefined;
-    if (url) out.push(<a key={`l${i}`} href={url} className={warning ? "link-warn" : undefined} title={warning && warningText(warning)}>{highlight(url, query, `l${i}`)}</a>);
+    const chat = url ? pillFor(url, url) : undefined;
+    const picture = chat && pillPicture(chat);
+    const warning = url && !chat ? mainWarning(checkLink(url, url, own)) : undefined;
+    if (chat) out.push(<a key={`l${i}`} href={url} className="mention chat-link">{picture && <img className="chat-link-picture" src={picture} alt="" />}{highlight(chat.name, query, `l${i}`)}</a>);
+    else if (url) out.push(<a key={`l${i}`} href={url} className={warning ? "link-warn" : undefined} title={warning && warningText(warning)}>{highlight(url, query, `l${i}`)}</a>);
     if (room) out.push(<a key={`r${i}`} className="mention" href={`https://matrix.to/#/${encodeURIComponent(room)}`}>{highlight(room, query, `r${i}`)}</a>);
     if (tag) out.push(<a key={`h${i}`} className="hashtag" href="#" data-tag={tag.toLowerCase()}>{highlight(`#${tag}`, query, `h${i}`)}</a>);
   }

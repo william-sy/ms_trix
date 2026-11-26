@@ -7,7 +7,8 @@ import { AttachIcon, EmojiIcon, FormatIcon, MicIcon, PlusIcon, SendIcon } from "
 import { sendLaterChoices } from "./scheduled";
 import { formatDuration, useVoiceRecorder, type Voice } from "./voice";
 import { backend, isLive, mediaUrl, type ImagePack, type PackImage } from "./backend";
-import type { Attachment, Member, Message, Outgoing } from "./types";
+import type { Attachment, Conversation, Member, Message, Outgoing } from "./types";
+import { Avatar } from "./Avatar";
 import { locale, t, type Key } from "./i18n";
 import { currentSettings, isMac } from "./settings";
 import { useClickOutside } from "./hooks";
@@ -37,10 +38,10 @@ const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 export const formatSize = (bytes: number) =>
   bytes < 1024 ? `${bytes} B` : bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(0)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 
-/** The text with picked mentions wrapped in pills, drawn behind the textarea. */
-function mirror(text: string, names: string[]): ReactNode[] {
-  if (!names.length) return [text];
-  const re = new RegExp(`(${names.sort((a, b) => b.length - a.length).map((n) => escapeRegExp(`@${n}`)).join("|")})`, "g");
+/** The text with picked mentions (@Name) and chats (#Name) wrapped in pills, drawn behind the textarea. */
+function mirror(text: string, tokens: string[]): ReactNode[] {
+  if (!tokens.length) return [text];
+  const re = new RegExp(`(${tokens.sort((a, b) => b.length - a.length).map(escapeRegExp).join("|")})`, "g");
   return text.split(re).map((part, i) => (i % 2 ? <span key={i} className="mention-pill">{part}</span> : part));
 }
 
@@ -65,6 +66,8 @@ interface Props {
   onTyping?: (typing: boolean) => void;
   onCommand?: (name: string, args: string) => void;
   getMembers?: () => Promise<Member[]>;
+  /** Chats "#" can link to (after two letters; Tab picks), and what a picked one is sent as. */
+  chats?: { list: Conversation[]; link: (chat: Conversation) => Promise<string | null> };
   /** What's typed, a moment after typing stops and when the box goes (another chat): the draft. */
   onDraft?: (text: string) => void;
   /** Arrow Up in the empty box within QUICK_EDIT of sending: edit the message just sent. */
@@ -95,6 +98,8 @@ export function Composer(p: Props) {
   const [members, setMembers] = useState<Member[] | null>(null);
   // Display name typed as "@Name" -> user id; turned into a proper mention on send.
   const [mentioned, setMentioned] = useState<Record<string, string>>({});
+  // Chat name typed as "#Name" -> the link it's sent as.
+  const [linked, setLinked] = useState<Record<string, string>>({});
   const [rich, setRichState] = useState(loadRich);
   const [emoji, setEmoji] = useState(false);
   const [stickers, setStickers] = useState(false);
@@ -124,6 +129,11 @@ export function Composer(p: Props) {
   const mentionHits = mentionQuery === undefined || !members ? [] : members
     .filter((m) => `${m.name} ${m.userId}`.toLowerCase().includes(mentionQuery.toLowerCase()))
     .slice(0, 8);
+  // "#" and two letters: chats to link to. Not picked (Tab or a click), it stays a #hashtag.
+  const chatQuery = p.chats && !mentionHits.length ? /(?:^|\s)#([^\s#]{2,})$/.exec(text.slice(0, cursor))?.[1] : undefined;
+  const chatHits = chatQuery === undefined ? [] : p.chats!.list
+    .filter((c) => c.name.toLowerCase().includes(chatQuery.toLowerCase()))
+    .slice(0, 6);
   // /help opens the full list; typing "/" filters it as you go.
   const [showHelp, setShowHelp] = useState(false);
   const suggestions = /^\/\S*$/.test(text) ? commandList.filter((c) => c.name.startsWith(text.slice(1).toLowerCase())) : showHelp && !text ? commandList : [];
@@ -184,18 +194,31 @@ export function Composer(p: Props) {
     update(text.slice(0, start) + inserted + text.slice(cursor), start + inserted.length);
   };
 
-  /** Backspace/Delete next to a mention removes the whole pill. */
+  const pickChat = async (chat: Conversation) => {
+    const [before, at, query] = [text, cursor, chatQuery ?? ""];
+    const link = await p.chats?.link(chat).catch(() => null);
+    if (!link) return;
+    const start = at - query.length - 1;
+    const inserted = `#${chat.name} `;
+    setLinked({ ...linked, [chat.name]: link });
+    update(before.slice(0, start) + inserted + before.slice(at), start + inserted.length);
+  };
+
+  /** Backspace/Delete next to a mention or a linked chat removes the whole pill. */
   const deleteMention = (forward: boolean): boolean => {
     const el = input.current;
     if (!el || el.selectionStart !== el.selectionEnd) return false;
     const at = el.selectionStart;
-    for (const name of Object.keys(mentioned)) {
-      const token = `@${name}`;
+    const pills: [string, Record<string, string>, (rest: Record<string, string>) => void][] = [
+      ...Object.keys(mentioned).map((name) => [`@${name}`, mentioned, setMentioned] as [string, Record<string, string>, (rest: Record<string, string>) => void]),
+      ...Object.keys(linked).map((name) => [`#${name}`, linked, setLinked] as [string, Record<string, string>, (rest: Record<string, string>) => void]),
+    ];
+    for (const [token, map, set] of pills) {
       const start = forward ? at : at - token.length;
       if (start >= 0 && text.slice(start, start + token.length) === token) {
-        const rest = { ...mentioned };
-        delete rest[name];
-        setMentioned(rest);
+        const rest = { ...map };
+        delete rest[token.slice(1)];
+        set(rest);
         update(text.slice(0, start) + text.slice(start + token.length), start);
         return true;
       }
@@ -251,6 +274,8 @@ export function Composer(p: Props) {
       out = out.split(`@${name}`).join(`[${escapeMarkdown(name)}](https://matrix.to/#/${userId})`);
       mentions.push(userId);
     }
+    // "#Chat" -> its link (Matrix: a matrix.to link with the name; Talk: the conversation link).
+    for (const [name, link] of Object.entries(linked)) out = out.split(`#${name}`).join(link);
     const usedEmotes = Object.entries(emotes).filter(([code]) => out.includes(`:${code}:`));
     const message = { text: out, emotes: usedEmotes.length ? usedEmotes : undefined, emote: result.emote, html: "html" in result ? result.html : undefined, msgtype: "msgtype" in result ? result.msgtype : undefined, mentions, attachments: attachments.length ? attachments : undefined };
     if (at !== undefined && p.onSchedule) p.onSchedule(message, at);
@@ -261,6 +286,7 @@ export function Composer(p: Props) {
     setText("");
     p.onDraft?.("");
     setMentioned({});
+    setLinked({});
     typing("");
   };
 
@@ -281,7 +307,17 @@ export function Composer(p: Props) {
           ))}
         </div>
       )}
-      {spell && !mentionHits.length && !suggestions.length && (
+      {chatHits.length > 0 && (
+        <div className="menu suggestions">
+          <div className="menu-label">{t("composer.linkChat")}</div>
+          {chatHits.map((c, i) => (
+            <button key={c.id} className={`menu-item chat-suggestion ${i === 0 ? "first" : ""}`} onMouseDown={(e) => { e.preventDefault(); void pickChat(c); }}>
+              <Avatar account={c.orgId} media={c.avatar} name={c.name} className={`tiny kind-${c.kind}`} channel={c.kind === "channel"} /> <b>{c.name}</b>
+            </button>
+          ))}
+        </div>
+      )}
+      {spell && !mentionHits.length && !chatHits.length && !suggestions.length && (
         <div className="spell-suggestion" onMouseDown={(e) => e.preventDefault()}>
           <s>{spell.word}</s> → <button className="link" onClick={acceptSpell}>{spell.fix}</button> <kbd>Tab</kbd>
         </div>
@@ -348,7 +384,7 @@ export function Composer(p: Props) {
       )}
       <div className="composer-row" hidden={voice.recording}>
         <div className="input-wrap">
-          <div className="input-mirror" ref={mirrorRef} aria-hidden>{mirror(text, Object.keys(mentioned))}{"​"}</div>
+          <div className="input-mirror" ref={mirrorRef} aria-hidden>{mirror(text, [...Object.keys(mentioned).map((n) => `@${n}`), ...Object.keys(linked).map((n) => `#${n}`)])}{"​"}</div>
           <textarea
             ref={input}
             spellCheck={currentSettings().spellCheck}
@@ -376,6 +412,11 @@ export function Composer(p: Props) {
               if ((e.key === "Tab" || e.key === "Enter") && mentionHits[0]) {
                 e.preventDefault();
                 return pickMention(mentionHits[0]);
+              }
+              // Only Tab: Enter after "#word" sends it as a hashtag.
+              if (e.key === "Tab" && chatHits[0]) {
+                e.preventDefault();
+                return void pickChat(chatHits[0]);
               }
               if (e.key === "ArrowUp" && !text && p.onEditLast && Date.now() - lastSent.current < QUICK_EDIT) {
                 e.preventDefault();

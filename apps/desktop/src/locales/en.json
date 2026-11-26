@@ -291,6 +291,7 @@
   "composer.micSilent": "Nothing was recorded: the microphone gave only silence. Check System Settings → Privacy & Security → Microphone (while developing, the app you start Trixcomm from, e.g. Terminal or VS Code, needs access).",
   "composer.noStickers": "No sticker packs yet. Add stickers to a pack in Element (or another client) and they show up here.",
   "composer.notAvailable": "/{name} isn't available here.",
+  "composer.linkChat": "Link to a chat: Tab or click (or keep typing for a #hashtag)",
   "composer.numbered": "Numbered list",
   "composer.placeholder": "Type a message",
   "composer.quote": "Quote",
